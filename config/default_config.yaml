@@ -1,0 +1,50 @@
+# ISR-RL-DMPC Default Configuration
+
+drone:
+  mass: 1.0 # kg
+  inertia: [0.05, 0.05, 0.1] # kg-m^2
+  max_acceleration: 10.0 # m/s^2
+  max_velocity: 20.0 # m/s
+  max_angular_velocity: 2.0 # rad/s
+  max_yaw_rate: 2.0 # rad/s
+  battery_capacity: 5000.0 # Wh
+
+sensor:
+  control_frequency: 50.0 # Hz
+  radar_range: 200.0 # m
+  radar_update_rate: 5.0 # Hz
+  optical_fov: 120.0 # degrees
+  optical_update_rate: 30.0 # Hz
+  rf_range: 100.0 # m
+  rf_update_rate: 10.0 # Hz
+  max_radar_targets: 50
+  max_optical_targets: 20
+
+mission:
+  grid_cell_size: 10.0 # m
+  coverage_radius: 5.0 # m
+  communication_radius: 100.0 # m
+  coverage_goal: 0.95 # m
+  min_swarm_separation: 2.0 # m
+  max_swarm_spread: 200.0 # m
+
+learning:
+  discount_factor: 0.99
+  learning_rate_critic: 1e-3
+  learning_rate_actor: 1e-4
+  batch_size: 32
+  buffer_size: 1e5
+  target_update_frequency: 1000
+  weight_coverage: 10.0
+  weight_energy: 5.0
+  weight_collision: -100.0
+  weight_target_engagement: 20.0
+  weight_formation: 2.0
+
+dmpc:
+  prediction_horizon: 10
+  control_horizon: 5
+  receding_horizon_step: 1
+  constraint_tightening: 0.95
+  solver_max_iterations: 100
+  solver_tolerance: 1e-4

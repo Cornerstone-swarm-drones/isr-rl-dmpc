@@ -4,9 +4,8 @@ Core data structures for ISR system.
 Defines DroneState, TargetState, and MissionState classes.
 """
 
-from dataclasses import dataclass, field, asdict
-from typing import Optional, List, Dict, Tuple
-from copy import deepcopy
+from dataclasses import dataclass, field
+from typing import List, Dict
 import numpy as np
 
 
