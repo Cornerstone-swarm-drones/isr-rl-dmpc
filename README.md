@@ -7,7 +7,7 @@ multi-agent control via Reinforcement Learning and Model Predictive Control.
 
 ```bash
 # Clone repository
-git clone https://github.com/isr-rl-dmpc-team/isr-rl-dmpc.git
+git clone https://github.com/Cornerstone-swarm-drones/isr-rl-dmpc.git
 cd isr-rl-dmpc
 
 # Setup virtual environment
@@ -15,7 +15,7 @@ python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements-dev.txt
+pip install -r requirements/dev.txt
 
 # Run tests
 pytest tests/
@@ -34,5 +34,5 @@ jupyter notebook notebooks/01_quickstart.ipynb
 
 ## Team
 - Jivesh Kesar: jrb252026@iitd.ac.in
-- Harsh: jrb252949@iitd.ac.in
+- Harsh: jrb252049@iitd.ac.in
 - Rohit Shankar Sinha: jrb252051@iitd.ac.in
