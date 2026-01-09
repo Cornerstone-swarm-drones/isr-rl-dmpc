@@ -7,7 +7,7 @@ multi-agent control via Reinforcement Learning and Model Predictive Control.
 
 ```bash
 # Clone repository
-git clone https://github.com/isr-rl-dmpc-team/isr-rl-dmpc.git
+git clone https://github.com/Cornerstone-swarm-drones/isr-rl-dmpc.git
 cd isr-rl-dmpc
 
 # Setup virtual environment
