@@ -233,6 +233,10 @@ class MissionLogger:
         """Log debug message."""
         self.logger.debug(message)
 
+    def info(self, message:str) -> None:
+        """Log info message."""
+        self.logger.info(message)
+
 
 class PerformanceLogger:
     """Logger for performance profiling and benchmarking."""
