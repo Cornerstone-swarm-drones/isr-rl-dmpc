@@ -366,13 +366,11 @@ class FormationController:
     ) -> Dict[int, np.ndarray]:
         """
         Update formation center and compute control
-
         Arguments:
             state_manager (StateManager): Global swarm state
             formation_center (Optional): New formation center
             formation_heading (Optional): New formation heading (rad)
             formation_type (Optional): New formation type
-
         Returns: 
             Dict mapping drone_id -> control acceleration
         """
