@@ -6,7 +6,8 @@ for drone attitude and position calculations.
 """
 
 import numpy as np
-from typing import Tuple, Union
+from typing import Tuple
+import scipy
 
 
 class QuaternionOps:
@@ -324,8 +325,7 @@ class MatrixOps:
             Matrix exponential
         """
         try:
-            from scipy.linalg import expm
-            return expm(A * t)
+            return scipy.linalg.expm(A * t)
         except ImportError:
             # Fallback: use eigendecomposition
             eigvals, eigvecs = np.linalg.eig(A)
