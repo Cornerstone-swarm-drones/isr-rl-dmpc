@@ -11,9 +11,6 @@ from typing import Tuple, Dict, Optional
 import numpy as np
 
 
-__version__ = "2.1.0_hybrid"
-
-
 @dataclass
 class DroneParameters:
     """Physical parameters of quadrotor drone"""

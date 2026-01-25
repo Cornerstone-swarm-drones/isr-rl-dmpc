@@ -99,13 +99,17 @@ class GridDecomposer:
         Returns:
             Priority Score (0-1)
         """
-        # Distance of boundary
-        min_dist=min(np.linalg.norm(point-v) for v in self.area_boundary)
-        # Normalize to area size
-        area_size=np.linalg.norm(np.max(self.area_boundary, axis=0) - np.min(self.area_boundary, axis=0))
+        # Center of mission area
+        area_center = np.mean(self.area_boundary, axis=0)
+        # Distance from area center
+        dist_center = np.linalg.norm(point - area_center)
+        # Area size scale
+        area_size = np.linalg.norm(
+            np.max(self.area_boundary, axis=0) - np.min(self.area_boundary, axis=0)
+        )
 
-        # Prio decreases towards boundary
-        prio = np.exp(-min_dist/(area_size/10))
+        # Priority decreases with distance from center
+        prio = np.exp(-dist_center / (area_size / 10.0))
         return np.clip(prio, 0.1, 1.0) # Normalized Prio
     
     def get_cells_by_priority(self) -> List[GridCell]:
@@ -145,7 +149,7 @@ class WaypointGenerator:
         elif opt_strat == 'sweep':
             cell_seq = self._sweep_path(cells)
         elif opt_strat == 'spiral':
-            cell_seq == self._spiral_path(cells)
+            cell_seq = self._spiral_path(cells)
         else:
             cell_seq = cells
 
@@ -198,8 +202,12 @@ class WaypointGenerator:
         Returns:
             Estimated mission time (s)
         """
+        # Hover time applies per waypoint, even if there is only one
+        hover_time = len(waypoints) * self.hover_time
+
         if len(waypoints) < 2:
-            return 0.0
+            # No travel, only hover + buffer
+            return hover_time * 1.2
         
         # Travel time
         path_lenght = 0.0
@@ -208,8 +216,6 @@ class WaypointGenerator:
             path_lenght += dist
 
         travel_time = path_lenght/ (drone_speed + 1e-6)
-
-        hover_time = len(waypoints) * self.hover_time
         total_time = (travel_time + hover_time) *1.2 # 20% buffer for turns and vertival movements
 
         return total_time

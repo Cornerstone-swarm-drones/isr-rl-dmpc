@@ -13,9 +13,6 @@ import cvxpy as cp
 from scipy.linalg import block_diag
 
 
-__version__ = "2.1.0_hybrid"
-
-
 @dataclass
 class HybridDMPCConfig:
     """Configuration for Hybrid DMPC"""
