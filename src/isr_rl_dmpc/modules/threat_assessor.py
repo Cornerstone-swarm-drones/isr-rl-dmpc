@@ -231,7 +231,7 @@ class ThreatAssessor:
         classification_threat = base_threat * confidence
         return np.clip(classification_threat, 0, 1)
     
-    def _classify_theat_level(self, score: float) -> ThreatLevel:
+    def _classify_threat_level(self, score: float) -> ThreatLevel:
         """Classify threat score into discrete level"""
         if score < 10:
             return ThreatLevel.NEGLIGIBLE

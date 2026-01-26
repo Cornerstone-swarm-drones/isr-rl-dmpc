@@ -16,7 +16,7 @@ from .threat_assessor import (
 )
 from .task_allocator import (
     TaskType, TaskStatus, ISRTask, DroneCapability, 
-    HungarianAssignmentAlgorithm, TaskAllocator, 
+    HungarianAssignment, TaskAllocator, 
 )
 from .dmpc_controller import (
     DMPCConfig, CostWeightNetwork, DynamicsResidualNetwork, ValueNetworkMPC, 
@@ -52,7 +52,7 @@ __all__ = [
 
     # 6 Task Allocator
     "TaskType", "TaskStatus", "ISRTask", "DroneCapability", 
-    "HungarianAssignmentAlgorithm", "TaskAllocator", 
+    "HungarianAssignment", "TaskAllocator", 
 
     # 7 DMPC Controller
     "DMPCConfig", "CostWeightNetwork", "DynamicsResidualNetwork", "ValueNetworkMPC", 

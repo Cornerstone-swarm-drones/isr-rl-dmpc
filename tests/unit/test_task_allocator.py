@@ -10,7 +10,7 @@ import numpy as np
 from unittest.mock import Mock
 from isr_rl_dmpc import (
     ISRTask, TaskType, TaskStatus, DroneCapability,
-    HungarianAssignmentAlgorithm, TaskAllocator, 
+    HungarianAssignment, TaskAllocator, 
 )
 
 class TestISRTaskBasics:
@@ -60,7 +60,7 @@ class TestHungarianAlgorithm:
     
     @pytest.fixture
     def hungarian(self):
-        return HungarianAssignmentAlgorithm()
+        return HungarianAssignment()
     
     def test_square_cost_matrix(self, hungarian):
         """Hungarian algorithm solves square cost matrices."""

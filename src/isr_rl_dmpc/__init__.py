@@ -22,7 +22,7 @@ from .modules import (
 )
 from .modules import (
     TaskType, TaskStatus, ISRTask, DroneCapability, 
-    HungarianAssignmentAlgorithm, TaskAllocator, 
+    HungarianAssignment, TaskAllocator, 
 )
 from .modules import (
     DMPCConfig, CostWeightNetwork, DynamicsResidualNetwork, ValueNetworkMPC, 
@@ -61,7 +61,7 @@ __all__ = [
 
     # 6 Task Allocator
     "TaskType", "TaskStatus", "ISRTask", "DroneCapability", 
-    "HungarianAssignmentAlgorithm", "TaskAllocator", 
+    "HungarianAssignment", "TaskAllocator", 
 
     # 7 DMPC Controller
     "DMPCConfig", "CostWeightNetwork", "DynamicsResidualNetwork", "ValueNetworkMPC", 
@@ -74,36 +74,15 @@ __all__ = [
     "Transition", "ValueNetwork", "PolicyNetwork", "ExperienceBuffer", "LearningModule",
     
     # Config
-    "Config",
-    "load_config",
-    "create_default_config_yaml",
+    "Config", "load_config", "create_default_config_yaml",
 
     # Utils
-    "UnitConversions", 
-    "AttitudeConversions", 
-    "PositionProjections", 
-    "BearingDistance", 
-    "TimeConversions",
-    "ColoredFormatter",
-    "JSONFormatter",
-    "MetricsLogger",
-    "MissionLogger",
-    "PerformanceLogger",
-    "Timer",
-    "setup_logging",
-    "get_logger",
-    "configure_file_logging",
-    "configure_rotating_file_logging",
-    "QuaternionOps",
-    "MatrixOps",
-    "CoordinateTransform",
-    "GeometryOps",
-    "NumericalOps",
-    'TrajectoryVisualizer',
-    "MissionVisualizer",
-    "LearningVisualizer",
-    "FormationVisualizer",
-    "EnergyVisualizer",
+    "UnitConversions", "AttitudeConversions", "PositionProjections", "BearingDistance", 
+    "TimeConversions", "ColoredFormatter", "JSONFormatter", "MetricsLogger",
+    "MissionLogger", "PerformanceLogger", "Timer", "setup_logging", "get_logger",
+    "configure_file_logging", "configure_rotating_file_logging", "QuaternionOps", "MatrixOps",
+    "CoordinateTransform", "GeometryOps", "NumericalOps", 'TrajectoryVisualizer',
+    "MissionVisualizer", "LearningVisualizer", "FormationVisualizer", "EnergyVisualizer",
     "StatisticsVisualizer",
 
 ]
