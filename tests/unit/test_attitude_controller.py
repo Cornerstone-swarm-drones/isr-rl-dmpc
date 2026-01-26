@@ -230,7 +230,6 @@ class TestAttitudeController:
     
     @pytest.fixture
     def controller(self):
-        from attitude_controller import DroneParameters, AttitudeController
         params = DroneParameters()
         return AttitudeController(params)
     
