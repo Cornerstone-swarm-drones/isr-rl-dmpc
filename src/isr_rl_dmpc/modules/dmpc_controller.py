@@ -110,7 +110,7 @@ class ValueNetworkMPC(nn.Module):
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Terminal cost function"""
-        return self.network(x)
+        return self.network(x).squeeze(-1)
 
 
 class MPCSolver:

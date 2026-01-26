@@ -94,7 +94,7 @@ class TestQuaternionConversions:
         
         q = controller.matrix_to_quaternion(R)
         
-        assert q.shape == (3,)
+        assert q.shape == (4,)
     
     def test_quaternion_normalization(self, controller):
         """Quaternions are normalized."""
@@ -236,7 +236,7 @@ class TestAttitudeController:
     def test_controller_initialization(self, controller):
         """Attitude controller initializes."""
         assert controller is not None
-        assert hasattr(controller, 'so3_controller')
+        assert hasattr(controller, 'controller')
         assert hasattr(controller, 'gain_network')
     
     def test_control_loop(self, controller):

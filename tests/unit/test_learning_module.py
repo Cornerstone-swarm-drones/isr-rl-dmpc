@@ -49,27 +49,23 @@ class TestValueNetwork:
     
     def test_forward_pass(self, network):
         """Forward pass computes values."""
+        network.eval()
         state = torch.randn(1, 20)
-        
         value = network(state)
-        
         assert value.shape == (1,)
     
     def test_batch_forward(self, network):
         """Network handles batch inputs."""
         batch_states = torch.randn(32, 20)
-        
         values = network(batch_states)
-        
         assert values.shape == (32,)
     
     def test_single_state(self, network):
         """Network handles single state."""
+        network.eval()
         state = torch.randn(20)
-        
         value = network(state)
-        
-        assert value.is_scalar()
+        assert value.numel() == 1
 
 
 class TestPolicyNetwork:
@@ -87,8 +83,8 @@ class TestPolicyNetwork:
     
     def test_forward_pass(self, network):
         """Forward pass computes mean and log std."""
+        network.eval()
         state = torch.randn(1, 20)
-        
         mean, log_std = network(state)
         
         assert mean.shape == (1, 4)
@@ -96,8 +92,8 @@ class TestPolicyNetwork:
     
     def test_sample_action(self, network):
         """Sample actions from policy."""
+        network.eval()
         state = torch.randn(1, 20)
-        
         action, log_prob = network.sample(state)
         
         assert action.shape == (1, 4)
@@ -125,7 +121,6 @@ class TestExperienceBuffer:
             next_state=np.random.randn(20),
             done=False
         )
-        
         buffer.add(transition)
         
         assert len(buffer) == 1
@@ -143,7 +138,6 @@ class TestExperienceBuffer:
                 done=i % 2 == 0
             )
             buffer.add(transition)
-        
         states, actions, rewards, next_states, dones = buffer.sample(batch_size=5)
         
         assert states.shape == (5, 20)
@@ -165,7 +159,6 @@ class TestExperienceBuffer:
                 done=False
             )
             buffer.add(transition, priority=float(i + 1))
-        
         states, _, _, _, _ = buffer.sample(batch_size=5, use_priorities=True)
         
         assert states.shape == (5, 20)
@@ -193,7 +186,6 @@ class TestLearningModule:
             'rewards': [float(i) for i in range(10)],
             'dones': [i == 9 for i in range(10)]
         }
-        
         trajectory, total_reward = learning.collect_trajectory(mission_data)
         
         assert len(trajectory) == 10
@@ -204,7 +196,6 @@ class TestLearningModule:
         rewards = torch.randn(32)
         next_values = torch.randn(32)
         dones = torch.ones(32)
-        
         targets = learning.compute_td_targets(rewards, next_values, dones)
         
         assert targets.shape == (32,)
@@ -222,7 +213,6 @@ class TestLearningModule:
                 done=False
             )
             learning.buffer.add(transition)
-        
         loss = learning.update_value_function(batch_size=32)
         
         assert isinstance(loss, float)
@@ -241,7 +231,6 @@ class TestLearningModule:
                 done=i == 9
             )
             trajectory.append(transition)
-        
         policy_grad, avg_advantage = learning.compute_policy_gradient(trajectory)
         
         assert policy_grad.shape == (4,)
@@ -261,7 +250,6 @@ class TestLearningModule:
             )
             trajectory.append(transition)
             learning.buffer.add(transition)
-        
         stats = learning.learning_step(trajectory)
         
         assert 'value_loss' in stats
@@ -281,7 +269,6 @@ class TestLearningStatistics:
         learning.reward_history = [10.0, 15.0, 20.0]
         learning.td_error_history = [0.5, 0.3, 0.2]
         learning.value_loss_history = [0.1, 0.08, 0.06]
-        
         stats = learning.get_learning_statistics()
         
         assert 'avg_episode_reward' in stats
@@ -302,9 +289,7 @@ class TestLearningCheckpoints:
     def test_save_checkpoint(self, learning, tmp_path):
         """Save learning checkpoint."""
         checkpoint_path = tmp_path / "learning_checkpoint.pt"
-        
         learning.save_checkpoint(checkpoint_path)
-        
         assert checkpoint_path.exists()
     
     def test_load_checkpoint(self, learning, tmp_path):
@@ -337,8 +322,8 @@ class TestGaussianPolicy:
     
     def test_sample_from_policy(self, learning):
         """Sample actions from learned policy."""
+        learning.policy_network.eval()
         state = torch.randn(1, 20)
-        
         action, log_prob = learning.policy_network.sample(state)
         
         assert action.shape == (1, 4)

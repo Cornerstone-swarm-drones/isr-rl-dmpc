@@ -42,7 +42,6 @@ class TestCostWeightNetwork:
     def test_forward_pass(self, network):
         """Forward pass produces valid output."""
         state = torch.randn(1, 11)
-        
         scales = network(state)
         
         assert scales.shape == (1, 3)
@@ -51,9 +50,7 @@ class TestCostWeightNetwork:
     def test_batch_forward(self, network):
         """Network handles batch input."""
         batch_states = torch.randn(32, 11)
-        
         scales = network(batch_states)
-        
         assert scales.shape == (32, 3)
 
 
@@ -72,7 +69,6 @@ class TestDynamicsResidualNetwork:
         """Network outputs state-dimension residuals."""
         state = torch.randn(1, 11)
         control = torch.randn(1, 3)
-        
         residual = network(state, control)
         
         assert residual.shape == (1, 11)
@@ -81,7 +77,6 @@ class TestDynamicsResidualNetwork:
         """Network handles batch residuals."""
         batch_states = torch.randn(32, 11)
         batch_controls = torch.randn(32, 3)
-        
         residuals = network(batch_states, batch_controls)
         
         assert residuals.shape == (32, 11)
@@ -97,17 +92,13 @@ class TestValueNetworkMPC:
     def test_terminal_value(self, network):
         """Terminal value network outputs scalar values."""
         state = torch.randn(1, 11)
-        
         value = network(state)
-        
         assert value.shape == (1,)
     
     def test_batch_terminal_values(self, network):
         """Network computes batch terminal values."""
         batch_states = torch.randn(32, 11)
-        
         values = network(batch_states)
-        
         assert values.shape == (32,)
 
 
@@ -127,7 +118,7 @@ class TestMPCSolver:
     def test_solve_mpc(self, solver):
         """Solve MPC problem for given state."""
         x0 = np.random.randn(11)
-        x_ref = np.random.randn(20, 11)
+        x_ref = np.random.randn(21, 11)
         A = np.eye(11)
         B = np.zeros((11, 3))
         Q = np.eye(11)
@@ -142,7 +133,7 @@ class TestMPCSolver:
     def test_collision_constraints(self, solver):
         """MPC respects collision avoidance constraints."""
         x0 = np.zeros(11)
-        x_ref = np.zeros((20, 11))
+        x_ref = np.zeros((21, 11))
         A = np.eye(11)
         B = np.zeros((11, 3))
         Q = np.eye(11)
@@ -151,10 +142,7 @@ class TestMPCSolver:
         
         # Neighbor position nearby
         neighbor_pos = np.array([2.0, 0.0, 0.0])
-        
-        u_opt, info = solver.solve(x0, x_ref, A, B, Q, R, P,
-                                   neighbor_positions=[neighbor_pos])
-        
+        u_opt, info = solver.solve(x0, x_ref, A, B, Q, R, P, neighbor_positions=[neighbor_pos])
         assert u_opt.shape == (20, 3)
 
 
@@ -175,7 +163,7 @@ class TestDMPC:
     def test_forward_pass(self, dmpc):
         """Forward pass computes control."""
         x = np.random.randn(11)
-        x_ref = np.random.randn(20, 11)
+        x_ref = np.random.randn(21, 11)
         
         u_opt, info = dmpc(x, x_ref)
         
@@ -186,8 +174,7 @@ class TestDMPC:
     def test_adaptive_scaling(self, dmpc):
         """Cost matrices scaled adaptively by network."""
         x = np.random.randn(11)
-        x_ref = np.random.randn(20, 11)
-        
+        x_ref = np.random.randn(21, 11)
         u_opt, info = dmpc(x, x_ref)
         
         Q_scale, R_scale, P_scale = info['weight_scales']

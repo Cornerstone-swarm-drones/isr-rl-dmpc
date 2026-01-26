@@ -428,7 +428,7 @@ class LearningModule:
         rewards = mission_data.get('rewards', [])
         dones = mission_data.get('dones', [])
         
-        for i in range(len(rewards) - 1):
+        for i in range(len(actions)):
             transition = Transition(
                 state=states[i],
                 action=actions[i],

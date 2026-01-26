@@ -9,6 +9,7 @@ import torch.optim as optim
 from dataclasses import dataclass
 from typing import Tuple, Dict, Optional
 import numpy as np
+from scipy.spatial.transform import Rotation as R_tool
 
 
 @dataclass
@@ -18,7 +19,7 @@ class DroneParameters:
     inertia: np.ndarray = None  # 3x3 inertia matrix
     
     motor_speed_max: float = 800.0  # rad/s
-    motor_constant: float = 8.27e-6  # N/(rad/s)²
+    motor_constant: float = 8.27e-6  # N/(rad/s)^2
     thrust_max_per_rotor: float = 25.0  # N
     
     arm_length: float = 0.215  # meters
@@ -75,48 +76,17 @@ class GeometricController:
         self.inertia_inv = np.linalg.inv(self.inertia)
     
     def quaternion_to_matrix(self, q: np.ndarray) -> np.ndarray:
-        """Convert quaternion to rotation matrix SO(3)"""
-        q = q / (np.linalg.norm(q) + 1e-10)  # Normalize
-        qw, qx, qy, qz = q[0], q[1], q[2], q[3]
-        
-        R = np.array([
-            [1 - 2*(qy**2 + qz**2), 2*(qx*qy - qw*qz), 2*(qx*qz + qw*qy)],
-            [2*(qx*qy + qw*qz), 1 - 2*(qx**2 + qz**2), 2*(qy*qz - qw*qx)],
-            [2*(qx*qz - qw*qy), 2*(qy*qz + qw*qx), 1 - 2*(qx**2 + qy**2)]
-        ])
-        return R
+        """Convert scalar-first quaternion [w, x, y, z] to rotation matrix SO(3)"""
+        # SciPy expects [x, y, z, w], so we reorder
+        q_scipy = np.array([q[1], q[2], q[3], q[0]])
+        rot = R_tool.from_quat(q_scipy)
+        return rot.as_matrix()
     
     def matrix_to_quaternion(self, R: np.ndarray) -> np.ndarray:
-        """Convert rotation matrix to quaternion"""
-        trace = np.trace(R)
-        
-        if trace > 0:
-            s = 0.5 / np.sqrt(trace + 1.0)
-            qw = 0.25 / s
-            qx = (R[2, 1] - R[1, 2]) * s
-            qy = (R[0, 2] - R[2, 0]) * s
-            qz = (R[1, 0] - R[0, 1]) * s
-        else:
-            if R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
-                s = 2.0 * np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2])
-                qw = (R[2, 1] - R[1, 2]) / s
-                qx = 0.25 * s
-                qy = (R[0, 1] + R[1, 0]) / s
-                qz = (R[0, 2] + R[2, 0]) / s
-            elif R[1, 1] > R[2, 2]:
-                s = 2.0 * np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2])
-                qw = (R[0, 2] - R[2, 0]) / s
-                qx = (R[0, 1] + R[1, 0]) / s
-                qy = 0.25 * s
-                qz = (R[1, 2] + R[2, 1]) / s
-            else:
-                s = 2.0 * np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1])
-                qw = (R[1, 0] - R[0, 1]) / s
-                qx = (R[0, 2] + R[2, 0]) / s
-                qy = (R[1, 2] + R[2, 1]) / s
-                qz = 0.25 * s
-        
-        return np.array([qw, qx, qy, qz])
+        """Convert rotation matrix to scalar-first quaternion [w, x, y, z]"""
+        rot = R_tool.from_matrix(R)
+        q = rot.as_quat()  # Returns [x, y, z, w]
+        return np.array([q[3], q[0], q[1], q[2]]) # Reorder to [w, x, y, z]
     
     def attitude_error(self, R: np.ndarray, R_d: np.ndarray) -> np.ndarray:
         """Compute attitude error on SO(3) manifold"""
@@ -158,33 +128,28 @@ class GeometricController:
         Geometric control law: τ = -Kp*e_R - Kd*e_ω + ω×(J*ω)
         
         Args:
-            R: Current attitude (3×3)
+            R: Current attitude (3x3)
             omega: Current angular velocity (3,)
-            R_d: Desired attitude (3×3)
+            R_d: Desired attitude (3x3)
             omega_d: Desired angular velocity (3,), default zero
             Kp, Kd: Gain multipliers from adaptation network
         
         Returns:
             tau: Control torque (3,)
         """
-        if omega_d is None:
-            omega_d = np.zeros(3)
-        
-        if Kp is None:
-            Kp = self.params.Kp_attitude
-        if Kd is None:
-            Kd = self.params.Kd_attitude
+        if omega_d is None: omega_d = np.zeros(3)
+        Kp = Kp if Kp is not None else self.params.Kp_attitude
+        Kd = Kd if Kd is not None else self.params.Kd_attitude
         
         # Attitude error
         e_R = self.attitude_error(R, R_d)
         
         # Angular velocity error
-        e_omega = omega - omega_d
+        e_omega = omega - (R.T @ R_d @ omega_d) # Better for high-dynamic tracking
         
         # Control law
         tau_R = -Kp * e_R
-        tau_omega = -Kd * e_omega
-        
+        tau_omega = -Kd * e_omega 
         # Gyroscopic compensation: ω × (J*ω)
         J_omega = self.inertia @ omega
         tau_gyro = np.cross(omega, J_omega)
@@ -196,7 +161,7 @@ class GeometricController:
 
 class AttitudeController:
     """
-    Hybrid attitude control: SO(3) math (Geometric Controller) + PyTorch gain adaptation
+    Attitude control: SO(3) math (Geometric Controller) + PyTorch gain adaptation
     """
     
     def __init__(self, params: DroneParameters):
@@ -204,7 +169,7 @@ class AttitudeController:
         self.device = torch.device(params.device)
         
         # Pure SO(3) controller (numpy, real-time)
-        self.so3_controller = GeometricController(params)
+        self.controller = GeometricController(params)
         
         # PyTorch gain adaptation network
         self.gain_network = GainAdaptationNetwork(state_dim=11).to(self.device)
@@ -232,34 +197,29 @@ class AttitudeController:
     def control_loop(self, state: np.ndarray, reference: np.ndarray,
                     use_adaptation: bool = True) -> Dict:
         """
-        Complete control loop: position → attitude → motor commands
+        Complete control loop: position -> attitude -> motor commands
         
         Args:
-            state: [11] Current state [p(3), v(3), a(3), ψ, ψ̇]
-            reference: [12] Reference state [p(3), v(3), a(3), ψ, (unused)]
+            state: [11] Current state [p(3), v(3), a(3), yaw_angle, yaw_rate]
+            reference: [12] Reference state [p(3), v(3), a(3), yaw_angle, (unused)]
             use_adaptation: Whether to use learned gain adaptation
         
         Returns:
             Dictionary with motor_thrusts, torque, etc.
         """
-        p = state[0:3]
-        v = state[3:6]
-        a = state[6:9]
-        psi = state[9]
-        psi_dot = state[10]
+        p, v, a = state[0:3], state[3:6], state[6:9]
+        psi, psi_dot = state[9], state[10]
         
-        p_d = reference[0:3]
-        v_d = reference[3:6]
-        a_d = reference[6:9]
+        p_d, v_d, a_d = reference[0:3], reference[3:6], reference[6:9]
         psi_d = reference[9]
         
-        # Step 1: Position PD control → desired acceleration
+        # Step 1: Position PD control -> desired acceleration
         e_p = p - p_d
         e_v = v - v_d
         a_des = a_d - self.params.Kp_position * e_p - self.params.Kd_position * e_v
         
-        # Step 2: Differential flatness → desired attitude
-        R_d = self.so3_controller.desired_attitude_from_accel(a_des, psi_d)
+        # Step 2: Differential flatness -> desired attitude
+        R_d = self.controller.desired_attitude_from_accel(a_des, psi_d)
         
         # Step 3: Current attitude (from Euler angles in state)
         R = self._euler_to_matrix(np.array([0.0, 0.0, psi]))
@@ -270,12 +230,14 @@ class AttitudeController:
         Kp = self.params.Kp_attitude * Kp_mult
         Kd = self.params.Kd_attitude * Kd_mult
         
-        # Step 5: SO(3) control law → torque
-        tau = self.so3_controller.control_law(R, omega, R_d, Kp=Kp, Kd=Kd)
+        # Step 5: SO(3) control law -> torque
+        tau = self.controller.control_law(R, omega, R_d, Kp=Kp, Kd=Kd)
         
         # Step 6: Total force from desired acceleration
         g = 9.81
-        F_total = self.params.mass * (a_des[2] + g)
+        # Project desired acceleration onto current body z-axis for thrust command
+        z_axis = R[:, 2]
+        F_total = self.params.mass * (a_des + np.array([0, 0, g])) @ z_axis
         F_total = np.clip(F_total, 0, 4 * self.params.thrust_max_per_rotor)
         
         # Step 7: Motor mixing [F, τ_x, τ_y, τ_z] → [ω₁, ω₂, ω₃, ω₄]
@@ -305,28 +267,9 @@ class AttitudeController:
         return tuple(multipliers.cpu().numpy())
     
     def _euler_to_matrix(self, euler: np.ndarray) -> np.ndarray:
-        """Convert Euler angles (roll, pitch, yaw) to SO(3)"""
-        roll, pitch, yaw = euler[0], euler[1], euler[2]
-        
-        Rz = np.array([
-            [np.cos(yaw), -np.sin(yaw), 0],
-            [np.sin(yaw), np.cos(yaw), 0],
-            [0, 0, 1]
-        ])
-        
-        Ry = np.array([
-            [np.cos(pitch), 0, np.sin(pitch)],
-            [0, 1, 0],
-            [-np.sin(pitch), 0, np.cos(pitch)]
-        ])
-        
-        Rx = np.array([
-            [1, 0, 0],
-            [0, np.cos(roll), -np.sin(roll)],
-            [0, np.sin(roll), np.cos(roll)]
-        ])
-        
-        return Rz @ Ry @ Rx
+        """Convert Euler angles (roll, pitch, yaw) (XYZ) to SO(3)"""
+        rot = R_tool.from_euler('xyz', [euler[0], euler[1], euler[2]])
+        return rot.as_matrix()
     
     def learn_gain_adaptation(self, states: torch.Tensor, target_gains: torch.Tensor,
                              batch_size: int = 32, epochs: int = 10):
