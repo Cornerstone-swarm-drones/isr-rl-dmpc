@@ -1,4 +1,7 @@
-from .core import DroneState, TargetState, MissionState, StateManager
+from .core import (
+    DroneState, TargetState, MissionState, StateManager, 
+    DroneStateEstimator, TargetStateEstimator, SensorType,
+)
 from .config import Config, load_config, create_default_config_yaml
 from .utils import *
 from .modules import (
@@ -8,28 +11,67 @@ from .modules import (
     FormationType, FormationConfig, ConsensusState, 
     FormationGeometry, ConsensusController, FormationController,
 )
+from .modules import SensorFusionManager
+from .modules import (
+    TargetClassification, FeatureType, ClassificationFeature, 
+    TargetSignature, FeatureExtractor, BayesianClassifier,
+    ClassificationEngine, 
+)
+from .modules import (
+    ThreatLevel, ThreatAssessment, ThreatParameters, ThreatAssessor,
+)
+from .modules import (
+    TaskType, TaskStatus, ISRTask, DroneCapability, 
+    HungarianAssignmentAlgorithm, TaskAllocator, 
+)
+from .modules import (
+    DMPCConfig, CostWeightNetwork, DynamicsResidualNetwork, ValueNetworkMPC, 
+    MPCSolver, DMPC,
+)
+from .modules import(
+    DroneParameters, GainAdaptationNetwork, GeometricController, AttitudeController,
+)
+from .modules import (
+    Transition, ValueNetwork, PolicyNetwork, ExperienceBuffer, LearningModule,
+)
 
 __all__ = [
     # Core
-    "DroneState", 
-    "TargetState", 
-    "MissionState", 
-    "StateManager",
+    "DroneState",  "TargetState",  "MissionState",  "StateManager",
+    "DroneStateEstimator", "TargetStateEstimator", "SensorType",
     
     # Modules
     # 1 Mission Planner
-    "GridCell",
-    "GridDecomposer",
-    "WaypointGenerator",
-    "MissionPlanner",
+    "GridCell", "GridDecomposer", "WaypointGenerator", "MissionPlanner",
 
     # 2 Formation Controller
-    "FormationType",
-    "FormationConfig",
-    "ConsensusState",
-    "FormationGeometry",
-    "ConsensusController",
-    "FormationController",
+    "FormationType", "FormationConfig", "ConsensusState", "FormationGeometry",
+    "ConsensusController", "FormationController",
+
+    # 3 Sensor Fusion
+    "SensorFusionManager",
+
+    # 4 Classification Engine
+    "TargetClassification", "FeatureType", "ClassificationFeature", 
+    "TargetSignature", "FeatureExtractor", "BayesianClassifier",
+    "ClassificationEngine", 
+
+    # 5 Threat Assessor
+    "ThreatLevel", "ThreatAssessment", "ThreatParameters", "ThreatAssessor",
+
+    # 6 Task Allocator
+    "TaskType", "TaskStatus", "ISRTask", "DroneCapability", 
+    "HungarianAssignmentAlgorithm", "TaskAllocator", 
+
+    # 7 DMPC Controller
+    "DMPCConfig", "CostWeightNetwork", "DynamicsResidualNetwork", "ValueNetworkMPC", 
+    "MPCSolver", "DMPC",
+
+    # 8 Attitude Controller
+    "DroneParameters", "GainAdaptationNetwork", "GeometricController", "AttitudeController",
+
+    # 9 Learning Module
+    "Transition", "ValueNetwork", "PolicyNetwork", "ExperienceBuffer", "LearningModule",
     
     # Config
     "Config",

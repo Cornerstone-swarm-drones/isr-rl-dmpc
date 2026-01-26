@@ -1,5 +1,5 @@
 """
-Hybrid Attitude Controller: Geometric Control + PyTorch Gain Adaptation
+Attitude Controller: Geometric Control + PyTorch Gain Adaptation
 Real-time SO(3) control with learned parameter adjustment
 """
 
@@ -63,7 +63,7 @@ class GainAdaptationNetwork(nn.Module):
         return torch.sigmoid(factors) * 1.5 + 0.5
 
 
-class SO3AttitudeController:
+class GeometricController:
     """
     Geometric attitude control on SO(3) manifold
     Pure numpy for real-time execution (no autograd overhead)
@@ -194,9 +194,9 @@ class SO3AttitudeController:
         return tau
 
 
-class HybridAttitudeController:
+class AttitudeController:
     """
-    Hybrid attitude control: SO(3) math + PyTorch gain adaptation
+    Hybrid attitude control: SO(3) math (Geometric Controller) + PyTorch gain adaptation
     """
     
     def __init__(self, params: DroneParameters):
@@ -204,7 +204,7 @@ class HybridAttitudeController:
         self.device = torch.device(params.device)
         
         # Pure SO(3) controller (numpy, real-time)
-        self.so3_controller = SO3AttitudeController(params)
+        self.so3_controller = GeometricController(params)
         
         # PyTorch gain adaptation network
         self.gain_network = GainAdaptationNetwork(state_dim=11).to(self.device)
@@ -373,7 +373,7 @@ class HybridAttitudeController:
 # Usage example
 if __name__ == "__main__":
     params = DroneParameters(device="cpu")
-    controller = HybridAttitudeController(params)
+    controller = AttitudeController(params)
     
     # Example execution
     state = np.random.randn(11).astype(np.float32)

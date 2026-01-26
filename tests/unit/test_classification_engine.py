@@ -7,6 +7,9 @@ Focused unit tests for feature extraction and target classification
 import pytest
 import numpy as np
 from unittest.mock import Mock
+from isr_rl_dmpc import (
+    ClassificationFeature, FeatureType, TargetSignature, FeatureExtractor, ClassificationEngine,
+)
 
 
 class TestClassificationFeature:
@@ -14,7 +17,6 @@ class TestClassificationFeature:
     
     def test_feature_initialization(self):
         """ClassificationFeature initializes correctly."""
-        from isr_rl_dmpc.modules import ClassificationFeature, FeatureType
         
         feature = ClassificationFeature(
             feature_type=FeatureType.SIGNAL_STRENGTH,
@@ -34,7 +36,6 @@ class TestTargetSignature:
     
     def test_target_signature_initialization(self):
         """TargetSignature initializes as empty signature."""
-        from isr_rl_dmpc.modules import TargetSignature
         
         sig = TargetSignature(target_id="T1")
         
@@ -49,7 +50,6 @@ class TestFeatureExtractorSignal:
     @pytest.fixture
     def extractor(self):
         """Feature extractor."""
-        from isr_rl_dmpc.modules import FeatureExtractor
         return FeatureExtractor()
     
     def test_extract_signal_strength(self, extractor):
@@ -93,7 +93,6 @@ class TestFeatureExtractorMotion:
     
     @pytest.fixture
     def extractor(self):
-        from isr_rl_dmpc.modules import FeatureExtractor
         return FeatureExtractor()
     
     def test_extract_hovering_target(self, extractor):
@@ -152,7 +151,6 @@ class TestFeatureExtractorPerformance:
     
     @pytest.fixture
     def extractor(self):
-        from isr_rl_dmpc.modules import FeatureExtractor
         return FeatureExtractor()
     
     def test_signal_extraction_fast(self, extractor):
@@ -176,7 +174,6 @@ class TestClassificationEngine:
     @pytest.fixture
     def classifier(self):
         """Classification engine."""
-        from isr_rl_dmpc.modules import ClassificationEngine
         return ClassificationEngine()
     
     def test_classifier_initialization(self, classifier):
@@ -229,7 +226,6 @@ class TestClassificationTargetTypes:
     
     @pytest.fixture
     def classifier(self):
-        from isr_rl_dmpc.modules import ClassificationEngine
         return ClassificationEngine()
     
     def test_slow_ground_target_likely_civilian(self, classifier):
@@ -275,7 +271,6 @@ class TestRFSignalMeasurements:
     
     @pytest.fixture
     def extractor(self):
-        from isr_rl_dmpc.modules import FeatureExtractor
         return FeatureExtractor()
     
     def test_extract_from_rf_signal_dict(self, extractor):
@@ -307,7 +302,6 @@ class TestClassificationConsistency:
     
     @pytest.fixture
     def classifier(self):
-        from isr_rl_dmpc.modules import ClassificationEngine
         return ClassificationEngine()
     
     def test_same_target_consistent_classification(self, classifier):

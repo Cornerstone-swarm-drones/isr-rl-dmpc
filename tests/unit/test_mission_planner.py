@@ -7,6 +7,7 @@ Focused unit tests for grid-based mission planning
 import pytest
 import numpy as np
 from unittest.mock import Mock
+from isr_rl_dmpc import GridDecomposer, GridCell, WaypointGenerator
 
 
 class TestGridDecomposerBasics:
@@ -19,7 +20,7 @@ class TestGridDecomposerBasics:
     
     def test_grid_creates_correct_cell_count(self, rectangular_area):
         """20m grid on 100x100 area creates 5x5 grid (25 cells)."""
-        from isr_rl_dmpc import GridDecomposer
+        
         decomposer = GridDecomposer(rectangular_area, grid_resolution=20.0)
         cells = decomposer.decompose_grid(n_drones=4)
         
@@ -27,7 +28,7 @@ class TestGridDecomposerBasics:
     
     def test_cell_centers_inside_area_bounds(self, rectangular_area):
         """All cell centers must be within mission area."""
-        from isr_rl_dmpc import GridDecomposer
+        
         decomposer = GridDecomposer(rectangular_area, grid_resolution=20.0)
         cells = decomposer.decompose_grid(n_drones=4)
         
@@ -40,7 +41,7 @@ class TestGridDecomposerBasics:
     
     def test_cells_have_positive_area(self, rectangular_area):
         """Grid cells have positive area."""
-        from isr_rl_dmpc import GridDecomposer
+        
         decomposer = GridDecomposer(rectangular_area, grid_resolution=20.0)
         cells = decomposer.decompose_grid(n_drones=4)
         
@@ -49,7 +50,7 @@ class TestGridDecomposerBasics:
     
     def test_priority_values_normalized(self, rectangular_area):
         """Cell priorities bounded in [0.1, 1.0]."""
-        from isr_rl_dmpc import GridDecomposer
+        
         decomposer = GridDecomposer(rectangular_area, grid_resolution=20.0)
         cells = decomposer.decompose_grid(n_drones=4)
         
@@ -66,7 +67,7 @@ class TestGridDecomposerPriority:
     
     def test_cells_sorted_by_priority_descending(self, rectangular_area):
         """get_cells_by_priority returns sorted descending."""
-        from isr_rl_dmpc import GridDecomposer
+        
         decomposer = GridDecomposer(rectangular_area, grid_resolution=20.0)
         decomposer.decompose_grid(n_drones=4)
         
@@ -78,7 +79,7 @@ class TestGridDecomposerPriority:
     
     def test_center_cells_higher_priority_than_edges(self, rectangular_area):
         """Cells near center have higher priority than edge cells."""
-        from isr_rl_dmpc import GridDecomposer
+        
         decomposer = GridDecomposer(rectangular_area, grid_resolution=20.0)
         cells = decomposer.decompose_grid(n_drones=4)
         
@@ -97,7 +98,7 @@ class TestWaypointGeneratorBasics:
     @pytest.fixture
     def sample_cells(self, rectangular_area):
         """Create 4 simple grid cells."""
-        from isr_rl_dmpc import GridCell
+        
         return [
             GridCell(0, np.array([[0, 0], [20, 0], [20, 20], [0, 20]]), None, 400, 0.8),
             GridCell(1, np.array([[20, 0], [40, 0], [40, 20], [20, 20]]), None, 400, 0.7),
@@ -111,7 +112,7 @@ class TestWaypointGeneratorBasics:
     
     def test_waypoint_path_has_altitude(self, sample_cells):
         """Generated waypoints include altitude dimension."""
-        from isr_rl_dmpc import WaypointGenerator
+        
         gen = WaypointGenerator(altitude=50.0)
         
         path = gen.generate_path(sample_cells, np.array([0, 0]), opt_strat='nearest')
@@ -121,7 +122,7 @@ class TestWaypointGeneratorBasics:
     
     def test_waypoint_path_visits_all_cells(self, sample_cells):
         """Path includes waypoint for each cell."""
-        from isr_rl_dmpc import WaypointGenerator
+        
         gen = WaypointGenerator(altitude=50.0)
         
         path = gen.generate_path(sample_cells, np.array([0, 0]), opt_strat='nearest')
@@ -131,7 +132,7 @@ class TestWaypointGeneratorBasics:
     @pytest.mark.parametrize("strategy", ["nearest", "sweep", "spiral"])
     def test_all_path_strategies_work(self, sample_cells, strategy):
         """All path optimization strategies produce valid paths."""
-        from isr_rl_dmpc import WaypointGenerator
+        
         gen = WaypointGenerator(altitude=50.0)
         
         path = gen.generate_path(sample_cells, np.array([0, 0]), opt_strat=strategy)
@@ -144,7 +145,7 @@ class TestMissionTime:
     
     def test_mission_time_positive(self):
         """Mission time is always positive."""
-        from isr_rl_dmpc import WaypointGenerator
+        
         gen = WaypointGenerator(altitude=50.0, hover_time=5.0)
         
         waypoints = np.array([[0, 0, 50], [50, 0, 50], [100, 100, 50]])
@@ -154,7 +155,7 @@ class TestMissionTime:
     
     def test_mission_time_scales_with_distance(self):
         """Longer paths take more time."""
-        from isr_rl_dmpc import WaypointGenerator
+        
         gen = WaypointGenerator(altitude=50.0, hover_time=5.0)
         
         short_path = np.array([[0, 0, 50], [10, 0, 50]])
@@ -167,7 +168,7 @@ class TestMissionTime:
     
     def test_mission_time_includes_hover(self):
         """Mission time includes hover time at waypoints."""
-        from isr_rl_dmpc import WaypointGenerator
+        
         gen = WaypointGenerator(altitude=50.0, hover_time=10.0)
         
         waypoints = np.array([[0, 0, 50]])  # Single waypoint, no travel
@@ -187,7 +188,7 @@ class TestResolutionParameterization:
     @pytest.mark.parametrize("resolution", [10.0, 20.0, 50.0])
     def test_different_resolutions_create_correct_cells(self, rectangular_area, resolution):
         """Grid resolution affects cell count correctly."""
-        from isr_rl_dmpc import GridDecomposer
+        
         decomposer = GridDecomposer(rectangular_area, grid_resolution=resolution)
         cells = decomposer.decompose_grid(n_drones=4)
         
@@ -196,7 +197,7 @@ class TestResolutionParameterization:
     
     def test_finer_resolution_creates_more_cells(self, rectangular_area):
         """Finer resolution (smaller cells) creates more cells."""
-        from isr_rl_dmpc import GridDecomposer
+        
         decomp_coarse = GridDecomposer(rectangular_area, grid_resolution=20.0)
         decomp_fine = GridDecomposer(rectangular_area, grid_resolution=10.0)
         

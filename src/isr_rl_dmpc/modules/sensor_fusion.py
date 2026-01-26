@@ -147,7 +147,7 @@ class SensorFusionManager:
             position=initial_position.copy(),
             velocity=np.zeros(3),
             acceleration=np.zeros(3),
-            yaw=0.0,
+            yaw_angle=0.0,
             yaw_rate=0.0
         )
         
@@ -316,7 +316,7 @@ class SensorFusionManager:
                 tid: {
                     'position': state.position,
                     'velocity': state.velocity,
-                    'yaw': state.yaw
+                    'yaw': state.yaw_angle
                 }
                 for tid, state in target_states.items()
             },

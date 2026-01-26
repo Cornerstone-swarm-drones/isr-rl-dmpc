@@ -7,6 +7,7 @@ Focused unit tests for sensor fusion, drone state, and target tracking
 import pytest
 import numpy as np
 from unittest.mock import Mock
+from isr_rl_dmpc import SensorFusionManager
 
 
 class TestSensorFusionManagerBasics:
@@ -14,7 +15,7 @@ class TestSensorFusionManagerBasics:
     
     def test_sensor_fusion_initializes(self):
         """SensorFusionManager initializes correctly."""
-        from isr_rl_dmpc.modules import SensorFusionManager
+        
         fusion = SensorFusionManager(dt=0.02, n_targets=50)
         
         assert fusion.dt == 0.02
@@ -22,7 +23,7 @@ class TestSensorFusionManagerBasics:
     
     def test_drone_state_prediction(self):
         """Drone state predicts from IMU."""
-        from isr_rl_dmpc.modules import SensorFusionManager
+        
         fusion = SensorFusionManager(dt=0.02)
         
         imu_accel = np.array([0.0, 0.0, -9.81])  # Hovering
@@ -40,7 +41,7 @@ class TestDroneStateEstimation:
     
     @pytest.fixture
     def fusion(self):
-        from isr_rl_dmpc.modules import SensorFusionManager
+        
         return SensorFusionManager(dt=0.02)
     
     def test_predict_then_update_gps(self, fusion):
@@ -95,7 +96,7 @@ class TestTargetTracking:
     
     @pytest.fixture
     def fusion(self):
-        from isr_rl_dmpc.modules import SensorFusionManager
+        
         return SensorFusionManager(dt=0.02, n_targets=50)
     
     def test_create_target_track(self, fusion):
@@ -155,7 +156,7 @@ class TestMultiSensorFusion:
     
     @pytest.fixture
     def fusion(self):
-        from isr_rl_dmpc.modules import SensorFusionManager
+        
         return SensorFusionManager(dt=0.02)
     
     def test_update_target_radar(self, fusion):
@@ -194,7 +195,7 @@ class TestGlobalStateVector:
     
     @pytest.fixture
     def fusion(self):
-        from isr_rl_dmpc.modules import SensorFusionManager
+        
         return SensorFusionManager(dt=0.02)
     
     def test_global_state_vector_drone_only(self, fusion):
@@ -236,7 +237,7 @@ class TestSensorFusionStep:
     
     @pytest.fixture
     def fusion(self):
-        from isr_rl_dmpc.modules import SensorFusionManager
+        
         return SensorFusionManager(dt=0.02)
     
     def test_step_with_all_sensors(self, fusion):
@@ -284,7 +285,7 @@ class TestSystemStatus:
     
     @pytest.fixture
     def fusion(self):
-        from isr_rl_dmpc.modules import SensorFusionManager
+        
         return SensorFusionManager(dt=0.02)
     
     def test_get_system_status(self, fusion):

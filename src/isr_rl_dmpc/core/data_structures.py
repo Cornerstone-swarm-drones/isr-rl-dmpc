@@ -193,17 +193,39 @@ class TargetState:
 
     def to_vector(self) -> np.ndarray:
         """
-        Flatten the state (excluding covariance) into a 12-dimensional vector for RL.
+        Flatten the state (excluding covariance) into a 11-dimensional vector for RL.
 
         Returns:
-            State Vector (12,): [pos(3), vel(3), acc(3), yaw(1), yaw_rate(1), confidence(1)]
+            State Vector (12,): [pos(3), vel(3), acc(3), yaw(1), yaw_rate(1)]
         """
         return np.concatenate([
             self.position,
             self.velocity,
             self.acceleration,
-            np.array([self.yaw_angle, self.yaw_rate, self.classification_confidence])
+            np.array([self.yaw_angle, self.yaw_rate])
         ])
+    
+    @classmethod
+    def from_vector(cls, state: np.ndarray) -> "TargetState":
+        """Reconstruct TargetState from an 11D EKF state vector."""
+        assert state.shape == (11,), f"Expected 11D state, got {state.shape}"
+
+        return cls(
+            position=state[0:3].copy(),
+            velocity=state[3:6].copy(),
+            acceleration=state[6:9].copy(),
+            yaw_angle=float(state[9]),
+            yaw_rate=float(state[10]),
+
+            # The EKF does not propagate these; keep sensible defaults.
+            classification_confidence=0.0,
+            target_id="unknown",
+            threat_score=0.0,
+            covariance=np.eye(11),
+            last_update=0.0,
+            tracked_duration=0.0,
+        )
+
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization."""

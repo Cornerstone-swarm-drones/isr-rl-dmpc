@@ -7,6 +7,9 @@ Focused unit tests for formation geometry and control
 import pytest
 import numpy as np
 from unittest.mock import Mock
+from isr_rl_dmpc import (
+    FormationConfig, FormationType, FormationGeometry, ConsensusState, ConsensusController
+)
 
 
 class TestFormationConfigBasics:
@@ -14,7 +17,6 @@ class TestFormationConfigBasics:
     
     def test_formation_config_has_defaults(self):
         """FormationConfig initializes with sensible defaults."""
-        from isr_rl_dmpc.modules import FormationConfig, FormationType
         config = FormationConfig()
         
         assert config.type == FormationType.WEDGE
@@ -30,7 +32,6 @@ class TestFormationGeometryBasics:
     @pytest.fixture
     def formation_geo(self):
         """Formation geometry generator."""
-        from isr_rl_dmpc.modules import FormationGeometry, FormationConfig
         config = FormationConfig(spacing=10.0, scale=50.0)
         return FormationGeometry(config)
     
@@ -59,7 +60,6 @@ class TestLineFormation:
     
     @pytest.fixture
     def formation_geo(self):
-        from isr_rl_dmpc.modules import FormationGeometry, FormationConfig, FormationType
         config = FormationConfig(type=FormationType.LINE, spacing=10.0)
         return FormationGeometry(config)
     
@@ -82,7 +82,6 @@ class TestWedgeFormation:
     
     @pytest.fixture
     def formation_geo(self):
-        from isr_rl_dmpc.modules import FormationGeometry, FormationConfig, FormationType
         config = FormationConfig(type=FormationType.WEDGE, spacing=10.0)
         return FormationGeometry(config)
     
@@ -111,7 +110,6 @@ class TestCircularFormation:
     
     @pytest.fixture
     def formation_geo(self):
-        from isr_rl_dmpc.modules import FormationGeometry, FormationConfig, FormationType
         config = FormationConfig(type=FormationType.CIRCULAR, scale=50.0)
         return FormationGeometry(config)
     
@@ -137,7 +135,6 @@ class TestGridFormation:
     
     @pytest.fixture
     def formation_geo(self):
-        from isr_rl_dmpc.modules import FormationGeometry, FormationConfig, FormationType
         config = FormationConfig(type=FormationType.GRID, spacing=10.0)
         return FormationGeometry(config)
     
@@ -163,7 +160,6 @@ class TestSphereFormation:
     
     @pytest.fixture
     def formation_geo(self):
-        from isr_rl_dmpc.modules import FormationGeometry, FormationConfig, FormationType
         config = FormationConfig(type=FormationType.SPHERE, scale=50.0)
         return FormationGeometry(config)
     
@@ -189,7 +185,6 @@ class TestFormationRotation:
     
     @pytest.fixture
     def formation_geo(self):
-        from isr_rl_dmpc.modules import FormationGeometry, FormationConfig, FormationType
         config = FormationConfig(type=FormationType.LINE, spacing=10.0)
         return FormationGeometry(config)
     
@@ -202,7 +197,7 @@ class TestFormationRotation:
         pos_90 = formation_geo.generate_desired_positions(3, center, np.pi/2)
         
         # Positions should be different
-        assert not np.allclose(pos_0[1], pos_90[1])
+        assert not np.allclose(pos_0[0], pos_90[0])
 
 
 class TestConsensusStateBasics:
@@ -210,8 +205,6 @@ class TestConsensusStateBasics:
     
     def test_consensus_state_initializes(self):
         """ConsensusState initializes with defaults."""
-        from isr_rl_dmpc.modules import ConsensusState
-        
         state = ConsensusState()
         
         assert state.position.shape == (3,)
@@ -226,7 +219,6 @@ class TestConsensusController:
     @pytest.fixture
     def controller(self):
         """Consensus controller."""
-        from isr_rl_dmpc.modules import ConsensusController
         return ConsensusController(dt=0.02, comm_range=100.0)
     
     def test_controller_initialization(self, controller):

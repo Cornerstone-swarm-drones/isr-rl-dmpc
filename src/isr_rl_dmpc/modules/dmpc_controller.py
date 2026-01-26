@@ -1,5 +1,5 @@
 """
-Hybrid DMPC: CVXPY/OSQP Solver + PyTorch Learning Layers
+Module 7 - DMPC Controller: CVXPY/OSQP Solver + PyTorch Learning Layers
 Combines convex optimization safety with neural network adaptivity
 """
 
@@ -14,7 +14,7 @@ from scipy.linalg import block_diag
 
 
 @dataclass
-class HybridDMPCConfig:
+class DMPCConfig:
     """Configuration for Hybrid DMPC"""
     horizon: int = 20
     dt: float = 0.02
@@ -113,10 +113,10 @@ class ValueNetworkMPC(nn.Module):
         return self.network(x)
 
 
-class CVXPYMPCSolver:
-    """CVXPY/OSQP: Real-time convex MPC solver"""
+class MPCSolver:
+    """CVXPY: Real-time convex MPC solver"""
     
-    def __init__(self, config: HybridDMPCConfig):
+    def __init__(self, config: DMPCConfig):
         """
         Initialize CVXPY QP problem for MPC
         
@@ -259,20 +259,20 @@ class CVXPYMPCSolver:
             }
 
 
-class HybridDMPC(nn.Module):
+class DMPC(nn.Module):
     """
-    Hybrid DMPC combining:
+    DMPC combining:
     - CVXPY/OSQP for constraint-guaranteed convex optimization
     - PyTorch for learning adaptive parameters
     """
     
-    def __init__(self, config: HybridDMPCConfig):
+    def __init__(self, config: DMPCConfig):
         super().__init__()
         self.config = config
         self.device = torch.device(config.device)
         
         # CVXPY solver (classical convex optimization)
-        self.cvxpy_solver = CVXPYMPCSolver(config)
+        self.cvxpy_solver = MPCSolver(config)
         
         # PyTorch learning modules
         self.cost_weight_network = CostWeightNetwork(config.state_dim).to(self.device)
@@ -361,13 +361,7 @@ class HybridDMPC(nn.Module):
             neighbor_positions = [state[:3] for state in neighbor_states]
         
         u_opt, solve_info = self.cvxpy_solver.solve(
-            x0=x,
-            x_ref=x_ref,
-            A=A,
-            B=B,
-            Q=Q,
-            R=R,
-            P=P,
+            x0=x, x_ref=x_ref, A=A, B=B, Q=Q, R=R, P=P,
             neighbor_positions=neighbor_positions
         )
         
@@ -456,8 +450,8 @@ class HybridDMPC(nn.Module):
 
 # Usage example
 if __name__ == "__main__":
-    config = HybridDMPCConfig(device="cpu")
-    hybrid_mpc = HybridDMPC(config)
+    config = DMPCConfig(device="cpu")
+    hybrid_mpc = DMPC(config)
     
     # Example: solve MPC problem
     x0 = np.random.randn(11).astype(np.float32)
