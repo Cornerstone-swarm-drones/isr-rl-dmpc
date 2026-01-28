@@ -26,7 +26,7 @@ from .attitude_controller import(
     DroneParameters, GainAdaptationNetwork, GeometricController, AttitudeController,
 )
 from .learning_module import (
-    Transition, LearningModule,
+    Transition, ValueNetwork, PolicyNetwork, ExperienceBuffer, LearningModule,
 )
 
 
@@ -61,6 +61,6 @@ __all__ = [
     "DroneParameters", "GainAdaptationNetwork", "GeometricController", "AttitudeController",
 
     # 9 Learning Module
-    "Transition", "LearningModule",
+    "Transition", "ValueNetwork", "PolicyNetwork", "ExperienceBuffer", "LearningModule",
 
 ]
