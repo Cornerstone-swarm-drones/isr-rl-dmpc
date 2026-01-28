@@ -6,7 +6,7 @@ from .core import (
 )
 from .config import Config, load_config, create_default_config_yaml
 from .utils import *
-from .agents import ValueNetwork, PolicyNetwork, ExperienceBuffer,
+from .agents import ValueNetwork, PolicyNetwork, ExperienceBuffer
 from .modules import (
     GridCell, GridDecomposer, WaypointGenerator, MissionPlanner,
 )
