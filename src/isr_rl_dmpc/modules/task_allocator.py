@@ -65,8 +65,13 @@ class HungarianAssignment:
     """
     Hungarian algorithm for optimal assignment.
     
-    Solves the linear assignment problem to optimally match
-    tasks to drones based on cost matrix.
+    Algorithm Steps:
+        1. Copy input and handle rectangular matrices via padding
+        2. Initialize dual variables (u, v) for row/column potentials
+        3. Initialize permutation array p and predecessor array way
+        4. For each task i, find minimum cost augmenting path
+        5. Update potentials and assignments using alternating path
+        6. Return assignment for original (non-padded) tasks
     """
     
     def __init__(self):
@@ -76,61 +81,93 @@ class HungarianAssignment:
     
     def solve(self, cost_matrix: np.ndarray) -> np.ndarray:
         """
-        Solve assignment problem.
-
+        Solve assignment problem using Hungarian algorithm.
+        
+        The algorithm finds the minimum-cost perfect matching in a bipartite graph
+        represented as a cost matrix. Handles both square and rectangular matrices.
+        
         Args:
-            cost_matrix: shape (n_tasks, n_drones), lower cost is better.
-
+            cost_matrix (np.ndarray): Cost matrix of shape (n_tasks, n_drones)
+                - Lower cost = better/preferred assignment
+                - Can be rectangular (n_tasks != n_drones)
+        
         Returns:
-            assignment: 1D array of length n_tasks; element i is the
-                        chosen drone index for task i.
+            np.ndarray: Assignment array of length n_tasks where element i 
+                    indicates the assigned drone index for task i
         """
-        cost = np.asarray(cost_matrix, dtype=float)
+        
+        # Step 1: Copy and prepare cost matrix
+        cost = cost_matrix.copy().astype(float)
         n_tasks, n_drones = cost.shape
+        
+        # Handle rectangular matrices by padding with dummy high-cost entries
+        if n_tasks != n_drones:
+            if n_tasks > n_drones:
+                # More tasks than drones: add dummy drones with infeasible (high) costs
+                padding = np.full((n_tasks, n_tasks - n_drones), 1e6)
+                cost = np.hstack([cost, padding])
+            else:
+                # More drones than tasks: add dummy tasks with infeasible (high) costs
+                padding = np.full((n_drones - n_tasks, n_drones), 1e6)
+                cost = np.vstack([cost, padding])
+        
+        n = cost.shape[0]
+        
+        # Step 2: Initialize potentials and matching
+        u = np.zeros(n + 1)
+        v = np.zeros(n + 1)
+        p = np.zeros(n + 1, dtype=int)
+        way = np.zeros(n + 1, dtype=int)
+        
+        # Step 3: Main Hungarian algorithm loop
+        for i in range(1, n+1):
+            p[0] = i
+            j0 = 0
+            minv = np.full(n + 1, 1e9)
+            used = np.zeros(n + 1, dtype=bool)
 
-        # Case 1: number of tasks <= number of drones
-        # Assign each task to a unique drone (subset of drones)
-        if n_tasks <= n_drones:
-            best_perm = None
-            best_cost = float("inf")
-            # permutations over drone indices of length n_tasks
-            for cols in itertools.permutations(range(n_drones), n_tasks):
-                total = 0.0
-                for i in range(n_tasks):
-                    total += cost[i, cols[i]]
-                if total < best_cost:
-                    best_cost = total
-                    best_perm = np.array(cols, dtype=int)
+            while True:
+                used[j0] = True
+                i0 = p[j0]
+                delta = 1e9
+                j1 = 0
+                for j in range(1, n + 1):
+                    if not used[j]:
+                        cur = cost[i0 - 1, j - 1] - u[i0] - v[j]
+                        if cur < minv[j]:
+                            minv[j] = cur
+                            way[j] = j0
+                        if minv[j] < delta:
+                            delta = minv[j]
+                            j1 = j
+                for j in range(0, n + 1):
+                    if used[j]:
+                        u[p[j]] += delta
+                        v[j] -= delta
+                    else:
+                        minv[j] -= delta
+                j0 = j1
+                if p[j0] == 0:
+                    break
 
-            self.assignment = best_perm
-            return self.assignment
+            # Augment matching
+            while True:
+                j1 = way[j0]
+                p[j0] = p[j1]
+                j0 = j1
+                if j0 == 0:
+                    break
 
-        # Case 2: more tasks than drones – pad with high-cost dummy drones
-        # This is mainly to satisfy the rectangular-matrix unit test.
-        # TaskAllocator itself only calls solve when len(tasks) <= len(drones),
-        # but tests call it directly on 3x2 matrices.
-        else:
-            # Pad columns to make it square (n_tasks x n_tasks)
-            pad_cols = n_tasks - n_drones
-            padding = np.full((n_tasks, pad_cols), 1e6, dtype=float)
-            cost_padded = np.hstack([cost, padding])  # shape (n_tasks, n_tasks)
-            n = n_tasks
+        # Build assignment: p[j] = i (1-based); we want for each task i its column j
+        ans = np.full(n, -1, dtype=int)
+        for j in range(1, n + 1):
+            i = p[j] - 1
+            if 0 <= i < n:
+                ans[i] = j - 1
 
-            best_perm = None
-            best_cost = float("inf")
-            # permutations over all n columns
-            for cols in itertools.permutations(range(n), n):
-                total = 0.0
-                for i in range(n):
-                    total += cost_padded[i, cols[i]]
-                if total < best_cost:
-                    best_cost = total
-                    best_perm = np.array(cols, dtype=int)
-
-            # We only care about assignments for the original tasks.
-            # Some columns may correspond to dummy high-cost "drones".
-            self.assignment = best_perm[:n_tasks]
-            return self.assignment
+        # Return only for original tasks; assignment values are drone indices
+        self.assignment = ans[:n_tasks]
+        return self.assignment
 
 
 class TaskAllocator:

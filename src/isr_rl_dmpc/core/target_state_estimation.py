@@ -94,7 +94,7 @@ class TargetTrackingEKF:
     11D Extended Kalman Filter for a single target.
     
     State: [x, y, z, vx, vy, vz, ax, ay, az, ψ, ψ̇]
-    Matrices: 11×11
+    Matrices: 11x11
     """
     
     def __init__(self, target_id: str, initial_state: TargetState,

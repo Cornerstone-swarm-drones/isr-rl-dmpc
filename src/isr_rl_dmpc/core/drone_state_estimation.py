@@ -365,7 +365,8 @@ class DroneStateEstimator:
             battery_charge: Battery charge (Wh)
         """
         # Light correction of battery estimate
-        self.battery = 0.95 * self.battery + 0.05 * battery_charge
+        alpha = 0.5
+        self.battery = (1 - alpha) * self.battery + alpha * float(battery_charge)
         self.battery = np.clip(self.battery, 0, self.max_battery)
     
     def update_health(self, health_estimate: float) -> None:

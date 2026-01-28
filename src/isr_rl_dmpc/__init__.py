@@ -1,6 +1,8 @@
 from .core import (
     DroneState, TargetState, MissionState, StateManager, 
     DroneStateEstimator, TargetStateEstimator, SensorType,
+    RadarMeasurement, OpticalMeasurement, RFMeasurement,
+    AcousticMeasurement, TargetTrackingEKF,
 )
 from .config import Config, load_config, create_default_config_yaml
 from .utils import *
@@ -38,7 +40,8 @@ from .modules import (
 __all__ = [
     # Core
     "DroneState",  "TargetState",  "MissionState",  "StateManager",
-    "DroneStateEstimator", "TargetStateEstimator", "SensorType",
+    "DroneStateEstimator", "TargetStateEstimator", "SensorType","RadarMeasurement",
+    "OpticalMeasurement", "RFMeasurement", "AcousticMeasurement", "TargetTrackingEKF",
     
     # Modules
     # 1 Mission Planner
