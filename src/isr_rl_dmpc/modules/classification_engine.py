@@ -93,15 +93,14 @@ class FeatureExtractor:
             measurement=np.array([signal_strength_dbm, drone_distance])
         )
 
-    def extract_motion_features(self, velocity: np.ndarray,
-                               acceleration: np.ndarray,
+    def extract_motion_features(self, velocity: np.ndarray, acceleration: np.ndarray,
                                target_type: str = "ground") -> Dict[str, ClassificationFeature]:
         """
         Extract motion pattern features.
 
         Args:
             velocity (np.ndarray): Target velocity (3D, m/s)
-            acceleration (np.ndarray): Target acceleration (3D, m/s²)
+            acceleration (np.ndarray): Target acceleration (3D, m/s^2)
             target_type (str): Type of target ('ground', 'air', 'water')
 
         Returns:

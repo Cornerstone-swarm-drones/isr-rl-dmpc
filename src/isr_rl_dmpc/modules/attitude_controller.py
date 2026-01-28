@@ -125,7 +125,7 @@ class GeometricController:
                    omega_d: Optional[np.ndarray] = None,
                    Kp: float = None, Kd: float = None) -> np.ndarray:
         """
-        Geometric control law: τ = -Kp*e_R - Kd*e_ω + ω×(J*ω)
+        Geometric control law: Tau = -Kp*e_R - Kd*e_w + w×(J*w)
         
         Args:
             R: Current attitude (3x3)
@@ -150,7 +150,7 @@ class GeometricController:
         # Control law
         tau_R = -Kp * e_R
         tau_omega = -Kd * e_omega 
-        # Gyroscopic compensation: ω × (J*ω)
+        # Gyroscopic compensation: w × (J*w)
         J_omega = self.inertia @ omega
         tau_gyro = np.cross(omega, J_omega)
         

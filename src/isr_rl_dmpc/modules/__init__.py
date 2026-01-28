@@ -26,7 +26,7 @@ from .attitude_controller import(
     DroneParameters, GainAdaptationNetwork, GeometricController, AttitudeController,
 )
 from .learning_module import (
-    Transition, ValueNetwork, PolicyNetwork, ExperienceBuffer, LearningModule,
+    Transition, LearningModule,
 )
 
 
@@ -43,9 +43,8 @@ __all__ = [
     "SensorFusionManager",
 
     # 4 Classification Engine
-    "TargetClassification", "FeatureType", "ClassificationFeature", 
-    "TargetSignature", "FeatureExtractor", "BayesianClassifier",
-    "ClassificationEngine", 
+    "TargetClassification", "FeatureType", "ClassificationFeature", "TargetSignature", 
+    "FeatureExtractor", "BayesianClassifier", "ClassificationEngine", 
 
     # 5 Threat Assessor
     "ThreatLevel", "ThreatAssessment", "ThreatParameters", "ThreatAssessor",
@@ -62,6 +61,6 @@ __all__ = [
     "DroneParameters", "GainAdaptationNetwork", "GeometricController", "AttitudeController",
 
     # 9 Learning Module
-    "Transition", "ValueNetwork", "PolicyNetwork", "ExperienceBuffer", "LearningModule",
+    "Transition", "LearningModule",
 
 ]

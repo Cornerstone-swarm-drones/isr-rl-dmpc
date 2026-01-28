@@ -1,5 +1,5 @@
 """
-Module 7 - DMPC Controller: CVXPY/OSQP Solver + PyTorch Learning Layers
+Module 7 - DMPC Controller: CVXPY Solver + PyTorch Learning Layers
 Combines convex optimization safety with neural network adaptivity
 """
 
@@ -18,7 +18,7 @@ class DMPCConfig:
     """Configuration for Hybrid DMPC"""
     horizon: int = 20
     dt: float = 0.02
-    state_dim: int = 11  # [p(3), v(3), a(3), ψ, ψ̇]
+    state_dim: int = 11  # [p(3), v(3), a(3), yaw_angle, yaw_rate]
     control_dim: int = 3  # [ax, ay, az]
     n_neighbors: int = 4
     
