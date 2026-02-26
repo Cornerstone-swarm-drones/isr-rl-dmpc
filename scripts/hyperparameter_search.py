@@ -265,11 +265,12 @@ def grid_search(base_config_path: str,
             )
 
             # Composite score
+            time_bonus = min(10.0, 1.0 / (metrics['training_time'] / 60 + 1e-6))
             score = (
                 metrics['mean_reward'] * 0.4
                 + metrics['mean_coverage'] * 100 * 0.4
                 + (1 - metrics['collision_rate']) * 100 * 0.1
-                + (1 / (metrics['training_time'] / 60 + 1e-6)) * 0.1
+                + time_bonus * 0.1
             )
 
             result = {

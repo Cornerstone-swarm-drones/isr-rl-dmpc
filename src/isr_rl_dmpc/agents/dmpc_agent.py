@@ -42,7 +42,7 @@ class DMPCAgent:
         device: str = "cpu",
     ):
         """
-        Initialise DMPCAgent.
+        Initialize DMPCAgent.
 
         Args:
             state_dim: Dimension of the (flattened) state vector.
@@ -203,6 +203,8 @@ class DMPCAgent:
         )
 
         # Compute advantages
+        # Note: dones from ExperienceBuffer is already a continuation mask
+        # (1.0 - done_flag), so multiplying zeroes out next_values at terminal states
         with torch.no_grad():
             values = self.learner.value_network(states)
             next_values = self.learner.value_network(next_states)

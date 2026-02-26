@@ -257,9 +257,12 @@ def train(config_path: str,
     # Save training statistics
     stats_path = output_path / "training_stats.json"
     with open(stats_path, 'w') as f:
-        json_stats = {
-            k: [float(v) for v in vals] for k, vals in stats.items()
-        }
+        json_stats = {}
+        for k, vals in stats.items():
+            if isinstance(vals, list):
+                json_stats[k] = [float(v) for v in vals]
+            else:
+                json_stats[k] = float(vals)
         json.dump(json_stats, f, indent=2)
 
     return stats
