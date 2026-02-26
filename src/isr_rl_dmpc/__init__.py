@@ -36,7 +36,10 @@ from .modules import(
 from .modules import (
     Transition, ValueNetwork, PolicyNetwork, ExperienceBuffer, LearningModule,
 )
-from .agents import DMPCAgent
+from .agents import DMPCAgent, ActorCriticTrainer, TrainingConfig
+from .agents import PrioritizedReplayBuffer, TrajectoryBuffer
+from .models import CriticNetwork, RFClassifier, RFFingerprint
+from .models import ModelRegistry, load_checkpoint, save_checkpoint
 
 __all__ = [
     # Core
@@ -79,6 +82,18 @@ __all__ = [
 
     # Agents
     "DMPCAgent",
+    "ActorCriticTrainer",
+    "TrainingConfig",
+    "PrioritizedReplayBuffer",
+    "TrajectoryBuffer",
+
+    # Models
+    "CriticNetwork",
+    "RFClassifier",
+    "RFFingerprint",
+    "ModelRegistry",
+    "load_checkpoint",
+    "save_checkpoint",
     
     # Config
     "Config", "load_config", "create_default_config_yaml",
