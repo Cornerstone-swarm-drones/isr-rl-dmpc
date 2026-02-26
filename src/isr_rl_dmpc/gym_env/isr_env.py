@@ -1,17 +1,17 @@
 """
-OpenAI Gym-compatible environment for ISR-RL-DMPC autonomous swarm system.
+Gymnasium-compatible environment for ISR-RL-DMPC autonomous swarm system.
 
 Integrates 9 modules: mission planner, formation controller, sensor fusion,
 classifier, threat assessor, task allocator, learning-based DMPC, attitude
 controller, and learning module.
 
 Classes:
-    ISRGridEnv: Main Gym environment with Gym API compliance
+    ISRGridEnv: Main Gymnasium environment with Gymnasium API compliance
     VectorEnv: Vectorized environment wrapper for parallel training
 """
 
-import gym
-from gym import spaces
+import gymnasium as gym
+from gymnasium import spaces
 import numpy as np
 from typing import Dict, Tuple, Optional, List, Any
 from dataclasses import dataclass
@@ -36,7 +36,7 @@ class MissionConfig:
 
 class ISRGridEnv(gym.Env):
     """
-    OpenAI Gym environment for ISR swarm control.
+    Gymnasium environment for ISR swarm control.
     
     Observation space:
     - Dict with keys: 'swarm', 'targets', 'environment', 'adjacency'

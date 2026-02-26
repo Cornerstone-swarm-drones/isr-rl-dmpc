@@ -29,8 +29,8 @@ dependencies:
   - matplotlib>=3.4.0
   - ipython>=7.0.0
   
-  # Pip installations for Gym and the local package
+  # Pip installations for Gymnasium and the local package
   - pip
   - pip:
-      - gym>=0.21.0
+      - gymnasium>=0.26.0
       - -e .[dev]
