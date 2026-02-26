@@ -31,8 +31,15 @@ except ImportError:
 # Hover PWM = (mass * g / 4) / max_thrust  ≈ 0.225 for the default DroneConfig.
 # Equal motor commands produce zero roll/pitch/yaw torque so the drones remain
 # level and stationary instead of flipping from random differential thrust.
-_HOVER_PWM = DroneConfig().mass * DroneConfig().gravity / (4.0 * DroneConfig().max_thrust) \
-    if IMPORTS_AVAILABLE else 0.225
+# DroneConfig is imported alongside the other simulator symbols above.
+if IMPORTS_AVAILABLE:
+    _DEFAULT_DRONE_CFG = DroneConfig()
+    _HOVER_PWM = (
+        _DEFAULT_DRONE_CFG.mass * _DEFAULT_DRONE_CFG.gravity
+        / (4.0 * _DEFAULT_DRONE_CFG.max_thrust)
+    )
+else:
+    _HOVER_PWM = 0.225
 
 
 def _safe_patrol_action(num_drones: int, throttle: float = _HOVER_PWM) -> np.ndarray:
