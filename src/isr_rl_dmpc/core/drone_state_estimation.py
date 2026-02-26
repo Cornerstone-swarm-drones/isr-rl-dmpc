@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import logging
 
 from ..core import DroneState
+from ..utils.math_utils import QuaternionOps
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,7 @@ class AttitudeEKF:
         """
         # Quaternion derivative: dq/dt = 0.5 * q ⊗ ω
         omega = np.array([0, *gyro])
-        dq = 0.5 * self._quat_mult(self.q, omega)
+        dq = 0.5 * QuaternionOps.multiply(self.q, omega)
         
         # Update quaternion
         self.q = self.q + dq * self.dt
@@ -194,32 +195,6 @@ class AttitudeEKF:
     def get_covariance(self) -> np.ndarray:
         """Get 4×4 covariance."""
         return self.P.copy()
-    
-    @staticmethod
-    def _quat_mult(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
-        """Multiply two quaternions."""
-        w1, x1, y1, z1 = q1
-        w2, x2, y2, z2 = q2
-        
-        return np.array([
-            w1*w2 - x1*x2 - y1*y2 - z1*z2,
-            w1*x2 + x1*w2 + y1*z2 - z1*y2,
-            w1*y2 - x1*z2 + y1*w2 + z1*x2,
-            w1*z2 + x1*y2 - y1*x2 + z1*w2
-        ])
-    
-    def rotate_vector(self, v: np.ndarray) -> np.ndarray:
-        """Rotate vector by quaternion."""
-        qw, qx, qy, qz = self.q
-        x, y, z = v
-        
-        R = np.array([
-            [1 - 2*(qy**2 + qz**2), 2*(qx*qy - qw*qz), 2*(qx*qz + qw*qy)],
-            [2*(qx*qy + qw*qz), 1 - 2*(qx**2 + qz**2), 2*(qy*qz - qw*qx)],
-            [2*(qx*qz - qw*qy), 2*(qy*qz + qw*qx), 1 - 2*(qx**2 + qy**2)]
-        ])
-        
-        return R @ np.array([x, y, z])
 
 
 class AngularVelocityFilter:
@@ -298,7 +273,7 @@ class DroneStateEstimator:
         """
         try:
             # Rotate acceleration from body to world frame
-            accel_world = self.att_filter.rotate_vector(imu_accel)
+            accel_world = QuaternionOps.rotate_vector(self.att_filter.q, imu_accel)
             accel_world[2] -= 9.81  # Remove gravity
             
             # Update all filters
