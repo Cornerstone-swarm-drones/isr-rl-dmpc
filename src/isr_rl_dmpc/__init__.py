@@ -36,6 +36,7 @@ from .modules import(
 from .modules import (
     Transition, ValueNetwork, PolicyNetwork, ExperienceBuffer, LearningModule,
 )
+from .agents import DMPCAgent
 
 __all__ = [
     # Core
@@ -75,6 +76,9 @@ __all__ = [
 
     # 9 Learning Module
     "Transition", "ValueNetwork", "PolicyNetwork", "ExperienceBuffer", "LearningModule",
+
+    # Agents
+    "DMPCAgent",
     
     # Config
     "Config", "load_config", "create_default_config_yaml",
@@ -83,7 +87,8 @@ __all__ = [
     "UnitConversions", "AttitudeConversions", "PositionProjections", "BearingDistance", 
     "TimeConversions", "ColoredFormatter", "JSONFormatter", "MetricsLogger",
     "MissionLogger", "PerformanceLogger", "Timer", "setup_logging", "get_logger",
-    "configure_file_logging", "configure_rotating_file_logging", "QuaternionOps", "MatrixOps",
+    "configure_file_logging", "configure_rotating_file_logging", "setup_logger",
+    "QuaternionOps", "MatrixOps",
     "CoordinateTransform", "GeometryOps", "NumericalOps", 'TrajectoryVisualizer',
     "MissionVisualizer", "LearningVisualizer", "FormationVisualizer", "EnergyVisualizer",
     "StatisticsVisualizer",

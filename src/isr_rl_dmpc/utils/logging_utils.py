@@ -480,3 +480,44 @@ def configure_rotating_file_logging(logger_name: str, filepath: str,
     )
     rotating_handler.setFormatter(formatter)
     logger.addHandler(rotating_handler)
+
+
+def setup_logger(name: str, log_file: Optional[str] = None,
+                 level: str = 'INFO') -> logging.Logger:
+    """
+    Create a named logger with console and optional file output.
+
+    Args:
+        name: Logger name
+        log_file: Optional path to a log file
+        level: Logging level
+
+    Returns:
+        Configured Logger instance
+    """
+    logger = logging.getLogger(name)
+    logger.setLevel(getattr(logging, level))
+
+    # Avoid adding duplicate handlers when called multiple times
+    if not logger.handlers:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(getattr(logging, level))
+        console_formatter = ColoredFormatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%H:%M:%S'
+        )
+        console_handler.setFormatter(console_formatter)
+        logger.addHandler(console_handler)
+
+    if log_file is not None:
+        log_file = Path(log_file)
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(str(log_file))
+        file_handler.setLevel(getattr(logging, level))
+        file_formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
+
+    return logger
