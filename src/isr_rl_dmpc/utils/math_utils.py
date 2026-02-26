@@ -604,11 +604,7 @@ class NumericalOps:
         Returns:
             Normalized angle in [0, 2π]
         """
-        while angle < 0:
-            angle += 2 * np.pi
-        while angle >= 2 * np.pi:
-            angle -= 2 * np.pi
-        return angle
+        return angle % (2 * np.pi)
 
     @staticmethod
     def angle_diff(angle1: float, angle2: float) -> float:
