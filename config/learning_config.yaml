@@ -14,7 +14,7 @@ policy_network:
   output_activation: "tanh"
   dropout_rate: 0.0
   weight_init: "xavier_uniform"
-  log_std_min: -20.0
+  log_std_min: -5.0
   log_std_max: 2.0
 
 training:
