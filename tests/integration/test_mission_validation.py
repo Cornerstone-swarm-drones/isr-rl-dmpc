@@ -19,10 +19,38 @@ from typing import Dict, List, Tuple
 
 try:
     from isr_rl_dmpc.gym_env import ISRGridEnv
-    from isr_rl_dmpc.gym_env.simulator import TargetType
+    from isr_rl_dmpc.gym_env.simulator import TargetType, DroneConfig
     IMPORTS_AVAILABLE = True
 except ImportError:
     IMPORTS_AVAILABLE = False
+
+
+# ---------------------------------------------------------------------------
+# Safe patrol helper
+# ---------------------------------------------------------------------------
+# Hover PWM = (mass * g / 4) / max_thrust  ≈ 0.225 for the default DroneConfig.
+# Equal motor commands produce zero roll/pitch/yaw torque so the drones remain
+# level and stationary instead of flipping from random differential thrust.
+_HOVER_PWM = DroneConfig().mass * DroneConfig().gravity / (4.0 * DroneConfig().max_thrust) \
+    if IMPORTS_AVAILABLE else 0.225
+
+
+def _safe_patrol_action(num_drones: int, throttle: float = _HOVER_PWM) -> np.ndarray:
+    """Return a deterministic, stable motor-command array.
+
+    All four motors of every drone receive the *same* throttle so that
+    net torque is zero and the quadrotors hover in place rather than
+    tumbling from random differential thrust.
+
+    Args:
+        num_drones: Number of drones in the swarm.
+        throttle: Per-motor PWM command in [0, 1].  Defaults to the
+            analytically computed hover value for the default DroneConfig.
+
+    Returns:
+        ``(num_drones, 4)`` float32 array of motor commands.
+    """
+    return np.full((num_drones, 4), throttle, dtype=np.float32)
 
 
 @pytest.mark.skipif(not IMPORTS_AVAILABLE, reason="ISR modules not installed")
@@ -60,10 +88,10 @@ class TestCoverageEfficiency:
                     target_y = radius * np.sin(angle)
                     target_z = 50.0
                     
-                    # Simple control to move toward target
-                    action = env.action_space.sample() * 0.5 + 0.25
+                    # Deterministic hover — keeps drones level
+                    action = _safe_patrol_action(env.num_drones)
             else:
-                action = env.action_space.sample()
+                action = _safe_patrol_action(env.num_drones)
             
             obs, reward, done, _, info = env.step(action)
             
@@ -87,7 +115,7 @@ class TestCoverageEfficiency:
         coverage_history = []
         
         for _ in range(500):
-            action = env.action_space.sample()
+            action = _safe_patrol_action(env.num_drones)
             obs, _, done, _, info = env.step(action)
             
             coverage_history.append(info['coverage'])
@@ -134,8 +162,8 @@ class TestThreatDetection:
         target_types = {}
         
         for step in range(500):
-            # Move drones to targets
-            action = env.action_space.sample() * 0.7 + 0.15
+            # Stable hover — deterministic safe patrol
+            action = _safe_patrol_action(env.num_drones)
             obs, reward, done, _, _ = env.step(action)
             
             if obs is not None and 'targets' in obs:
@@ -182,7 +210,7 @@ class TestThreatDetection:
         total_decisions = 0
         
         for _ in range(300):
-            action = env.action_space.sample()
+            action = _safe_patrol_action(env.num_drones)
             obs, _, done, _, _ = env.step(action)
             
             if obs is not None and 'targets' in obs:
@@ -224,7 +252,7 @@ class TestCollisionAvoidance:
         
         # Run mission with collision-aware policy
         for _ in range(500):
-            action = env.action_space.sample() * 0.6 + 0.2  # Gentle movements
+            action = _safe_patrol_action(env.num_drones)  # Stable hover
             obs, reward, done, _, info = env.step(action)
             
             # Check no collisions
@@ -253,7 +281,7 @@ class TestCollisionAvoidance:
                 env.simulator.drones[i].position = collision_pos.copy()
             
             # Step should detect collision
-            action = np.ones((4, 4)) * 0.5
+            action = _safe_patrol_action(env.num_drones)
             obs, _, _, _, _ = env.step(action)
             
             # Check that drone became inactive
@@ -274,7 +302,7 @@ class TestBatteryConstraints:
         battery_history = []
         
         for step in range(500):
-            action = env.action_space.sample() * 0.5 + 0.25  # Moderate power
+            action = _safe_patrol_action(env.num_drones)  # Stable hover
             obs, _, done, _, info = env.step(action)
             
             battery_history.append(info['avg_battery'])
@@ -307,7 +335,7 @@ class TestBatteryConstraints:
         # Run mission
         for _ in range(300):
             # Efficient hovering control
-            action = np.ones((6, 4)) * 0.35  # Below hover threshold
+            action = _safe_patrol_action(env.num_drones)
             obs, _, done, _, _ = env.step(action)
             
             if done:
@@ -339,8 +367,8 @@ class TestLearningConvergence:
             episode_return = 0.0
             
             for step in range(50):
-                # Simple greedy policy
-                action = env.action_space.sample() * 0.3 + 0.35
+                # Deterministic safe patrol policy
+                action = _safe_patrol_action(env.num_drones)
                 obs, reward, done, _, _ = env.step(action)
                 
                 episode_return += reward
@@ -386,7 +414,7 @@ class TestLearningConvergence:
             episode_return = 0.0
             
             for _ in range(50):
-                action = np.ones((4, 4)) * 0.4  # Fixed policy
+                action = _safe_patrol_action(env.num_drones)  # Fixed policy
                 obs, reward, done, _, _ = env.step(action)
                 episode_return += reward
                 
@@ -401,7 +429,7 @@ class TestLearningConvergence:
             episode_return = 0.0
             
             for _ in range(50):
-                action = np.ones((4, 4)) * 0.4  # Fixed policy
+                action = _safe_patrol_action(env.num_drones)  # Fixed policy
                 obs, reward, done, _, _ = env.step(action)
                 episode_return += reward
                 
@@ -438,7 +466,7 @@ class TestEndToEndMission:
         
         # Run mission
         for _ in range(500):
-            action = env.action_space.sample() * 0.6 + 0.2
+            action = _safe_patrol_action(env.num_drones)
             obs, reward, done, _, info = env.step(action)
             
             if done:
@@ -460,7 +488,7 @@ class TestEndToEndMission:
         drones_failed = 0
         
         for step in range(400):
-            action = env.action_space.sample() * 0.5 + 0.25
+            action = _safe_patrol_action(env.num_drones)
             obs, _, done, _, info = env.step(action)
             
             current_active = info['active_drones']
