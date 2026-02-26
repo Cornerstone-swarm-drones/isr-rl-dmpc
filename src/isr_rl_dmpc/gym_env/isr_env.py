@@ -188,6 +188,11 @@ class ISRGridEnv(gym.Env):
         self.detected_targets = set()
         self.mission_reward_history = []
         
+        # Reset reward shaper state
+        if self.reward_shaper is not None:
+            self.reward_shaper.prev_coverage = 0.0
+            self.reward_shaper.prev_energy_sum = 0.0
+        
         # Reset simulator
         if self.simulator is not None:
             self.simulator.reset()
@@ -229,6 +234,9 @@ class ISRGridEnv(gym.Env):
         # Validate action
         action = np.clip(action, 0.0, 1.0)
         
+        # Increment step count
+        self.step_count += 1
+        
         # Step simulator
         if self.simulator is not None:
             self.simulator.step(action)
@@ -252,8 +260,6 @@ class ISRGridEnv(gym.Env):
         # Get observation
         obs = self._get_observation()
         info = self._get_info()
-        
-        self.step_count += 1
         
         return obs, reward, terminated, False, info  # (obs, reward, terminated, truncated, info)
 
@@ -284,39 +290,50 @@ class ISRGridEnv(gym.Env):
         """
         Generate initial drone positions in grid formation.
 
+        Drones are spread across the mission area for effective coverage.
+
         Returns:
             Array of positions (num_drones, 3)
         """
         grid_side = int(np.ceil(np.sqrt(self.num_drones)))
-        spacing = 10.0  # m between drones
+        grid_x, grid_y = self.grid_size
+        grid_res = 100.0  # m per cell
+        # Space drones evenly across the grid area
+        spacing_x = (grid_x * grid_res) / (grid_side + 1)
+        spacing_y = (grid_y * grid_res) / (grid_side + 1)
         
         positions = []
         for i in range(self.num_drones):
             row = i // grid_side
             col = i % grid_side
-            x = col * spacing
-            y = row * spacing
+            x = (col + 1) * spacing_x
+            y = (row + 1) * spacing_y
             z = 50.0  # altitude
             positions.append(np.array([x, y, z]))
         
         return np.array(positions)
 
     def _update_coverage(self) -> None:
-        """Update coverage map based on drone positions."""
+        """Update coverage map based on drone positions and sensor footprint."""
         if self.simulator is None:
             return
         
-        # Simple grid coverage: mark grid cells visited by drones
         grid_x, grid_y = self.grid_size
         grid_res = 100.0  # m per cell (from simulator config)
+        sensor_radius_cells = 5  # sensor coverage radius in grid cells (500m at 100m/cell)
         
         for drone in self.simulator.drones:
             if drone.is_active:
                 # Map drone position to grid cell
-                cell_x = int(np.clip(drone.position[0] / grid_res, 0, grid_x - 1))
-                cell_y = int(np.clip(drone.position[1] / grid_res, 0, grid_y - 1))
-                cell_idx = cell_y * grid_x + cell_x
-                self.coverage_map[cell_idx] = 1.0
+                cx = int(np.clip(drone.position[0] / grid_res, 0, grid_x - 1))
+                cy = int(np.clip(drone.position[1] / grid_res, 0, grid_y - 1))
+                # Mark cells within sensor radius
+                for dx in range(-sensor_radius_cells, sensor_radius_cells + 1):
+                    for dy in range(-sensor_radius_cells, sensor_radius_cells + 1):
+                        nx, ny = cx + dx, cy + dy
+                        if 0 <= nx < grid_x and 0 <= ny < grid_y:
+                            cell_idx = ny * grid_x + nx
+                            self.coverage_map[cell_idx] = 1.0
 
     def _compute_reward(self, action: np.ndarray) -> float:
         """

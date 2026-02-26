@@ -709,3 +709,8 @@ class EnvironmentSimulator:
         self.simulation_time = 0.0
         self.num_targets = 0
         self.current_wind = np.zeros(3)
+        # Reset wind model state for deterministic behavior
+        self.wind_model.wind_north = 0.0
+        self.wind_model.wind_east = 0.0
+        self.wind_model.wind_up = 0.0
+        self.wind_model.rng = self.rng
