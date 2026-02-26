@@ -18,7 +18,8 @@ from .logging_utils import (
     setup_logging,
     get_logger,
     configure_file_logging,
-    configure_rotating_file_logging
+    configure_rotating_file_logging,
+    setup_logger,
 )
 
 from .math_utils import  (
@@ -57,6 +58,7 @@ __all__ = [
     "get_logger",
     "configure_file_logging",
     "configure_rotating_file_logging",
+    "setup_logger",
     # math
     "QuaternionOps",
     "MatrixOps",
