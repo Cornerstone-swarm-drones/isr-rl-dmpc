@@ -13,7 +13,7 @@ setup(
     install_requires=[
         "numpy>=1.21.0",
         "scipy>=1.7.0",
-        "gym>=0.21.0",
+        "gymnasium>=0.26.0",
         "pyyaml>=5.4",
         "pytest>=6.2.0",
         "torch>=1.9.0",
