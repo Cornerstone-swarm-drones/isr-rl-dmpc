@@ -31,6 +31,12 @@ from ..core import (
 
 logger = logging.getLogger(__name__)
 
+# Distance (m) at which range-dependent noise doubles relative to base
+_RANGE_SCALE_FACTOR: float = 1000.0
+
+# Characteristic decay distance (m) for acoustic confidence
+_ACOUSTIC_DECAY_DISTANCE: float = 500.0
+
 
 class SensorNoiseModel:
     """
@@ -76,7 +82,7 @@ class SensorNoiseModel:
         """
         sigma = self.base_noise * self.weather_factor
         if self.range_dependent:
-            sigma *= 1.0 + distance / 1000.0
+            sigma *= 1.0 + distance / _RANGE_SCALE_FACTOR
         if rng is not None:
             return float(rng.normal(0.0, sigma))
         return float(np.random.normal(0.0, sigma))
@@ -315,7 +321,7 @@ class SensorSimulator:
         noise_z = self.acoustic_model.sample(distance, self._rng)
 
         # Confidence decays with distance
-        confidence = float(np.clip(np.exp(-distance / 500.0), 0.0, 1.0))
+        confidence = float(np.clip(np.exp(-distance / _ACOUSTIC_DECAY_DISTANCE), 0.0, 1.0))
 
         return AcousticMeasurement(
             x_est=pos[0] + noise_x,

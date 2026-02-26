@@ -141,7 +141,7 @@ class PrioritizedReplayBuffer:
         self._beta = min(self._beta + self._beta_increment, 1.0)
         min_prob = probs.min()
         max_weight = (self._size * min_prob) ** (-self._beta)
-        weights = (self._size * probs[indices]) ** (-self._beta) / max_weight
+        weights = (self._size * probs[indices]) ** (-self._beta) / max(max_weight, 1e-8)
 
         return transitions, weights.astype(np.float32), indices
 

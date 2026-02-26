@@ -249,22 +249,28 @@ class ActorCriticTrainer:
             - self._config.entropy_coeff * entropy
         )
 
-        # --- Optimise actor ---
-        self._actor_optim.zero_grad()
-        actor_loss_bp = actor_loss - self._config.entropy_coeff * entropy
-        actor_loss_bp.backward(retain_graph=True)
-        nn.utils.clip_grad_norm_(
-            self._actor.parameters(), self._config.max_grad_norm
-        )
-        self._actor_optim.step()
-
-        # --- Optimise critic ---
+        # --- Optimise critic first (graph not yet freed) ---
         self._critic_optim.zero_grad()
         critic_loss.backward()
         nn.utils.clip_grad_norm_(
             self._critic.parameters(), self._config.max_grad_norm
         )
         self._critic_optim.step()
+
+        # --- Optimise actor (recompute to avoid retain_graph) ---
+        mean2, log_std2 = self._actor(states)
+        std2 = torch.exp(log_std2)
+        dist2 = torch.distributions.Normal(mean2, std2)
+        new_log_probs2 = dist2.log_prob(actions).sum(dim=-1)
+        entropy2 = dist2.entropy().sum(dim=-1).mean()
+        actor_loss_bp = -(new_log_probs2 * advantages.detach()).mean() - self._config.entropy_coeff * entropy2
+
+        self._actor_optim.zero_grad()
+        actor_loss_bp.backward()
+        nn.utils.clip_grad_norm_(
+            self._actor.parameters(), self._config.max_grad_norm
+        )
+        self._actor_optim.step()
 
         self._training_steps += 1
 
@@ -319,7 +325,7 @@ class ActorCriticTrainer:
             path: File path of a previously saved checkpoint.
         """
         path = Path(path)
-        checkpoint = torch.load(path, map_location=self._device)
+        checkpoint = torch.load(path, map_location=self._device, weights_only=True)
         self._actor.load_state_dict(checkpoint["actor_state_dict"])
         self._critic.load_state_dict(checkpoint["critic_state_dict"])
         self._actor_optim.load_state_dict(checkpoint["actor_optim_state_dict"])
