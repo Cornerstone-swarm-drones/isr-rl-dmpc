@@ -18,8 +18,9 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.isr_rl_dmpc.modules import (
-    LearningBasedDMPC, LearningAgent, ThreatAssessor,
-    TaskAllocator, FlightController, DMPCState
+    DMPC, DMPCConfig, LearningModule, ThreatAssessor,
+    TaskAllocator, AttitudeController, DroneParameters,
+    ISRTask, TaskType, DroneCapability
 )
 
 
@@ -54,7 +55,7 @@ class BenchmarkSuite:
             own_pos = np.random.rand(3) * 1000
             
             start = time.perf_counter()
-            assessment = assessor.assess_target(target_data, own_pos)
+            assessment = assessor.assess_target(target_data, own_pos, 0.0)
             elapsed = (time.perf_counter() - start) * 1000  # ms
             times.append(elapsed)
         
@@ -79,8 +80,30 @@ class BenchmarkSuite:
         
         for _ in range(self.num_runs):
             # Generate random tasks and drones
-            tasks = [{'id': i, 'priority': np.random.rand()} for i in range(num_tasks)]
-            drones = [{'id': i, 'load': np.random.rand()} for i in range(num_drones)]
+            tasks = [
+                ISRTask(
+                    task_id=i,
+                    task_type=TaskType.DETECT,
+                    target_position=np.random.rand(3) * 1000,
+                    priority=np.random.rand(),
+                    estimated_duration=60.0,
+                    required_sensors=['radar'],
+                )
+                for i in range(num_tasks)
+            ]
+            drones = {
+                i: DroneCapability(
+                    drone_id=i,
+                    position=np.random.rand(3) * 1000,
+                    fuel_remaining=np.random.uniform(50, 100),
+                    sensors=['radar', 'optical'],
+                    current_load=np.random.rand(),
+                    max_speed=20.0,
+                    endurance=3600.0,
+                    communication_range=500.0,
+                )
+                for i in range(num_drones)
+            }
             
             start = time.perf_counter()
             assignments = allocator.allocate_tasks(tasks, drones)
@@ -101,20 +124,17 @@ class BenchmarkSuite:
         """Benchmark DMPC optimization."""
         print(f"  Benchmarking DMPC (horizon={horizon})...", end='', flush=True)
         
-        dmpc = LearningBasedDMPC(0, device=self.device)
+        config = DMPCConfig(horizon=horizon, device=self.device)
+        dmpc = DMPC(config)
         times = []
         
         for _ in range(self.num_runs):
-            # Create random state
-            position = np.random.rand(3) * 1000
-            velocity = np.random.rand(3) * 50
-            attitude = np.random.rand(3)
-            
-            state = DMPCState(position, velocity, attitude, 100, 0)
-            waypoints = np.random.rand(3, 3) * 1000
+            # Create random state and reference trajectory
+            x0 = np.random.randn(config.state_dim).astype(np.float32)
+            x_ref = np.random.randn(config.horizon + 1, config.state_dim).astype(np.float32)
             
             start = time.perf_counter()
-            trajectory = dmpc.plan_trajectory(state, waypoints)
+            u_opt, info = dmpc(x0, x_ref)
             elapsed = (time.perf_counter() - start) * 1000  # ms
             times.append(elapsed)
         
@@ -133,21 +153,26 @@ class BenchmarkSuite:
         print(f"  Benchmarking Learning Agent (batch_size={batch_size})...", 
               end='', flush=True)
         
-        agent = LearningAgent(0, device=self.device)
+        from src.isr_rl_dmpc.modules.learning_module import Transition
+        agent = LearningModule(state_dim=18, action_dim=4, device=self.device)
         times = []
         
         # Pre-populate buffer
         for _ in range(batch_size * 2):
-            state = np.random.randn(18)
-            action = np.random.randn(5)
-            reward = np.random.rand()
-            next_state = np.random.randn(18)
-            agent.store_experience(state, action, reward, next_state, False)
+            state = np.random.randn(18).astype(np.float32)
+            action = np.random.randn(4).astype(np.float32)
+            reward = float(np.random.rand())
+            next_state = np.random.randn(18).astype(np.float32)
+            transition = Transition(
+                state=state, action=action, reward=reward,
+                next_state=next_state, done=False
+            )
+            agent.buffer.add(transition, priority=abs(reward))
         
         # Benchmark learning
         for _ in range(self.num_runs):
             start = time.perf_counter()
-            metrics = agent.learn_from_batch(batch_size)
+            loss = agent.update_value_function(batch_size)
             elapsed = (time.perf_counter() - start) * 1000  # ms
             times.append(elapsed)
         
@@ -165,25 +190,18 @@ class BenchmarkSuite:
         """Benchmark attitude control."""
         print("  Benchmarking Attitude Controller...", end='', flush=True)
         
-        controller = FlightController(mass=1.0)
+        params = DroneParameters(mass=1.0, device=self.device)
+        controller = AttitudeController(params)
         times = []
         
         for _ in range(self.num_runs):
-            accel = np.random.randn(3)
-            # Mock state
-            class MockState:
-                def __init__(self):
-                    self.roll = np.random.rand()
-                    self.pitch = np.random.rand()
-                    self.yaw = np.random.rand()
-                    self.roll_rate = np.random.randn() * 0.1
-                    self.pitch_rate = np.random.randn() * 0.1
-                    self.yaw_rate = np.random.randn() * 0.1
-            
-            state = MockState()
+            # Random state [p(3), v(3), a(3), yaw_angle, yaw_rate] = 11D
+            state = np.random.randn(11).astype(np.float32)
+            # Reference [p(3), v(3), a(3), yaw_angle, (unused), (unused)] = 12D
+            reference = np.random.randn(12).astype(np.float32)
             
             start = time.perf_counter()
-            motors = controller.update(accel, state)
+            output = controller.control_loop(state, reference, use_adaptation=False)
             elapsed = (time.perf_counter() - start) * 1000  # ms
             times.append(elapsed)
         
@@ -205,9 +223,10 @@ class BenchmarkSuite:
         
         # Initialize all modules
         threat_assessors = [ThreatAssessor() for _ in range(num_drones)]
-        dmpc_controllers = [LearningBasedDMPC(i, device=self.device) 
-                           for i in range(num_drones)]
-        flight_controllers = [FlightController(mass=1.0) for _ in range(num_drones)]
+        dmpc_config = DMPCConfig(device=self.device)
+        dmpc_controllers = [DMPC(dmpc_config) for _ in range(num_drones)]
+        params = DroneParameters(mass=1.0, device=self.device)
+        flight_controllers = [AttitudeController(params) for _ in range(num_drones)]
         
         times = []
         
@@ -222,23 +241,17 @@ class BenchmarkSuite:
                     'rf_strength': np.random.uniform(-100, -30)
                 }
                 own_pos = np.random.rand(3) * 1000
-                assessment = threat_assessors[i].assess_target(target_data, own_pos)
+                assessment = threat_assessors[i].assess_target(target_data, own_pos, 0.0)
                 
                 # DMPC planning
-                state = DMPCState(own_pos, np.random.rand(3) * 50, 
-                                 np.random.rand(3), 100, 0)
-                waypoints = np.random.rand(3, 3) * 1000
-                trajectory = dmpc_controllers[i].plan_trajectory(state, waypoints)
+                x0 = np.random.randn(dmpc_config.state_dim).astype(np.float32)
+                x_ref = np.random.randn(dmpc_config.horizon + 1, dmpc_config.state_dim).astype(np.float32)
+                u_opt, info = dmpc_controllers[i](x0, x_ref)
                 
                 # Attitude control
-                class MockState:
-                    roll = pitch = yaw = 0
-                    roll_rate = pitch_rate = yaw_rate = 0
-                
-                motors = flight_controllers[i].update(
-                    trajectory.control_sequence[0],
-                    MockState()
-                )
+                state = np.random.randn(11).astype(np.float32)
+                reference = np.random.randn(12).astype(np.float32)
+                output = flight_controllers[i].control_loop(state, reference, use_adaptation=False)
             
             elapsed = (time.perf_counter() - start) * 1000  # ms
             times.append(elapsed)
@@ -263,8 +276,8 @@ class BenchmarkSuite:
             torch.cuda.reset_peak_memory_stats()
         
         # Create modules
-        dmpc = LearningBasedDMPC(0, device=self.device)
-        agent = LearningAgent(0, device=self.device)
+        dmpc = DMPC(DMPCConfig(device=self.device))
+        agent = LearningModule(state_dim=18, action_dim=4, device=self.device)
         
         if torch.cuda.is_available() and 'cuda' in self.device:
             allocated = torch.cuda.memory_allocated() / 1e6  # MB
@@ -315,7 +328,7 @@ class BenchmarkSuite:
         print("\nIntegrated System Performance:")
         print("-"*70)
         for name, metrics in self.results['system'].items():
-            if 'control_freq' in metrics:
+            if 'control_freq_hz' in metrics:
                 print(f"{name:30s}: {metrics['mean_time_ms']:8.3f} ms "
                       f"({metrics['control_freq_hz']:.1f} Hz)")
             else:
