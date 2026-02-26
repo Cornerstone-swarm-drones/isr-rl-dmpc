@@ -320,7 +320,7 @@ class ISRGridEnv(gym.Env):
         
         grid_x, grid_y = self.grid_size
         grid_res = 100.0  # m per cell (from simulator config)
-        sensor_radius_cells = 5  # sensor coverage radius in grid cells
+        sensor_radius_cells = 5  # sensor coverage radius in grid cells (500m at 100m/cell)
         
         for drone in self.simulator.drones:
             if drone.is_active:

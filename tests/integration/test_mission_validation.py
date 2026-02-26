@@ -119,7 +119,7 @@ class TestThreatDetection:
             np.random.shuffle(target_types)
             
             for i, target_type in enumerate(target_types):
-                # Place targets within the mission grid area
+                # Distribute targets across grid (500m spacing, 200m offset from edges)
                 x = (i % 3) * 500 + 200
                 y = (i // 3) * 500 + 200
                 z = 50.0 + np.random.uniform(-20, 20)
@@ -331,8 +331,9 @@ class TestLearningConvergence:
         best_return = float('-inf')
         returns = []
         
+        env = ISRGridEnv(num_drones=4, max_targets=1, mission_duration=50)
+        
         for episode in range(200):
-            env = ISRGridEnv(num_drones=4, max_targets=1, mission_duration=50)
             obs, _ = env.reset()
             
             episode_return = 0.0
@@ -359,6 +360,8 @@ class TestLearningConvergence:
                 # If converged early, we can stop
                 if recent_std < 0.1 * abs(recent_mean) and episode > 20:
                     break
+        
+        env.close()
         
         # Should converge within 200 episodes
         assert num_episodes < 200, \
