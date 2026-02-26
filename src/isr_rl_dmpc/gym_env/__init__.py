@@ -4,6 +4,7 @@ from .simulator import (
     WindModel, TargetType, DroneConfig, TargetConfig, EnvironmentConfig,
 )
 from .reward_shaper import RewardShaper, RewardWeights
+from .sensor_simulator import SensorNoiseModel, SensorSimulator
 
 __all__ = [
     "ISRGridEnv",
@@ -19,4 +20,6 @@ __all__ = [
     "EnvironmentConfig",
     "RewardShaper",
     "RewardWeights",
+    "SensorNoiseModel",
+    "SensorSimulator",
 ]
