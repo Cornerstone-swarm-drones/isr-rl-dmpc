@@ -1,0 +1,46 @@
+# ISR-RL-DMPC Sensor Specifications
+
+radar:
+  range: 200.0 # m
+  update_rate: 5.0 # Hz
+  noise_std: 2.0 # m
+  fov: 360.0 # degrees
+  resolution: 1.0 # m
+  max_targets: 50
+  min_detectable_rcs: 0.01 # m^2
+  false_alarm_rate: 1.0e-6 # per scan
+  power_consumption: 8.0 # W
+
+optical:
+  range: 150.0 # m
+  update_rate: 30.0 # Hz
+  noise_std: 0.5 # m
+  fov: 120.0 # degrees
+  resolution: 0.1 # m
+  max_targets: 20
+  pixel_resolution: [1920, 1080] # pixels
+  focal_length: 4.5 # mm
+  min_illumination: 0.1 # lux
+  power_consumption: 3.5 # W
+
+rf:
+  range: 100.0 # m
+  update_rate: 10.0 # Hz
+  noise_std: 5.0 # m
+  fov: 360.0 # degrees
+  resolution: 3.0 # m
+  frequency_range: [0.1, 6.0] # GHz
+  sensitivity: -90.0 # dBm
+  bandwidth: 20.0 # MHz
+  power_consumption: 2.5 # W
+
+acoustic:
+  range: 50.0 # m
+  update_rate: 20.0 # Hz
+  noise_std: 3.0 # m
+  fov: 360.0 # degrees
+  resolution: 5.0 # m
+  frequency_range: [20.0, 20000.0] # Hz
+  sensitivity: -40.0 # dB
+  num_microphones: 4
+  power_consumption: 1.0 # W

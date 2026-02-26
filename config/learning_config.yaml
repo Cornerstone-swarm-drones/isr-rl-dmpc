@@ -1,0 +1,61 @@
+# ISR-RL-DMPC Reinforcement Learning Hyperparameters
+
+value_network:
+  hidden_layers: [256, 256, 128]
+  activation: "relu"
+  output_activation: "linear"
+  dropout_rate: 0.1
+  weight_init: "xavier_uniform"
+  use_layer_norm: true
+
+policy_network:
+  hidden_layers: [256, 256, 128]
+  activation: "relu"
+  output_activation: "tanh"
+  dropout_rate: 0.0
+  weight_init: "xavier_uniform"
+  log_std_min: -5.0
+  log_std_max: 2.0
+
+training:
+  algorithm: "SAC" # Soft Actor-Critic
+  discount_factor: 0.99
+  learning_rate_critic: 1.0e-3
+  learning_rate_actor: 1.0e-4
+  tau: 0.005 # soft target update rate
+  batch_size: 256
+  num_epochs: 500
+  steps_per_epoch: 4000
+  warmup_steps: 10000
+  max_grad_norm: 1.0
+  entropy_coefficient: 0.2
+  auto_entropy_tuning: true
+  target_update_frequency: 1
+  eval_interval: 10 # epochs
+  save_interval: 50 # epochs
+
+reward_weights:
+  coverage: 10.0
+  energy: -5.0
+  collision: -100.0
+  target_engagement: 20.0
+  formation: 2.0
+  communication: 1.0
+  revisit: 5.0
+
+experience_buffer:
+  capacity: 1000000
+  type: "prioritized" # uniform or prioritized
+  alpha: 0.6 # prioritization exponent
+  beta_start: 0.4 # importance sampling start
+  beta_end: 1.0 # importance sampling end
+  beta_anneal_steps: 100000
+
+exploration:
+  noise_type: "gaussian" # gaussian or ou
+  noise_std: 0.1
+  noise_decay: 0.995
+  noise_min: 0.01
+  epsilon_start: 1.0
+  epsilon_end: 0.05
+  epsilon_decay_steps: 50000
