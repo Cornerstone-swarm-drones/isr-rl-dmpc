@@ -19,7 +19,7 @@ Architecture:
 import numpy as np
 import torch
 import torch.nn as nn
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,6 @@ class CriticNetwork(nn.Module):
         self.use_batch_norm = use_batch_norm
 
         # Build hidden layers
-        layers: List[nn.Module] = []
         prev_dim = self._input_dim
         self._fc_layers = nn.ModuleList()
         self._bn_layers = nn.ModuleList()

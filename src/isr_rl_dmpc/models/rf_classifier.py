@@ -33,7 +33,7 @@ class DroneClass(IntEnum):
 
 
 # Mapping from class index (0, 1, 2) to DroneClass label
-_INDEX_TO_LABEL = [DroneClass.FRIENDLY, DroneClass.UNKNOWN, DroneClass.HOSTILE]
+_INDEX_TO_LABEL = [DroneClass.HOSTILE, DroneClass.UNKNOWN, DroneClass.FRIENDLY]
 
 
 @dataclass
@@ -89,7 +89,7 @@ class RFClassifier(nn.Module):
     HOSTILE (-1).
     """
 
-    def __init__(self, feature_dim: int = 64, num_classes: int = 3,
+    def __init__(self, feature_dim: int = 28, num_classes: int = 3,
                  hidden_dim: int = 128):
         """
         Initialize RF classifier.

@@ -236,7 +236,7 @@ def load_checkpoint(path: str,
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint not found at {ckpt_path}")
 
-    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
 
     if model is not None and "model_state_dict" in ckpt:
         model.load_state_dict(ckpt["model_state_dict"])
