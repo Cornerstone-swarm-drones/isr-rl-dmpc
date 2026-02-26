@@ -20,7 +20,7 @@ sys.path.insert(0, str(project_root))
 from src.isr_rl_dmpc.modules import (
     DMPC, DMPCConfig, LearningModule, ThreatAssessor,
     TaskAllocator, AttitudeController, DroneParameters,
-    ISRTask, TaskType, DroneCapability
+    ISRTask, TaskType, DroneCapability, Transition
 )
 
 
@@ -153,7 +153,6 @@ class BenchmarkSuite:
         print(f"  Benchmarking Learning Agent (batch_size={batch_size})...", 
               end='', flush=True)
         
-        from src.isr_rl_dmpc.modules.learning_module import Transition
         agent = LearningModule(state_dim=18, action_dim=4, device=self.device)
         times = []
         

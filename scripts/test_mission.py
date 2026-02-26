@@ -128,10 +128,12 @@ class MissionEvaluator:
                 action = np.random.randn(int(np.prod(self.env.action_space.shape)))
             
             # Reshape action to match env action space shape
-            action_env = np.clip(
-                action.reshape(self.env.action_space.shape) if action.size == np.prod(self.env.action_space.shape) else np.random.uniform(0, 1, self.env.action_space.shape),
-                0.0, 1.0
-            )
+            expected_size = int(np.prod(self.env.action_space.shape))
+            if action.size == expected_size:
+                action_env = action.reshape(self.env.action_space.shape)
+            else:
+                action_env = np.random.uniform(0, 1, self.env.action_space.shape)
+            action_env = np.clip(action_env, 0.0, 1.0)
             
             # 2. Execute in environment
             next_obs, reward, terminated, truncated, info = self.env.step(action_env)
@@ -142,10 +144,6 @@ class MissionEvaluator:
             self._log_step_metrics(step, next_obs, reward, info)
             
             obs = next_obs
-            
-            # Update counters
-            if info.get('collisions', 0) > 0:
-                detections += info.get('collisions', 0)
             
             if done:
                 self.logger.info(f"Mission ended at step {step}")
@@ -176,14 +174,6 @@ class MissionEvaluator:
             'rewards': [float(reward)],
             'avg': float(reward)
         })
-        
-        # Log detections
-        if info.get('collisions', 0) > 0:
-            self.mission_data['target_detections'].append({
-                'step': step,
-                'target_id': None,
-                'drone_id': None
-            })
     
     def get_mission_summary(self) -> Dict:
         """Get mission summary statistics."""
