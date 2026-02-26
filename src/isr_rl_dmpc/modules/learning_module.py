@@ -661,7 +661,7 @@ class LearningModule:
     
     def load_checkpoint(self, filepath: Path) -> None:
         """Load learning checkpoint with PyTorch models."""
-        checkpoint = torch.load(filepath, map_location=self.device)
+        checkpoint = torch.load(filepath, map_location=self.device, weights_only=True)
         
         self.value_network.load_state_dict(checkpoint['value_network_state'])
         self.value_optimizer.load_state_dict(checkpoint['value_optimizer_state'])

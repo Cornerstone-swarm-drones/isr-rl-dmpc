@@ -594,6 +594,19 @@ class NumericalOps:
         return angle
 
     @staticmethod
+    def normalize_angle_positive(angle: float) -> float:
+        """
+        Normalize angle to [0, 2π].
+
+        Args:
+            angle: Angle in radians
+
+        Returns:
+            Normalized angle in [0, 2π]
+        """
+        return angle % (2 * np.pi)
+
+    @staticmethod
     def angle_diff(angle1: float, angle2: float) -> float:
         """
         Compute shortest angular difference.

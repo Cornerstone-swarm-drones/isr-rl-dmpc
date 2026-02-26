@@ -260,7 +260,7 @@ class MissionPlanner:
             Dict mapping drone_id -> waypoint array (Nx3)
         """
         # 1. Decompose area into grid cells
-        self._logger.debug(f"Decomposing mission are with reolution {self.grid_resolution}m")
+        self._logger.debug(f"Decomposing mission area with resolution {self.grid_resolution}m")
         self.decomposer = GridDecomposer(mission_state.area_boundary, self.grid_resolution)
         cells = self.decomposer.decompose_grid(n_drones)
         self._logger.info(f"Grid decomposition created {len(cells)} cells.")
@@ -312,11 +312,12 @@ class MissionPlanner:
         
         # Assign cells to nearest drone (greedy)
         for cell in prio_sorted:
-            dists = [ np.linalg.norm(cell.center - drone_positions[i, :2] for i in range(n_drones))]
+            dists = [np.linalg.norm(cell.center - drone_positions[i, :2]) for i in range(n_drones)]
             nearest_drone = np.argmin(dists)
 
             if nearest_drone not in assignments:
-                assignments[nearest_drone].append(cell.cell_id)
+                assignments[nearest_drone] = []
+            assignments[nearest_drone].append(cell.cell_id)
 
         return assignments
     

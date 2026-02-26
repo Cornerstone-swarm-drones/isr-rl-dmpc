@@ -310,7 +310,7 @@ class AttitudeController:
     
     def load_gains(self, path: str):
         """Load learned gains"""
-        self.gain_network.load_state_dict(torch.load(path, map_location=self.device))
+        self.gain_network.load_state_dict(torch.load(path, map_location=self.device, weights_only=True))
 
 
 # Usage example
