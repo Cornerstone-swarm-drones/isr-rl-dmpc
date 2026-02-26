@@ -21,6 +21,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from .data_structures import TargetState
+from ..utils.math_utils import NumericalOps
 
 class SensorType(Enum):
     """Supported sensor types."""
@@ -210,7 +211,7 @@ class TargetTrackingEKF:
         self.x = F @ self.x
         
         # Wrap yaw to [0, 2π]
-        self.x[9] = self._normalize_angle(self.x[9])
+        self.x[9] = NumericalOps.normalize_angle_positive(self.x[9])
         
         # Update covariance
         self.P = F @ self.P @ F.T + self.Q
@@ -429,7 +430,7 @@ class TargetTrackingEKF:
         self.P = (np.eye(11) - K @ H) @ self.P
         
         # Wrap yaw
-        self.x[9] = self._normalize_angle(self.x[9])
+        self.x[9] = NumericalOps.normalize_angle_positive(self.x[9])
         
         # Ensure positive definite
         self.P = (self.P + self.P.T) / 2
@@ -525,15 +526,6 @@ class TargetTrackingEKF:
         if len(history) >= self.max_history:
             history.pop(0)
         history.append(measurement)
-    
-    @staticmethod
-    def _normalize_angle(angle: float) -> float:
-        """Normalize angle to [0, 2π]."""
-        while angle < 0:
-            angle += 2 * np.pi
-        while angle >= 2 * np.pi:
-            angle -= 2 * np.pi
-        return angle
     
     def get_state(self) -> TargetState:
         """Get 11D target state."""

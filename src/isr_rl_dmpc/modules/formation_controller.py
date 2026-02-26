@@ -224,7 +224,7 @@ class ConsensusController:
                     # Get neighbors from adjacency
                     neighbors = np.where(adjacency[drone_id, :] > 0)[0]
 
-                    control = self._compute_drone_control(drone_state, desired_pos, state_manager, neighbors, formation_config)
+                    control = self._compute_drone_controls(drone_state, desired_pos, state_manager, neighbors, formation_config)
                     controls[drone_id] = control
             return controls
         
