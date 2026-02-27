@@ -18,6 +18,7 @@ from isr_rl_dmpc.utils.foxglove_bridge import (
     _quat,
     _now_ns,
     extract_targets_from_obs,
+    preload_models,
     DRONE_MODEL_URL,
     TARGET_MODELS,
 )
@@ -445,7 +446,7 @@ class TestSceneStructure:
         assert len(drones_entity["texts"]) == 2
 
     def test_drone_model_has_required_fields(self):
-        """Each drone model must have pose, scale, url, media_type, and color."""
+        """Each drone model must have pose, scale, data/url, media_type, and color."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
         scene = self._build_scene(bridge, drone_positions=positions)
@@ -454,11 +455,11 @@ class TestSceneStructure:
         assert "position" in model["pose"]
         assert "orientation" in model["pose"]
         assert "scale" in model
-        assert "url" in model
+        # First frame uses 'data' (base64) instead of 'url'
+        assert "data" in model
         assert "media_type" in model
         assert "color" in model
         assert model["media_type"] == "model/gltf-binary"
-        assert model["url"].endswith(".glb")
 
     def test_target_entity_has_models_and_labels(self):
         """Targets should have 3D models and text labels."""
@@ -477,8 +478,9 @@ class TestSceneStructure:
         assert len(targets_entity["spheres"]) == 0
         assert len(targets_entity["texts"]) == 1
         assert "hostile" in targets_entity["texts"][0]["text"]
-        # Verify model URL is for hostile classification
-        assert "CesiumMilkTruck" in targets_entity["models"][0]["url"]
+        # First frame uses 'data' (base64) for model, not 'url'
+        assert "data" in targets_entity["models"][0]
+        assert "media_type" in targets_entity["models"][0]
 
     def test_ground_plane_entity_present(self):
         """Ground plane entity should be present when grid_extent is set."""
@@ -551,6 +553,123 @@ class TestSceneStructure:
             topics = {ch.topic for ch in summary.channels.values()}
             assert "/swarm/scene" in topics
             assert "/swarm/metrics" in topics
+
+
+# ---------------------------------------------------------------------------
+# Model loading and optimization tests
+# ---------------------------------------------------------------------------
+
+class TestModelOptimization:
+    """Tests for model base64 encoding and first-frame optimization."""
+
+    def _build_scene(self, bridge, **kwargs):
+        """Capture the scene dict by calling publish_scene on an unstarted bridge."""
+        captured = {}
+
+        def _capture(channel_key, data, timestamp_ns):
+            captured[channel_key] = data
+
+        bridge._send = _capture
+        bridge._started = True
+        bridge.publish_scene(**kwargs)
+        bridge._started = False
+        return captured.get("scene")
+
+    def test_first_frame_uses_data_field(self):
+        """First frame should embed model using 'data' field, not 'url'."""
+        bridge = FoxgloveBridge()
+        assert bridge._models_sent is False
+        positions = np.array([[50.0, 50.0, 50.0]])
+        scene = self._build_scene(bridge, drone_positions=positions)
+        model = scene["entities"][0]["models"][0]
+        assert "data" in model
+        assert "url" not in model
+
+    def test_subsequent_frames_use_url_field(self):
+        """Subsequent frames should use empty 'url' field, not 'data'."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        # First call sets _models_sent = True
+        self._build_scene(bridge, drone_positions=positions)
+        assert bridge._models_sent is True
+        # Second call should use url (empty), not data
+        scene = self._build_scene(bridge, drone_positions=positions)
+        model = scene["entities"][0]["models"][0]
+        assert "url" in model
+        assert model["url"] == ""
+        assert "data" not in model
+
+    def test_target_models_first_frame_uses_data(self):
+        """Target models on first frame should use 'data' field."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
+        tgt_cls = {"T0": "hostile"}
+        scene = self._build_scene(
+            bridge,
+            drone_positions=positions,
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+        )
+        targets_entity = next(e for e in scene["entities"] if e["id"] == "targets")
+        assert "data" in targets_entity["models"][0]
+        assert "url" not in targets_entity["models"][0]
+
+    def test_target_models_subsequent_frame_uses_url(self):
+        """Target models on subsequent frames should use empty 'url'."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
+        tgt_cls = {"T0": "hostile"}
+        # First frame
+        self._build_scene(
+            bridge,
+            drone_positions=positions,
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+        )
+        # Second frame
+        scene = self._build_scene(
+            bridge,
+            drone_positions=positions,
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+        )
+        targets_entity = next(e for e in scene["entities"] if e["id"] == "targets")
+        model = targets_entity["models"][0]
+        assert "url" in model
+        assert model["url"] == ""
+        assert "data" not in model
+
+    def test_preload_models_importable(self):
+        """preload_models is importable from utils."""
+        from isr_rl_dmpc.utils import preload_models
+        assert preload_models is not None
+
+    def test_preload_models_populates_caches(self):
+        """preload_models downloads models and populates base64 caches."""
+        from unittest.mock import patch, MagicMock
+        import isr_rl_dmpc.utils.foxglove_bridge as bridge_mod
+
+        fake_glb = b"\x00\x01\x02\x03"
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = fake_glb
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(bridge_mod.urllib.request, "urlopen", return_value=mock_resp):
+            bridge_mod.preload_models()
+
+        import base64
+        expected = base64.b64encode(fake_glb).decode("ascii")
+        assert bridge_mod._DRONE_MODEL_B64 == expected
+        assert bridge_mod._TARGET_MODEL_B64["hostile"] == expected
+        assert bridge_mod._TARGET_MODEL_B64["friendly"] == expected
+        assert bridge_mod._TARGET_MODEL_B64["unknown"] == expected
+
+        # Clean up global state
+        bridge_mod._DRONE_MODEL_B64 = ""
+        bridge_mod._TARGET_MODEL_B64 = {}
 
 
 # ---------------------------------------------------------------------------

@@ -76,8 +76,9 @@ def _create_synthetic_targets(n_targets: int, step: int, grid_extent: float):
 
 async def run_live(args):
     """Run simulation with live Foxglove WebSocket server."""
-    from isr_rl_dmpc.utils.foxglove_bridge import FoxgloveBridge, extract_targets_from_obs
+    from isr_rl_dmpc.utils.foxglove_bridge import FoxgloveBridge, extract_targets_from_obs, preload_models
 
+    preload_models()
     bridge = FoxgloveBridge(
         host=args.host,
         port=args.port,
@@ -297,12 +298,13 @@ def run_record(args):
 
 async def run_both(args):
     """Run live visualization and MCAP recording simultaneously."""
-    from isr_rl_dmpc.utils.foxglove_bridge import FoxgloveBridge, extract_targets_from_obs
+    from isr_rl_dmpc.utils.foxglove_bridge import FoxgloveBridge, extract_targets_from_obs, preload_models
     from isr_rl_dmpc.utils.mcap_logger import MCAPRecorder
 
     output_path = args.output or f"data/recordings/mission_{datetime.now():%Y%m%d_%H%M%S}.mcap"
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
+    preload_models()
     bridge = FoxgloveBridge(
         host=args.host,
         port=args.port,
