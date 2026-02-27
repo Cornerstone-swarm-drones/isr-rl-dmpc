@@ -17,9 +17,9 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.isr_rl_dmpc.modules import (
-    ClassificationEngine, ThreatAssessor, SensorFusion
+    ClassificationEngine, ThreatAssessor, SensorFusionManager
 )
-from src.isr_rl_dmpc.utils import setup_logging
+from src.isr_rl_dmpc.utils import setup_logger
 
 
 class SensorCalibrator:
@@ -30,15 +30,15 @@ class SensorCalibrator:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         
-        self.logger = setup_logging(
-            name='SensorCalibrator',
-            log_file=self.output_dir / 'calibration.log'
+        self.logger = setup_logger(
+            'SensorCalibrator',
+            log_file=str(self.output_dir / 'calibration.log')
         )
         
         # Initialize modules
         self.classifier = ClassificationEngine()
         self.threat_assessor = ThreatAssessor()
-        self.sensor_fusion = SensorFusion()
+        self.sensor_fusion = SensorFusionManager()
         
         # Calibration data
         self.calibration_results = {

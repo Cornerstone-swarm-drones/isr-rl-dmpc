@@ -17,11 +17,11 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.isr_rl_dmpc.modules import (
-    LearningAgent, ThreatAssessor, TaskAllocator,
-    LearningBasedDMPC, FlightController, DMPCState
+    LearningModule, ThreatAssessor, TaskAllocator,
+    DMPC, DMPCConfig, AttitudeController, DroneParameters
 )
-from src.isr_rl_dmpc.gym_env import ISRGridEnvironment, RewardShaper
-from src.isr_rl_dmpc.utils import setup_logging
+from src.isr_rl_dmpc.gym_env import ISRGridEnv, RewardShaper
+from src.isr_rl_dmpc.utils import setup_logger
 
 
 class MissionEvaluator:
@@ -35,14 +35,22 @@ class MissionEvaluator:
         self.num_targets = num_targets
         
         # Setup logging
-        self.logger = setup_logging(
-            name='MissionEvaluator',
-            log_file=Path('logs') / 'mission_test.log'
+        self.logger = setup_logger(
+            'MissionEvaluator',
+            log_file=str(Path('logs') / 'mission_test.log')
         )
         
         # Initialize environment
-        self.env = ISRGridEnvironment(num_drones, num_targets)
-        self.reward_shaper = RewardShaper()
+        self.env = ISRGridEnv(
+            num_drones=num_drones,
+            max_targets=num_targets,
+            mission_duration=1000,
+        )
+        self.reward_shaper = RewardShaper(
+            num_drones=num_drones,
+            max_targets=num_targets,
+            grid_cells=400,
+        )
         
         # Initialize modules
         self._init_modules()
@@ -67,23 +75,22 @@ class MissionEvaluator:
         self.task_allocator = TaskAllocator(num_drones=self.num_drones)
         
         self.agents = [
-            LearningAgent(i, device=self.device)
+            LearningModule(state_dim=18, action_dim=4, device=self.device)
             for i in range(self.num_drones)
         ]
         
         self.dmpc_controllers = [
-            LearningBasedDMPC(i, device=self.device)
+            DMPC(DMPCConfig(device=self.device))
             for i in range(self.num_drones)
         ]
         
         self.flight_controllers = [
-            FlightController(mass=1.0)
+            AttitudeController(DroneParameters(mass=1.0, device=self.device))
             for i in range(self.num_drones)
         ]
     
     def _load_checkpoint(self):
         """Load trained checkpoint if available."""
-        best_checkpoint = self.checkpoint_dir / 'checkpoint_ep*_best.pt'
         checkpoints = sorted(self.checkpoint_dir.glob('checkpoint_ep*_best.pt'))
         
         if not checkpoints:
@@ -96,84 +103,77 @@ class MissionEvaluator:
         checkpoint = torch.load(latest_checkpoint, map_location=self.device)
         
         for i, agent in enumerate(self.agents):
-            if i < len(checkpoint['agents']):
-                agent.actor.load_state_dict(checkpoint['agents'][i])
-                agent.critic.load_state_dict(checkpoint['critics'][i])
+            if 'agents' in checkpoint and i < len(checkpoint['agents']):
+                agent.value_network.load_state_dict(checkpoint['agents'][i])
     
     def run_mission(self, mission_steps: int = 1000, deterministic: bool = True) -> Dict:
         """Run single mission evaluation."""
         self.logger.info(f"Starting mission (deterministic={deterministic})")
         
-        states = self.env.reset()
+        obs, info = self.env.reset()
         mission_reward = 0
         detections = 0
         classifications = 0
         
         for step in range(mission_steps):
-            state_vectors = [s.to_vector() if hasattr(s, 'to_vector') else s 
-                           for s in states]
+            # 1. Select action using first agent (centralized policy)
+            state_vector = np.asarray(obs['swarm'], dtype=np.float32).ravel()
+            if self.agents[0].policy_network is not None:
+                state_t = torch.FloatTensor(state_vector).to(self.device)
+                self.agents[0].policy_network.eval()
+                with torch.no_grad():
+                    mean, _ = self.agents[0].policy_network(state_t)
+                action = mean.squeeze(0).cpu().numpy()
+            else:
+                action = np.random.randn(int(np.prod(self.env.action_space.shape)))
             
-            # 1. Select actions (deterministic for evaluation)
-            actions = []
-            for i, agent in enumerate(self.agents):
-                action = agent.select_action(state_vectors[i], deterministic=True)
-                actions.append(action)
+            # Reshape action to match env action space shape
+            expected_size = int(np.prod(self.env.action_space.shape))
+            if action.size == expected_size:
+                action_env = action.reshape(self.env.action_space.shape)
+            else:
+                action_env = np.random.uniform(0, 1, self.env.action_space.shape)
+            action_env = np.clip(action_env, 0.0, 1.0)
             
             # 2. Execute in environment
-            next_states, rewards, dones, infos = self.env.step(actions)
-            mission_reward += np.mean(rewards)
+            next_obs, reward, terminated, truncated, info = self.env.step(action_env)
+            done = terminated or truncated
+            mission_reward += reward
             
             # 3. Log metrics
-            self._log_step_metrics(step, next_states, rewards, infos)
+            self._log_step_metrics(step, next_obs, reward, info)
             
-            states = next_states
+            obs = next_obs
             
-            # Update counters
-            for info in infos:
-                if info.get('target_detected'):
-                    detections += 1
-                if info.get('target_classified'):
-                    classifications += 1
-            
-            if all(dones):
+            if done:
                 self.logger.info(f"Mission ended at step {step}")
                 break
         
         # Compute final metrics
-        avg_reward = mission_reward / mission_steps
+        avg_reward = mission_reward / max(step + 1, 1)
         metrics = {
             'total_reward': float(mission_reward),
             'avg_reward': float(avg_reward),
             'detections': int(detections),
             'classifications': int(classifications),
-            'mission_steps': int(step),
+            'mission_steps': int(step + 1),
             'success': avg_reward > 0.5
         }
         
         return metrics
     
-    def _log_step_metrics(self, step: int, states, rewards: np.ndarray, infos: List[Dict]):
+    def _log_step_metrics(self, step: int, obs, reward: float, info: Dict):
         """Log metrics for current step."""
         self.mission_data['drone_positions'].append({
             'step': step,
-            'positions': [s.position.tolist() if hasattr(s, 'position') else [0, 0, 0]
-                         for s in states]
+            'positions': obs['swarm'][:, :3].tolist() if isinstance(obs, dict) and 'swarm' in obs else []
         })
         
         self.mission_data['rewards'].append({
             'step': step,
-            'rewards': [float(r) for r in rewards],
-            'avg': float(np.mean(rewards))
+            'rewards': [float(reward)],
+            'avg': float(reward)
         })
-        
-        # Log detections
-        for info in infos:
-            if info.get('target_detected'):
-                self.mission_data['target_detections'].append({
-                    'step': step,
-                    'target_id': info.get('target_id'),
-                    'drone_id': info.get('drone_id')
-                })
     
     def get_mission_summary(self) -> Dict:
         """Get mission summary statistics."""

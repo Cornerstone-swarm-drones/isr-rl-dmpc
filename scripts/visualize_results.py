@@ -116,7 +116,7 @@ class ResultsVisualizer:
             axes[0, 1].grid(True, alpha=0.3, axis='y')
             
             # 3. Success rate
-            success = [1 if m['success'] else 0 for m in missions]
+            success = [1 if m.get('success', m.get('avg_reward', 0) > 0.5) else 0 for m in missions]
             success_rate = np.mean(success) * 100
             axes[1, 0].pie([success_rate, 100-success_rate],
                           labels=['Success', 'Failure'],
