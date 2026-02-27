@@ -76,20 +76,22 @@ def _create_synthetic_targets(n_targets: int, step: int, grid_extent: float):
 
 async def run_live(args):
     """Run simulation with live Foxglove WebSocket server."""
-    from isr_rl_dmpc.utils.foxglove_bridge import FoxgloveBridge
+    from isr_rl_dmpc.utils.foxglove_bridge import FoxgloveBridge, extract_targets_from_obs
 
     bridge = FoxgloveBridge(
         host=args.host,
         port=args.port,
         server_name="ISR-RL-DMPC Simulation",
     )
-    await bridge.start()
+    bridge.start()
 
     logger.info(
         "Foxglove bridge ready — connect Foxglove Studio to ws://%s:%d",
         args.host, args.port,
     )
     logger.info("Press Ctrl+C to stop")
+
+    grid_extent = args.grid_x * 100.0
 
     try:
         env = None
@@ -120,11 +122,17 @@ async def run_live(args):
                 drone_quats = swarm[:, 9:13]
                 drone_batteries = swarm[:, 16]
 
+                # Extract target positions and classifications from obs
+                tgt_pos, tgt_cls = extract_targets_from_obs(obs["targets"])
+
                 bridge.publish_scene(
                     drone_positions=drone_positions,
                     drone_quaternions=drone_quats,
                     drone_batteries=drone_batteries,
+                    target_positions=tgt_pos,
+                    target_classifications=tgt_cls,
                     timestamp_ns=ts_ns,
+                    grid_extent=grid_extent,
                 )
                 bridge.publish_metrics(info, reward=reward, timestamp_ns=ts_ns)
                 bridge.publish_coverage(
@@ -136,7 +144,6 @@ async def run_live(args):
                     logger.info("Episode reset at step %d", step)
             else:
                 # Synthetic data
-                grid_extent = args.grid_x * 100.0
                 positions = _create_synthetic_drone_positions(
                     args.num_drones, step, grid_extent
                 )
@@ -152,6 +159,7 @@ async def run_live(args):
                     target_positions=tgt_pos,
                     target_classifications=tgt_cls,
                     timestamp_ns=ts_ns,
+                    grid_extent=grid_extent,
                 )
                 coverage_map = np.zeros(args.grid_x * args.grid_y)
                 coverage_map[:int(step * 0.5)] = 1.0
@@ -182,15 +190,16 @@ async def run_live(args):
     finally:
         if env is not None:
             env.close()
-        await bridge.stop()
-
-
+        bridge.stop()
 def run_record(args):
     """Run simulation and record to MCAP file."""
     from isr_rl_dmpc.utils.mcap_logger import MCAPRecorder
+    from isr_rl_dmpc.utils.foxglove_bridge import extract_targets_from_obs
 
     output_path = args.output or f"data/recordings/mission_{datetime.now():%Y%m%d_%H%M%S}.mcap"
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+    grid_extent = args.grid_x * 100.0
 
     with MCAPRecorder(output_path) as recorder:
         logger.info("Recording to %s", output_path)
@@ -222,10 +231,15 @@ def run_record(args):
                 drone_quats = swarm[:, 9:13]
                 drone_batteries = swarm[:, 16]
 
+                # Extract target positions and classifications from obs
+                tgt_pos, tgt_cls = extract_targets_from_obs(obs["targets"])
+
                 recorder.record_scene(
                     drone_positions=drone_positions,
                     drone_quaternions=drone_quats,
                     drone_batteries=drone_batteries,
+                    target_positions=tgt_pos,
+                    target_classifications=tgt_cls,
                     timestamp_ns=ts_ns,
                 )
                 recorder.record_metrics(info, reward=reward, timestamp_ns=ts_ns)
@@ -236,7 +250,6 @@ def run_record(args):
                 if terminated or truncated:
                     obs, info = env.reset()
             else:
-                grid_extent = args.grid_x * 100.0
                 positions = _create_synthetic_drone_positions(
                     args.num_drones, step, grid_extent
                 )
@@ -282,6 +295,155 @@ def run_record(args):
     logger.info("Open this file in Foxglove Studio for playback")
 
 
+async def run_both(args):
+    """Run live visualization and MCAP recording simultaneously."""
+    from isr_rl_dmpc.utils.foxglove_bridge import FoxgloveBridge, extract_targets_from_obs
+    from isr_rl_dmpc.utils.mcap_logger import MCAPRecorder
+
+    output_path = args.output or f"data/recordings/mission_{datetime.now():%Y%m%d_%H%M%S}.mcap"
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+    bridge = FoxgloveBridge(
+        host=args.host,
+        port=args.port,
+        server_name="ISR-RL-DMPC Simulation",
+    )
+    bridge.start()
+
+    logger.info(
+        "Foxglove bridge ready — connect Foxglove Studio to ws://%s:%d",
+        args.host, args.port,
+    )
+    logger.info("Recording to %s", output_path)
+    logger.info("Press Ctrl+C to stop")
+
+    grid_extent = args.grid_x * 100.0
+
+    with MCAPRecorder(output_path) as recorder:
+        try:
+            env = None
+            try:
+                from isr_rl_dmpc.gym_env.isr_env import ISRGridEnv
+                env = ISRGridEnv(
+                    num_drones=args.num_drones,
+                    max_targets=args.max_targets,
+                    grid_size=(args.grid_x, args.grid_y),
+                    mission_duration=args.num_steps,
+                )
+                obs, info = env.reset()
+                logger.info("ISRGridEnv initialized with %d drones", args.num_drones)
+            except Exception as e:
+                logger.warning("Could not initialize ISRGridEnv: %s", e)
+                logger.info("Running with synthetic data for demonstration")
+
+            for step in range(args.num_steps):
+                ts_ns = int(time.time() * 1e9)
+
+                if env is not None:
+                    action = env.action_space.sample()
+                    obs, reward, terminated, truncated, info = env.step(action)
+
+                    swarm = obs["swarm"]
+                    drone_positions = swarm[:, :3]
+                    drone_quats = swarm[:, 9:13]
+                    drone_batteries = swarm[:, 16]
+                    tgt_pos, tgt_cls = extract_targets_from_obs(obs["targets"])
+
+                    bridge.publish_scene(
+                        drone_positions=drone_positions,
+                        drone_quaternions=drone_quats,
+                        drone_batteries=drone_batteries,
+                        target_positions=tgt_pos,
+                        target_classifications=tgt_cls,
+                        timestamp_ns=ts_ns,
+                        grid_extent=grid_extent,
+                    )
+                    bridge.publish_metrics(info, reward=reward, timestamp_ns=ts_ns)
+                    bridge.publish_coverage(
+                        env.coverage_map, env.grid_size, timestamp_ns=ts_ns,
+                    )
+
+                    recorder.record_scene(
+                        drone_positions=drone_positions,
+                        drone_quaternions=drone_quats,
+                        drone_batteries=drone_batteries,
+                        target_positions=tgt_pos,
+                        target_classifications=tgt_cls,
+                        timestamp_ns=ts_ns,
+                    )
+                    recorder.record_metrics(info, reward=reward, timestamp_ns=ts_ns)
+                    recorder.record_coverage(
+                        env.coverage_map, env.grid_size, timestamp_ns=ts_ns,
+                    )
+
+                    if terminated or truncated:
+                        obs, info = env.reset()
+                        logger.info("Episode reset at step %d", step)
+                else:
+                    positions = _create_synthetic_drone_positions(
+                        args.num_drones, step, grid_extent
+                    )
+                    batteries = np.clip(
+                        np.full(args.num_drones, 5000.0 - step * 2), 0, 5000,
+                    )
+                    tgt_pos, tgt_cls = _create_synthetic_targets(
+                        args.max_targets, step, grid_extent
+                    )
+
+                    bridge.publish_scene(
+                        drone_positions=positions,
+                        drone_batteries=batteries,
+                        target_positions=tgt_pos,
+                        target_classifications=tgt_cls,
+                        timestamp_ns=ts_ns,
+                        grid_extent=grid_extent,
+                    )
+                    recorder.record_scene(
+                        drone_positions=positions,
+                        drone_batteries=batteries,
+                        target_positions=tgt_pos,
+                        target_classifications=tgt_cls,
+                        timestamp_ns=ts_ns,
+                    )
+                    coverage_map = np.zeros(args.grid_x * args.grid_y)
+                    coverage_map[:int(step * 0.5)] = 1.0
+                    metrics_info = {
+                        "step": step,
+                        "coverage": float(np.mean(coverage_map)),
+                        "avg_battery": float(np.mean(batteries)),
+                        "active_drones": args.num_drones,
+                        "total_drones": args.num_drones,
+                        "collisions": 0,
+                    }
+                    reward_val = 0.01 * (1.0 - step / args.num_steps)
+                    bridge.publish_metrics(
+                        info=metrics_info, reward=reward_val, timestamp_ns=ts_ns,
+                    )
+                    bridge.publish_coverage(
+                        coverage_map, (args.grid_x, args.grid_y), timestamp_ns=ts_ns,
+                    )
+                    recorder.record_metrics(
+                        info=metrics_info, reward=reward_val, timestamp_ns=ts_ns,
+                    )
+                    recorder.record_coverage(
+                        coverage_map, (args.grid_x, args.grid_y), timestamp_ns=ts_ns,
+                    )
+
+                await asyncio.sleep(1.0 / args.fps)
+
+                if step % 100 == 0:
+                    logger.info("Step %d/%d", step, args.num_steps)
+
+        except KeyboardInterrupt:
+            logger.info("Interrupted by user")
+        finally:
+            if env is not None:
+                env.close()
+            bridge.stop()
+
+    logger.info("Recording complete: %s", output_path)
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -321,10 +483,8 @@ Examples:
     elif args.mode == "record":
         run_record(args)
     elif args.mode == "both":
-        logger.info("Running live visualization + MCAP recording")
-        # Record first, then note about live
-        run_record(args)
-        logger.info("Recording complete. Run with --mode live for real-time visualization.")
+        logger.info("Running live visualization + MCAP recording simultaneously")
+        asyncio.run(run_both(args))
 
 
 if __name__ == "__main__":

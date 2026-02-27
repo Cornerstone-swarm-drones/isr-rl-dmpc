@@ -4,23 +4,25 @@ Foxglove Studio WebSocket bridge for real-time ISR-RL-DMPC visualization.
 Provides a WebSocket server that streams simulation data to Foxglove Studio
 for interactive 3D visualization, metrics monitoring, and mission analysis.
 
+Uses the ``foxglove-sdk`` package which replaces the deprecated
+``foxglove-websocket`` library and eliminates websockets deprecation warnings.
+
 Usage:
     bridge = FoxgloveBridge(host="0.0.0.0", port=8765)
-    await bridge.start()
+    bridge.start()
 
     # During simulation loop:
     bridge.publish_drone_states(drone_states, timestamp_ns)
     bridge.publish_target_states(target_states, timestamp_ns)
     bridge.publish_mission_state(mission_state, timestamp_ns)
 
-    await bridge.stop()
+    bridge.stop()
 
 Foxglove Studio Connection:
     Open Foxglove Studio and connect via:
     ws://localhost:8765
 """
 
-import asyncio
 import json
 import logging
 import time
@@ -28,13 +30,12 @@ from typing import Dict, List, Optional, Any
 
 import numpy as np
 
-from foxglove_websocket.server import FoxgloveServer, FoxgloveServerListener
-from foxglove_websocket.types import ChannelWithoutId
+import foxglove
 
 logger = logging.getLogger(__name__)
 
 # JSON schemas for Foxglove panels
-_SCENE_UPDATE_SCHEMA = json.dumps({
+_SCENE_UPDATE_SCHEMA = {
     "type": "object",
     "properties": {
         "deletions": {
@@ -70,16 +71,7 @@ _SCENE_UPDATE_SCHEMA = json.dumps({
             },
         },
     },
-})
-
-_LOCATION_FIX_SCHEMA = json.dumps({
-    "type": "object",
-    "properties": {
-        "latitude": {"type": "number"},
-        "longitude": {"type": "number"},
-        "altitude": {"type": "number"},
-    },
-})
+}
 
 
 def _timestamp_obj(ns: int) -> Dict[str, int]:
@@ -107,23 +99,43 @@ def _quat(x: float, y: float, z: float, w: float) -> Dict[str, float]:
     return {"x": float(x), "y": float(y), "z": float(z), "w": float(w)}
 
 
-class _BridgeListener(FoxgloveServerListener):
-    """Handles Foxglove client subscription events."""
+_TARGET_TYPE_MAP = {0: "unknown", 1: "friendly", 2: "hostile", 3: "neutral"}
 
-    def __init__(self) -> None:
-        self.subscribed_channels: set = set()
 
-    async def on_subscribe(self, server: FoxgloveServer, channel_id: int) -> None:
-        self.subscribed_channels.add(channel_id)
+def extract_targets_from_obs(
+    targets_obs: np.ndarray,
+) -> tuple:
+    """Extract target positions and classifications from the env observation.
 
-    async def on_unsubscribe(self, server: FoxgloveServer, channel_id: int) -> None:
-        self.subscribed_channels.discard(channel_id)
+    The ``targets`` observation is shaped ``(max_targets, 12)`` where each row
+    contains:
+        [0:3] position (x, y, z)
+        [8]   target_type enum (0=unknown, 1=friendly, 2=hostile, 3=neutral)
+
+    Rows that are all-zero are padding and are skipped.
+
+    Returns:
+        (target_positions, target_classifications) dicts keyed by target id.
+    """
+    positions: Dict[str, np.ndarray] = {}
+    classifications: Dict[str, str] = {}
+    for i in range(len(targets_obs)):
+        row = targets_obs[i]
+        # Skip zero-padded (inactive) targets
+        if np.allclose(row[:3], 0.0):
+            continue
+        tid = f"T{i}"
+        positions[tid] = row[:3].copy()
+        ttype = int(round(float(row[8])))
+        classifications[tid] = _TARGET_TYPE_MAP.get(ttype, "unknown")
+    return positions, classifications
 
 
 class FoxgloveBridge:
     """
     WebSocket bridge for streaming ISR-RL-DMPC simulation data to Foxglove Studio.
 
+    Uses ``foxglove-sdk`` for a high-performance, warning-free WebSocket server.
     Publishes drone positions, target states, coverage grids, and mission metrics
     as Foxglove-compatible JSON messages over WebSocket.
 
@@ -149,42 +161,38 @@ class FoxgloveBridge:
         self.port = port
         self.server_name = server_name
 
-        self._server: Optional[FoxgloveServer] = None
-        self._listener = _BridgeListener()
-        self._channels: Dict[str, int] = {}
+        self._server: Optional[foxglove.WebSocketServer] = None
+        self._channels: Dict[str, foxglove.Channel] = {}
         self._started = False
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Start the WebSocket server and register channels."""
-        self._server = FoxgloveServer(
-            self.host,
-            self.port,
-            self.server_name,
-            capabilities=["time"],
+        self._server = foxglove.start_server(
+            name=self.server_name,
+            host=self.host,
+            port=self.port,
+            capabilities=[foxglove.Capability.Time],
             supported_encodings=["json"],
         )
-        self._server.set_listener(self._listener)
-
-        await self._server.start()
         self._started = True
 
         # Register channels
-        self._channels["scene"] = await self._server.add_channel(
-            ChannelWithoutId(
-                topic="/swarm/scene",
-                encoding="json",
-                schemaName="foxglove.SceneUpdate",
-                schema=_SCENE_UPDATE_SCHEMA,
-                schemaEncoding="jsonschema",
-            )
+        self._channels["scene"] = foxglove.Channel(
+            "/swarm/scene",
+            schema=foxglove.Schema(
+                name="foxglove.SceneUpdate",
+                encoding="jsonschema",
+                data=json.dumps(_SCENE_UPDATE_SCHEMA).encode("utf-8"),
+            ),
+            message_encoding="json",
         )
 
-        self._channels["metrics"] = await self._server.add_channel(
-            ChannelWithoutId(
-                topic="/swarm/metrics",
-                encoding="json",
-                schemaName="isr.SwarmMetrics",
-                schema=json.dumps({
+        self._channels["metrics"] = foxglove.Channel(
+            "/swarm/metrics",
+            schema=foxglove.Schema(
+                name="isr.SwarmMetrics",
+                encoding="jsonschema",
+                data=json.dumps({
                     "type": "object",
                     "properties": {
                         "step": {"type": "integer"},
@@ -195,17 +203,17 @@ class FoxgloveBridge:
                         "collisions": {"type": "integer"},
                         "reward": {"type": "number"},
                     },
-                }),
-                schemaEncoding="jsonschema",
-            )
+                }).encode("utf-8"),
+            ),
+            message_encoding="json",
         )
 
-        self._channels["coverage"] = await self._server.add_channel(
-            ChannelWithoutId(
-                topic="/mission/coverage",
-                encoding="json",
-                schemaName="isr.CoverageGrid",
-                schema=json.dumps({
+        self._channels["coverage"] = foxglove.Channel(
+            "/mission/coverage",
+            schema=foxglove.Schema(
+                name="isr.CoverageGrid",
+                encoding="jsonschema",
+                data=json.dumps({
                     "type": "object",
                     "properties": {
                         "grid_size": {
@@ -218,17 +226,17 @@ class FoxgloveBridge:
                         },
                         "coverage_percentage": {"type": "number"},
                     },
-                }),
-                schemaEncoding="jsonschema",
-            )
+                }).encode("utf-8"),
+            ),
+            message_encoding="json",
         )
 
-        self._channels["mission_info"] = await self._server.add_channel(
-            ChannelWithoutId(
-                topic="/mission/info",
-                encoding="json",
-                schemaName="isr.MissionInfo",
-                schema=json.dumps({
+        self._channels["mission_info"] = foxglove.Channel(
+            "/mission/info",
+            schema=foxglove.Schema(
+                name="isr.MissionInfo",
+                encoding="jsonschema",
+                data=json.dumps({
                     "type": "object",
                     "properties": {
                         "elapsed_time": {"type": "number"},
@@ -237,9 +245,9 @@ class FoxgloveBridge:
                         "coverage_efficiency": {"type": "number"},
                         "num_waypoints": {"type": "integer"},
                     },
-                }),
-                schemaEncoding="jsonschema",
-            )
+                }).encode("utf-8"),
+            ),
+            message_encoding="json",
         )
 
         logger.info(
@@ -249,10 +257,14 @@ class FoxgloveBridge:
             self.port,
         )
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop the WebSocket server."""
+        for ch in self._channels.values():
+            ch.close()
+        self._channels.clear()
         if self._server is not None:
-            await self._server.close()
+            self._server.stop()
+            self._server = None
             self._started = False
             logger.info("Foxglove bridge stopped")
 
@@ -266,23 +278,13 @@ class FoxgloveBridge:
     # ------------------------------------------------------------------
 
     def _send(self, channel_key: str, data: Dict[str, Any], timestamp_ns: int) -> None:
-        """Send a JSON message on a channel (fire-and-forget)."""
-        if not self._started or self._server is None:
+        """Send a JSON message on a channel."""
+        if not self._started:
             return
-        chan_id = self._channels.get(channel_key)
-        if chan_id is None:
+        ch = self._channels.get(channel_key)
+        if ch is None:
             return
-        payload = json.dumps(data).encode("utf-8")
-        asyncio.ensure_future(
-            self._async_send(chan_id, timestamp_ns, payload)
-        )
-
-    async def _async_send(
-        self, chan_id: int, timestamp_ns: int, payload: bytes
-    ) -> None:
-        """Async wrapper for send_message."""
-        if self._server is not None:
-            await self._server.send_message(chan_id, timestamp_ns, payload)
+        ch.log(data, log_time=timestamp_ns)
 
     # ------------------------------------------------------------------
     # High-level publish methods
@@ -296,6 +298,7 @@ class FoxgloveBridge:
         target_positions: Optional[Dict[str, np.ndarray]] = None,
         target_classifications: Optional[Dict[str, str]] = None,
         timestamp_ns: Optional[int] = None,
+        grid_extent: Optional[float] = None,
     ) -> None:
         """
         Publish a 3D scene update with drone and target markers.
@@ -307,6 +310,7 @@ class FoxgloveBridge:
             target_positions: dict mapping target_id -> (3,) position
             target_classifications: dict mapping target_id -> classification string
             timestamp_ns: Timestamp in nanoseconds (default: current time)
+            grid_extent: Size of the ground plane in meters (optional)
         """
         if timestamp_ns is None:
             timestamp_ns = _now_ns()
@@ -315,10 +319,42 @@ class FoxgloveBridge:
 
         entities: List[Dict[str, Any]] = []
 
+        # --- Ground plane entity ---
+        if grid_extent is not None and grid_extent > 0:
+            half = grid_extent / 2.0
+            entities.append({
+                "timestamp": ts,
+                "frame_id": "world",
+                "id": "ground_plane",
+                "lifetime": {"sec": 0, "nsec": 0},
+                "frame_locked": False,
+                "metadata": [],
+                "arrows": [],
+                "cubes": [{
+                    "pose": {
+                        "position": _vec3(half, half, -0.25),
+                        "orientation": _quat(0, 0, 0, 1),
+                    },
+                    "size": _vec3(grid_extent, grid_extent, 0.5),
+                    "color": _color(0.15, 0.15, 0.15, 0.4),
+                }],
+                "spheres": [],
+                "cylinders": [],
+                "lines": [],
+                "triangles": [],
+                "texts": [],
+                "models": [],
+            })
+
         # --- Drone entities ---
         n_drones = len(drone_positions)
         drone_cubes: List[Dict[str, Any]] = []
+        drone_cylinders: List[Dict[str, Any]] = []
+        drone_arrows: List[Dict[str, Any]] = []
         drone_texts: List[Dict[str, Any]] = []
+
+        # Rotor arm offsets from drone center (quadcopter layout)
+        _rotor_offsets = [(1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0), (1.0, -1.0)]
 
         for i in range(n_drones):
             pos = drone_positions[i]
@@ -337,6 +373,7 @@ class FoxgloveBridge:
             else:
                 orient = _quat(0, 0, 0, 1)
 
+            # Central body cube
             drone_cubes.append({
                 "pose": {
                     "position": _vec3(pos[0], pos[1], pos[2]),
@@ -344,6 +381,34 @@ class FoxgloveBridge:
                 },
                 "size": _vec3(2.0, 2.0, 0.5),
                 "color": col,
+            })
+
+            # Rotor discs (4 cylinders for quadcopter shape)
+            for dx, dy in _rotor_offsets:
+                drone_cylinders.append({
+                    "pose": {
+                        "position": _vec3(
+                            pos[0] + dx, pos[1] + dy, pos[2] + 0.3
+                        ),
+                        "orientation": _quat(0, 0, 0, 1),
+                    },
+                    "size": _vec3(0.8, 0.8, 0.1),
+                    "color": _color(0.6, 0.6, 0.6, 0.7),
+                    "bottom_scale": 1.0,
+                    "top_scale": 1.0,
+                })
+
+            # Heading arrow (forward direction)
+            drone_arrows.append({
+                "pose": {
+                    "position": _vec3(pos[0], pos[1], pos[2]),
+                    "orientation": orient,
+                },
+                "shaft_length": 2.5,
+                "shaft_diameter": 0.2,
+                "head_length": 0.8,
+                "head_diameter": 0.5,
+                "color": _color(1.0, 1.0, 1.0, 0.8),
             })
 
             label = f"D{i}"
@@ -368,10 +433,10 @@ class FoxgloveBridge:
             "lifetime": {"sec": 0, "nsec": 0},
             "frame_locked": False,
             "metadata": [],
-            "arrows": [],
+            "arrows": drone_arrows,
             "cubes": drone_cubes,
             "spheres": [],
-            "cylinders": [],
+            "cylinders": drone_cylinders,
             "lines": [],
             "triangles": [],
             "texts": drone_texts,

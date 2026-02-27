@@ -2,7 +2,6 @@
 Tests for Foxglove Studio integration: FoxgloveBridge and MCAPRecorder.
 """
 
-import asyncio
 import json
 import tempfile
 import time
@@ -18,6 +17,7 @@ from isr_rl_dmpc.utils.foxglove_bridge import (
     _vec3,
     _quat,
     _now_ns,
+    extract_targets_from_obs,
 )
 from isr_rl_dmpc.utils.mcap_logger import MCAPRecorder
 from isr_rl_dmpc.core.data_structures import DroneState, TargetState, MissionState
@@ -314,6 +314,237 @@ class TestStateManagerIntegration:
 
 
 # ---------------------------------------------------------------------------
+# extract_targets_from_obs tests
+# ---------------------------------------------------------------------------
+
+class TestExtractTargetsFromObs:
+    """Tests for the extract_targets_from_obs helper."""
+
+    def test_empty_targets(self):
+        """All-zero observation returns empty dicts."""
+        obs = np.zeros((5, 12))
+        pos, cls = extract_targets_from_obs(obs)
+        assert len(pos) == 0
+        assert len(cls) == 0
+
+    def test_single_hostile_target(self):
+        """A single hostile target is extracted correctly."""
+        obs = np.zeros((3, 12))
+        obs[0, :3] = [100.0, 200.0, 50.0]
+        obs[0, 8] = 2.0  # HOSTILE
+        pos, cls = extract_targets_from_obs(obs)
+        assert len(pos) == 1
+        assert "T0" in pos
+        np.testing.assert_array_almost_equal(pos["T0"], [100.0, 200.0, 50.0])
+        assert cls["T0"] == "hostile"
+
+    def test_multiple_target_types(self):
+        """Multiple targets with different types."""
+        obs = np.zeros((4, 12))
+        obs[0, :3] = [10.0, 20.0, 30.0]
+        obs[0, 8] = 1.0  # FRIENDLY
+        obs[1, :3] = [40.0, 50.0, 60.0]
+        obs[1, 8] = 2.0  # HOSTILE
+        obs[2, :3] = [70.0, 80.0, 90.0]
+        obs[2, 8] = 0.0  # UNKNOWN
+        # obs[3] is all-zero -> should be skipped
+        pos, cls = extract_targets_from_obs(obs)
+        assert len(pos) == 3
+        assert cls["T0"] == "friendly"
+        assert cls["T1"] == "hostile"
+        assert cls["T2"] == "unknown"
+
+    def test_neutral_target(self):
+        """Neutral target type (3) is recognized."""
+        obs = np.zeros((1, 12))
+        obs[0, :3] = [5.0, 5.0, 5.0]
+        obs[0, 8] = 3.0  # NEUTRAL
+        pos, cls = extract_targets_from_obs(obs)
+        assert cls["T0"] == "neutral"
+
+    def test_skips_zero_position(self):
+        """Targets at origin with zero position are skipped (padding)."""
+        obs = np.zeros((3, 12))
+        obs[0, :3] = [0.0, 0.0, 0.0]  # zero -> skipped
+        obs[0, 8] = 2.0
+        obs[1, :3] = [100.0, 200.0, 50.0]
+        obs[1, 8] = 1.0
+        pos, cls = extract_targets_from_obs(obs)
+        assert len(pos) == 1
+        assert "T1" in pos
+
+
+# ---------------------------------------------------------------------------
+# Ground plane in scene tests
+# ---------------------------------------------------------------------------
+
+class TestGroundPlane:
+    """Tests for the ground plane in publish_scene."""
+
+    def test_publish_scene_with_ground_plane_no_error(self):
+        """Publishing scene with grid_extent does not raise."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[0, 0, 50], [100, 100, 50]])
+        bridge.publish_scene(
+            drone_positions=positions,
+            grid_extent=2000.0,
+        )
+
+    def test_publish_scene_without_ground_plane_no_error(self):
+        """Publishing scene without grid_extent still works."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[0, 0, 50]])
+        bridge.publish_scene(drone_positions=positions)
+
+
+# ---------------------------------------------------------------------------
+# Scene structure verification tests
+# ---------------------------------------------------------------------------
+
+class TestSceneStructure:
+    """Verify the scene entity structure matches what Foxglove Studio expects."""
+
+    def _build_scene(self, bridge, **kwargs):
+        """Capture the scene dict by calling publish_scene on an unstarted bridge."""
+        # Directly call the internal scene-building logic via the public method.
+        # Since the bridge is not started, _send is a no-op, but we can
+        # inspect the arguments it would send by monkey-patching _send.
+        captured = {}
+
+        def _capture(channel_key, data, timestamp_ns):
+            captured[channel_key] = data
+
+        bridge._send = _capture
+        bridge._started = True  # allow _send to be called
+        bridge.publish_scene(**kwargs)
+        bridge._started = False
+        return captured.get("scene")
+
+    def test_drone_entity_has_cubes_arrows_cylinders(self):
+        """Drones entity should contain cubes (body), arrows (heading), cylinders (rotors)."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[100.0, 200.0, 50.0], [300.0, 400.0, 60.0]])
+        batteries = np.array([4000.0, 2000.0])
+        scene = self._build_scene(
+            bridge,
+            drone_positions=positions,
+            drone_batteries=batteries,
+        )
+        assert scene is not None
+        drones_entity = next(e for e in scene["entities"] if e["id"] == "drones")
+
+        # Body cubes: 1 per drone
+        assert len(drones_entity["cubes"]) == 2
+        # Rotor cylinders: 4 per drone
+        assert len(drones_entity["cylinders"]) == 8
+        # Heading arrows: 1 per drone
+        assert len(drones_entity["arrows"]) == 2
+        # Labels: 1 per drone
+        assert len(drones_entity["texts"]) == 2
+
+    def test_drone_cube_has_required_fields(self):
+        """Each drone cube must have pose, size, and color."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        scene = self._build_scene(bridge, drone_positions=positions)
+        cube = scene["entities"][0]["cubes"][0]
+        assert "pose" in cube
+        assert "position" in cube["pose"]
+        assert "orientation" in cube["pose"]
+        assert "size" in cube
+        assert "color" in cube
+
+    def test_target_entity_has_spheres_and_labels(self):
+        """Targets should have spheres and text labels."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
+        tgt_cls = {"T0": "hostile"}
+        scene = self._build_scene(
+            bridge,
+            drone_positions=positions,
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+        )
+        targets_entity = next(e for e in scene["entities"] if e["id"] == "targets")
+        assert len(targets_entity["spheres"]) == 1
+        assert len(targets_entity["texts"]) == 1
+        assert "hostile" in targets_entity["texts"][0]["text"]
+
+    def test_ground_plane_entity_present(self):
+        """Ground plane entity should be present when grid_extent is set."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        scene = self._build_scene(
+            bridge, drone_positions=positions, grid_extent=2000.0,
+        )
+        ground = next(e for e in scene["entities"] if e["id"] == "ground_plane")
+        assert len(ground["cubes"]) == 1
+
+    def test_all_entities_have_required_fields(self):
+        """Every entity must have the required Foxglove SceneEntity fields."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
+        tgt_cls = {"T0": "friendly"}
+        scene = self._build_scene(
+            bridge,
+            drone_positions=positions,
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+            grid_extent=2000.0,
+        )
+        required = {
+            "timestamp", "frame_id", "id", "lifetime", "frame_locked",
+            "metadata", "arrows", "cubes", "spheres", "cylinders",
+            "lines", "triangles", "texts", "models",
+        }
+        for entity in scene["entities"]:
+            missing = required - set(entity.keys())
+            assert not missing, f"Entity '{entity['id']}' missing fields: {missing}"
+
+    def test_scene_mcap_roundtrip_with_targets(self, tmp_path):
+        """Scene with drones, targets, and ground plane can be recorded and read back."""
+        from mcap.reader import make_reader
+
+        filepath = str(tmp_path / "scene_roundtrip.mcap")
+        with MCAPRecorder(filepath) as recorder:
+            positions = np.array([[100.0, 200.0, 50.0], [300.0, 400.0, 60.0]])
+            batteries = np.array([4500.0, 3000.0])
+            tgt_pos = {
+                "T0": np.array([500.0, 500.0, 80.0]),
+                "T1": np.array([600.0, 600.0, 90.0]),
+            }
+            tgt_cls = {"T0": "hostile", "T1": "friendly"}
+            for step in range(5):
+                ts = int(time.time() * 1e9) + step * 100_000_000
+                recorder.record_scene(
+                    drone_positions=positions,
+                    drone_batteries=batteries,
+                    target_positions=tgt_pos,
+                    target_classifications=tgt_cls,
+                    timestamp_ns=ts,
+                )
+                recorder.record_metrics(
+                    {"step": step, "coverage": 0.5, "active_drones": 2,
+                     "total_drones": 2, "collisions": 0, "avg_battery": 3750.0},
+                    reward=0.1,
+                    timestamp_ns=ts,
+                )
+
+        # Verify MCAP is readable
+        with open(filepath, "rb") as f:
+            reader = make_reader(f)
+            summary = reader.get_summary()
+            assert summary is not None
+            assert len(summary.channels) >= 2
+            # Verify scene and metrics channels exist
+            topics = {ch.topic for ch in summary.channels.values()}
+            assert "/swarm/scene" in topics
+            assert "/swarm/metrics" in topics
+
+
+# ---------------------------------------------------------------------------
 # Module import tests
 # ---------------------------------------------------------------------------
 
@@ -329,6 +560,11 @@ class TestModuleImports:
         """MCAPRecorder is importable from utils."""
         from isr_rl_dmpc.utils import MCAPRecorder
         assert MCAPRecorder is not None
+
+    def test_import_extract_targets_from_obs(self):
+        """extract_targets_from_obs is importable from utils."""
+        from isr_rl_dmpc.utils import extract_targets_from_obs
+        assert extract_targets_from_obs is not None
 
 
 if __name__ == "__main__":

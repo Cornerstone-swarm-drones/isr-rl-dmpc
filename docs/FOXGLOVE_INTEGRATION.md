@@ -8,6 +8,8 @@ This guide covers the Foxglove Studio integration for real-time and offline visu
 
 - **Live visualization** via WebSocket — stream simulation data in real-time
 - **MCAP recording** — record simulation runs for offline playback and analysis
+- **Simultaneous live + recording** — stream and record at the same time
+- **Training visualization** — visualize agent training in real-time with the `--foxglove` flag
 - **StateManager integration** — publish directly from the existing state management system
 
 ## Quick Start
@@ -15,7 +17,7 @@ This guide covers the Foxglove Studio integration for real-time and offline visu
 ### 1. Install Dependencies
 
 ```bash
-pip install foxglove-websocket>=0.1.4 mcap>=1.1.0 protobuf>=5.29.6
+pip install foxglove-sdk>=0.18.0 mcap>=1.1.0 protobuf>=5.29.6
 ```
 
 Or install all project dependencies:
@@ -48,6 +50,24 @@ python scripts/foxglove_visualize.py --mode record --output data/recordings/miss
 
 Open the `.mcap` file in Foxglove Studio for full playback with timeline scrubbing.
 
+### 4. Live + Record Simultaneously
+
+Stream to Foxglove Studio **and** record to an MCAP file at the same time:
+
+```bash
+python scripts/foxglove_visualize.py --mode both --output data/recordings/mission.mcap
+```
+
+### 5. Visualize During Training
+
+Enable live Foxglove visualization while training the RL agent:
+
+```bash
+python scripts/train_agent.py --foxglove --foxglove-port 8765
+```
+
+Then connect Foxglove Studio to `ws://localhost:8765` to watch drones, targets, and metrics update in real-time as the agent trains.
+
 ## Architecture
 
 ```
@@ -67,6 +87,7 @@ Open the `.mcap` file in Foxglove Studio for full playback with timeline scrubbi
 |-----------|------|---------|
 | `FoxgloveBridge` | `src/isr_rl_dmpc/utils/foxglove_bridge.py` | WebSocket server for live streaming |
 | `MCAPRecorder` | `src/isr_rl_dmpc/utils/mcap_logger.py` | MCAP file recording |
+| `extract_targets_from_obs` | `src/isr_rl_dmpc/utils/foxglove_bridge.py` | Extract target data from env observations |
 | `foxglove_visualize.py` | `scripts/foxglove_visualize.py` | CLI script for visualization |
 | `foxglove_config.yaml` | `config/foxglove_config.yaml` | Configuration settings |
 | `foxglove_layout.json` | `config/foxglove_layout.json` | Default Foxglove Studio layout |
@@ -77,10 +98,21 @@ The integration publishes data on these topics:
 
 | Topic | Schema | Content |
 |-------|--------|---------|
-| `/swarm/scene` | `foxglove.SceneUpdate` | 3D scene with drone cubes and target spheres |
+| `/swarm/scene` | `foxglove.SceneUpdate` | 3D scene with drone cubes, target spheres, and ground plane |
 | `/swarm/metrics` | `isr.SwarmMetrics` | Coverage, battery, reward, collisions |
 | `/mission/coverage` | `isr.CoverageGrid` | Grid coverage map and percentage |
 | `/mission/info` | `isr.MissionInfo` | Mission progress, duration, efficiency |
+
+### Scene Objects
+
+The 3D scene includes:
+
+- **Drone body cubes** — color-coded by battery level (green = full, red = empty) with labels showing drone ID and battery
+- **Rotor cylinders** — 4 cylinders per drone forming a quadcopter shape above the body
+- **Heading arrows** — white arrows showing each drone's forward direction
+- **Target spheres** — color-coded by classification (red = hostile, green = friendly, yellow = unknown)
+- **Target labels** — showing target ID and classification
+- **Ground plane** — semi-transparent reference plane showing the mission area extent
 
 ## API Reference
 
@@ -91,11 +123,12 @@ from isr_rl_dmpc.utils import FoxgloveBridge
 
 # Initialize and start
 bridge = FoxgloveBridge(host="0.0.0.0", port=8765)
-await bridge.start()
+bridge.start()
 
 # Publish during simulation loop
 bridge.publish_scene(drone_positions, drone_quaternions, drone_batteries,
-                     target_positions, target_classifications, timestamp_ns)
+                     target_positions, target_classifications, timestamp_ns,
+                     grid_extent=2000.0)  # optional ground plane
 bridge.publish_metrics(info_dict, reward, timestamp_ns)
 bridge.publish_coverage(coverage_map, grid_size, timestamp_ns)
 bridge.publish_mission_info(elapsed_time, mission_duration, coverage_efficiency,
@@ -105,7 +138,20 @@ bridge.publish_mission_info(elapsed_time, mission_duration, coverage_efficiency,
 bridge.publish_from_state_manager(state_manager, timestamp_ns)
 
 # Stop
-await bridge.stop()
+bridge.stop()
+```
+
+### extract_targets_from_obs
+
+Helper to extract target positions and classifications from the gym environment's observation array:
+
+```python
+from isr_rl_dmpc.utils import extract_targets_from_obs
+
+# obs["targets"] is (max_targets, 12) array from ISRGridEnv
+target_positions, target_classifications = extract_targets_from_obs(obs["targets"])
+# target_positions: {"T0": np.array([x, y, z]), ...}
+# target_classifications: {"T0": "hostile", "T1": "friendly", ...}
 ```
 
 ### MCAPRecorder
@@ -126,34 +172,47 @@ with MCAPRecorder("recording.mcap") as recorder:
 ### Integration with Training Loop
 
 ```python
-import asyncio
 from isr_rl_dmpc.gym_env.isr_env import ISRGridEnv
-from isr_rl_dmpc.utils import FoxgloveBridge, MCAPRecorder
+from isr_rl_dmpc.utils import FoxgloveBridge, extract_targets_from_obs
 
-async def train_with_visualization():
-    env = ISRGridEnv(num_drones=4)
+def train_with_visualization():
+    env = ISRGridEnv(num_drones=4, max_targets=3)
     bridge = FoxgloveBridge(port=8765)
-    await bridge.start()
+    bridge.start()
 
     obs, info = env.reset()
     for step in range(1000):
         action = agent.act(obs)  # Your RL agent
         obs, reward, done, truncated, info = env.step(action)
 
-        # Publish to Foxglove
+        # Extract targets from observation
+        tgt_pos, tgt_cls = extract_targets_from_obs(obs["targets"])
+
+        # Publish to Foxglove with all objects visible
         bridge.publish_scene(
             drone_positions=obs['swarm'][:, :3],
             drone_batteries=obs['swarm'][:, 16],
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+            grid_extent=2000.0,
         )
         bridge.publish_metrics(info, reward=reward)
 
         if done:
             obs, info = env.reset()
 
-    await bridge.stop()
+    bridge.stop()
+```
+
+Or use the built-in training flag:
+
+```bash
+python scripts/train_agent.py --foxglove --num-episodes 100
 ```
 
 ## CLI Options
+
+### foxglove_visualize.py
 
 ```
 python scripts/foxglove_visualize.py [OPTIONS]
@@ -169,6 +228,16 @@ Options:
   --grid-y N                 Grid Y size (default: 20)
   --num-steps N              Simulation steps (default: 500)
   --fps RATE                 Publishing rate in Hz (default: 10)
+```
+
+### train_agent.py (Foxglove options)
+
+```
+python scripts/train_agent.py [OPTIONS]
+
+Foxglove Options:
+  --foxglove                 Enable live Foxglove Studio visualization
+  --foxglove-port PORT       WebSocket server port (default: 8765)
 ```
 
 ## Configuration
@@ -192,6 +261,21 @@ foxglove:
 
 Import the default layout from `config/foxglove_layout.json` for a pre-configured dashboard with:
 
-- **3D Panel** — Drone positions (cubes) and target markers (spheres)
+- **3D Panel** — Drone models (body cubes + rotor cylinders + heading arrows), target markers (spheres), and ground plane
 - **Plot Panel** — Real-time coverage, reward, and battery metrics
 - **Raw Messages** — Coverage grid and mission info inspection
+
+## Troubleshooting
+
+### Known Issues
+
+- The project uses `foxglove-sdk` (v0.18.0+) which replaced the deprecated `foxglove-websocket` library for a clean, warning-free experience.
+
+### Common Problems
+
+| Problem | Solution |
+|---------|----------|
+| Cannot connect to WebSocket | Ensure the server is running and check firewall settings for port 8765 |
+| No 3D objects visible | Add a **3D Panel** in Foxglove Studio and subscribe to `/swarm/scene` |
+| Targets not showing | Ensure the simulation has active targets (non-zero positions) |
+| Metrics not plotting | Add a **Plot Panel** and select fields from `/swarm/metrics` |
