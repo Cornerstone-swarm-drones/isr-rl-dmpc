@@ -386,6 +386,19 @@ class TestExtractTargetsFromObs:
 class TestGroundPlane:
     """Tests for the ground plane in publish_scene."""
 
+    def _build_scene(self, bridge, **kwargs):
+        """Capture the scene dict produced by publish_scene."""
+        captured = {}
+
+        def _capture(channel_key, data, timestamp_ns):
+            captured[channel_key] = data
+
+        bridge._send = _capture
+        bridge._started = True
+        bridge.publish_scene(**kwargs)
+        bridge._started = False
+        return captured.get("scene")
+
     def test_publish_scene_with_ground_plane_no_error(self):
         """Publishing scene with grid_extent does not raise."""
         bridge = FoxgloveBridge()
@@ -400,6 +413,62 @@ class TestGroundPlane:
         bridge = FoxgloveBridge()
         positions = np.array([[0, 0, 50]])
         bridge.publish_scene(drone_positions=positions)
+
+    def test_ground_plane_centered_at_origin(self):
+        """Ground plane cube must be positioned at (0, 0) when grid_extent is given."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[1000.0, 1000.0, 50.0]])
+        scene = self._build_scene(bridge, drone_positions=positions, grid_extent=2000.0)
+        ground = next(e for e in scene["entities"] if e["id"] == "ground_plane")
+        cube_pos = ground["cubes"][0]["pose"]["position"]
+        assert cube_pos["x"] == 0.0
+        assert cube_pos["y"] == 0.0
+
+    def test_drone_positions_shifted_by_half(self):
+        """Drone model positions must be shifted by -half when grid_extent is set."""
+        bridge = FoxgloveBridge()
+        grid_extent = 2000.0
+        half = grid_extent / 2.0
+        raw_pos = np.array([[1200.0, 800.0, 50.0]])
+        scene = self._build_scene(
+            bridge, drone_positions=raw_pos, grid_extent=grid_extent
+        )
+        drones = next(e for e in scene["entities"] if e["id"] == "drones")
+        model_pos = drones["models"][0]["pose"]["position"]
+        assert model_pos["x"] == pytest.approx(1200.0 - half)
+        assert model_pos["y"] == pytest.approx(800.0 - half)
+        assert model_pos["z"] == pytest.approx(50.0)
+
+    def test_target_positions_shifted_by_half(self):
+        """Target model positions must be shifted by -half when grid_extent is set."""
+        bridge = FoxgloveBridge()
+        grid_extent = 2000.0
+        half = grid_extent / 2.0
+        drone_pos = np.array([[1000.0, 1000.0, 50.0]])
+        tgt_pos = {"T0": np.array([600.0, 400.0, 80.0])}
+        tgt_cls = {"T0": "hostile"}
+        scene = self._build_scene(
+            bridge,
+            drone_positions=drone_pos,
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+            grid_extent=grid_extent,
+        )
+        targets = next(e for e in scene["entities"] if e["id"] == "targets")
+        model_pos = targets["models"][0]["pose"]["position"]
+        assert model_pos["x"] == pytest.approx(600.0 - half)
+        assert model_pos["y"] == pytest.approx(400.0 - half)
+        assert model_pos["z"] == pytest.approx(80.0)
+
+    def test_no_shift_without_grid_extent(self):
+        """Without grid_extent, drone positions are published as-is."""
+        bridge = FoxgloveBridge()
+        raw_pos = np.array([[300.0, 400.0, 50.0]])
+        scene = self._build_scene(bridge, drone_positions=raw_pos)
+        drones = next(e for e in scene["entities"] if e["id"] == "drones")
+        model_pos = drones["models"][0]["pose"]["position"]
+        assert model_pos["x"] == pytest.approx(300.0)
+        assert model_pos["y"] == pytest.approx(400.0)
 
 
 # ---------------------------------------------------------------------------
