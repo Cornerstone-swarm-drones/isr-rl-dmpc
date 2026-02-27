@@ -39,6 +39,9 @@ from .visualization import (
     StatisticsVisualizer,
 )
 
+from .foxglove_bridge import FoxgloveBridge
+from .mcap_logger import MCAPRecorder
+
 
 __all__ = [
     # conversions
@@ -72,4 +75,7 @@ __all__ = [
     "FormationVisualizer",
     "EnergyVisualizer",
     "StatisticsVisualizer",
+    # Foxglove
+    "FoxgloveBridge",
+    "MCAPRecorder",
 ]

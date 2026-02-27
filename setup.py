@@ -17,6 +17,9 @@ setup(
         "pyyaml>=5.4",
         "pytest>=6.2.0",
         "torch>=1.9.0",
+        "foxglove-websocket>=0.1.4",
+        "mcap>=1.1.0",
+        "protobuf>=5.29.6",
     ],
     extras_require={
         "dev": [
