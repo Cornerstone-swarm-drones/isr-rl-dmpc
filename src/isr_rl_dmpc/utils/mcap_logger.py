@@ -77,8 +77,8 @@ class MCAPRecorder:
             data=json.dumps({
                 "type": "object",
                 "properties": {
-                    "deletions": {"type": "array"},
-                    "entities": {"type": "array"},
+                    "deletions": {"type": "array", "items": {"type": "object"}},
+                    "entities": {"type": "array", "items": {"type": "object"}},
                 },
             }).encode("utf-8"),
         )

@@ -17,6 +17,7 @@ from isr_rl_dmpc.utils.foxglove_bridge import (
     _vec3,
     _quat,
     _now_ns,
+    _SCENE_UPDATE_SCHEMA,
     extract_targets_from_obs,
     get_drone_model_data,
     get_target_model_data,
@@ -554,6 +555,26 @@ class TestSceneStructure:
             topics = {ch.topic for ch in summary.channels.values()}
             assert "/swarm/scene" in topics
             assert "/swarm/metrics" in topics
+
+    def test_scene_schema_arrays_have_items(self):
+        """Every 'array' property in _SCENE_UPDATE_SCHEMA must define 'items'.
+
+        Foxglove Studio's JSON Schema parser accesses ``items.type`` when
+        traversing the schema.  A missing ``items`` causes:
+        "Cannot read properties of undefined (reading 'type')".
+        """
+
+        def _check(schema, path=""):
+            if isinstance(schema, dict):
+                if schema.get("type") == "array":
+                    assert "items" in schema, (
+                        f"Array at '{path}' missing 'items' — "
+                        "Foxglove will fail to parse this schema"
+                    )
+                for key, value in schema.items():
+                    _check(value, f"{path}.{key}")
+
+        _check(_SCENE_UPDATE_SCHEMA, "SceneUpdate")
 
 
 # ---------------------------------------------------------------------------
