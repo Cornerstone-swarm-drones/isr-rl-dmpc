@@ -9,13 +9,15 @@ Compatible with existing isr_rl_dmpc package:
 """
 
 import argparse
+import asyncio
 import numpy as np
 import torch
 import yaml
 from pathlib import Path
 from datetime import datetime
 import json
-from typing import Dict
+import time
+from typing import Dict, Optional
 
 from isr_rl_dmpc.gym_env import ISRGridEnv
 from isr_rl_dmpc.agents import DMPCAgent
@@ -43,6 +45,10 @@ def parse_args():
                         help='Device to use (cuda/cpu)')
     parser.add_argument('--seed', type=int, default=42,
                         help='Random seed for reproducibility')
+    parser.add_argument('--foxglove', action='store_true',
+                        help='Enable live Foxglove Studio visualization during training')
+    parser.add_argument('--foxglove-port', type=int, default=8765,
+                        help='Foxglove WebSocket server port (default: 8765)')
     return parser.parse_args()
 
 
@@ -68,7 +74,8 @@ def train(config_path: str,
           eval_freq: int = 100,
           output_dir: str = 'data/training_logs',
           device: str = 'cpu',
-          seed: int = 42) -> Dict:
+          seed: int = 42,
+          foxglove_bridge: Optional[object] = None) -> Dict:
     """
     Main training loop for ISR-RL-DMPC agent.
 
@@ -81,6 +88,7 @@ def train(config_path: str,
         output_dir: Output directory for logs and checkpoints
         device: Device to use ('cuda' or 'cpu')
         seed: Random seed
+        foxglove_bridge: Optional FoxgloveBridge instance for live visualization
 
     Returns:
         Dictionary containing training statistics
@@ -161,6 +169,22 @@ def train(config_path: str,
             # Environment step (5-tuple: obs, reward, terminated, truncated, info)
             next_obs, reward, terminated, truncated, info = env.step(action_env)
             done = terminated or truncated
+
+            # Publish to Foxglove Studio if bridge is active
+            if foxglove_bridge is not None and foxglove_bridge.is_running:
+                from isr_rl_dmpc.utils.foxglove_bridge import extract_targets_from_obs
+                ts_ns = int(time.time() * 1e9)
+                swarm = next_obs["swarm"]
+                tgt_pos, tgt_cls = extract_targets_from_obs(next_obs["targets"])
+                foxglove_bridge.publish_scene(
+                    drone_positions=swarm[:, :3],
+                    drone_quaternions=swarm[:, 9:13],
+                    drone_batteries=swarm[:, 16],
+                    target_positions=tgt_pos,
+                    target_classifications=tgt_cls,
+                    timestamp_ns=ts_ns,
+                )
+                foxglove_bridge.publish_metrics(info, reward=reward, timestamp_ns=ts_ns)
 
             # Store experience
             agent.remember(obs, action, reward, next_obs, done)
@@ -324,16 +348,38 @@ def evaluate_policy(agent, env, num_episodes: int = 10) -> Dict:
 if __name__ == '__main__':
     args = parse_args()
 
-    stats = train(
-        config_path=args.config,
-        num_episodes=args.num_episodes,
-        num_steps_per_episode=args.num_steps,
-        save_freq=args.save_freq,
-        eval_freq=args.eval_freq,
-        output_dir=args.output_dir,
-        device=args.device,
-        seed=args.seed,
-    )
+    bridge = None
+    if args.foxglove:
+        from isr_rl_dmpc.utils.foxglove_bridge import FoxgloveBridge
+
+        async def _start_bridge(port: int) -> FoxgloveBridge:
+            b = FoxgloveBridge(host="0.0.0.0", port=port)
+            await b.start()
+            return b
+
+        bridge = asyncio.get_event_loop().run_until_complete(
+            _start_bridge(args.foxglove_port)
+        )
+        print(
+            f"Foxglove bridge started on ws://0.0.0.0:{args.foxglove_port} — "
+            "connect Foxglove Studio to visualize training"
+        )
+
+    try:
+        stats = train(
+            config_path=args.config,
+            num_episodes=args.num_episodes,
+            num_steps_per_episode=args.num_steps,
+            save_freq=args.save_freq,
+            eval_freq=args.eval_freq,
+            output_dir=args.output_dir,
+            device=args.device,
+            seed=args.seed,
+            foxglove_bridge=bridge,
+        )
+    finally:
+        if bridge is not None:
+            asyncio.get_event_loop().run_until_complete(bridge.stop())
 
     print("\n" + "=" * 60)
     print("TRAINING COMPLETE")

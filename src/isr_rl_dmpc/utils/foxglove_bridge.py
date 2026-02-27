@@ -107,6 +107,38 @@ def _quat(x: float, y: float, z: float, w: float) -> Dict[str, float]:
     return {"x": float(x), "y": float(y), "z": float(z), "w": float(w)}
 
 
+_TARGET_TYPE_MAP = {0: "unknown", 1: "friendly", 2: "hostile", 3: "neutral"}
+
+
+def extract_targets_from_obs(
+    targets_obs: np.ndarray,
+) -> tuple:
+    """Extract target positions and classifications from the env observation.
+
+    The ``targets`` observation is shaped ``(max_targets, 12)`` where each row
+    contains:
+        [0:3] position (x, y, z)
+        [8]   target_type enum (0=unknown, 1=friendly, 2=hostile, 3=neutral)
+
+    Rows that are all-zero are padding and are skipped.
+
+    Returns:
+        (target_positions, target_classifications) dicts keyed by target id.
+    """
+    positions: Dict[str, np.ndarray] = {}
+    classifications: Dict[str, str] = {}
+    for i in range(len(targets_obs)):
+        row = targets_obs[i]
+        # Skip zero-padded (inactive) targets
+        if np.allclose(row[:3], 0.0):
+            continue
+        tid = f"T{i}"
+        positions[tid] = row[:3].copy()
+        ttype = int(round(float(row[8])))
+        classifications[tid] = _TARGET_TYPE_MAP.get(ttype, "unknown")
+    return positions, classifications
+
+
 class _BridgeListener(FoxgloveServerListener):
     """Handles Foxglove client subscription events."""
 
@@ -296,6 +328,7 @@ class FoxgloveBridge:
         target_positions: Optional[Dict[str, np.ndarray]] = None,
         target_classifications: Optional[Dict[str, str]] = None,
         timestamp_ns: Optional[int] = None,
+        grid_extent: Optional[float] = None,
     ) -> None:
         """
         Publish a 3D scene update with drone and target markers.
@@ -307,6 +340,7 @@ class FoxgloveBridge:
             target_positions: dict mapping target_id -> (3,) position
             target_classifications: dict mapping target_id -> classification string
             timestamp_ns: Timestamp in nanoseconds (default: current time)
+            grid_extent: Size of the ground plane in meters (optional)
         """
         if timestamp_ns is None:
             timestamp_ns = _now_ns()
@@ -314,6 +348,33 @@ class FoxgloveBridge:
         ts = _timestamp_obj(timestamp_ns)
 
         entities: List[Dict[str, Any]] = []
+
+        # --- Ground plane entity ---
+        if grid_extent is not None and grid_extent > 0:
+            half = grid_extent / 2.0
+            entities.append({
+                "timestamp": ts,
+                "frame_id": "world",
+                "id": "ground_plane",
+                "lifetime": {"sec": 0, "nsec": 0},
+                "frame_locked": False,
+                "metadata": [],
+                "arrows": [],
+                "cubes": [{
+                    "pose": {
+                        "position": _vec3(half, half, -0.25),
+                        "orientation": _quat(0, 0, 0, 1),
+                    },
+                    "size": _vec3(grid_extent, grid_extent, 0.5),
+                    "color": _color(0.15, 0.15, 0.15, 0.4),
+                }],
+                "spheres": [],
+                "cylinders": [],
+                "lines": [],
+                "triangles": [],
+                "texts": [],
+                "models": [],
+            })
 
         # --- Drone entities ---
         n_drones = len(drone_positions)

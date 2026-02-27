@@ -39,7 +39,7 @@ from .visualization import (
     StatisticsVisualizer,
 )
 
-from .foxglove_bridge import FoxgloveBridge
+from .foxglove_bridge import FoxgloveBridge, extract_targets_from_obs
 from .mcap_logger import MCAPRecorder
 
 
@@ -77,5 +77,6 @@ __all__ = [
     "StatisticsVisualizer",
     # Foxglove
     "FoxgloveBridge",
+    "extract_targets_from_obs",
     "MCAPRecorder",
 ]
