@@ -18,9 +18,10 @@ from isr_rl_dmpc.utils.foxglove_bridge import (
     _quat,
     _now_ns,
     extract_targets_from_obs,
-    preload_models,
-    DRONE_MODEL_URL,
-    TARGET_MODELS,
+    get_drone_model_data,
+    get_target_model_data,
+    DRONE_MODEL_PATH,
+    TARGET_MODEL_PATHS,
 )
 from isr_rl_dmpc.utils.mcap_logger import MCAPRecorder
 from isr_rl_dmpc.core.data_structures import DroneState, TargetState, MissionState
@@ -446,7 +447,7 @@ class TestSceneStructure:
         assert len(drones_entity["texts"]) == 2
 
     def test_drone_model_has_required_fields(self):
-        """Each drone model must have pose, scale, url, media_type, and color."""
+        """Each drone model must have pose, scale, data, media_type, and color."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
         scene = self._build_scene(bridge, drone_positions=positions)
@@ -455,8 +456,8 @@ class TestSceneStructure:
         assert "position" in model["pose"]
         assert "orientation" in model["pose"]
         assert "scale" in model
-        assert "url" in model
-        assert model["url"] != ""
+        assert "data" in model
+        assert model["data"] != ""
         assert "media_type" in model
         assert "color" in model
         assert model["media_type"] == "model/gltf-binary"
@@ -478,8 +479,8 @@ class TestSceneStructure:
         assert len(targets_entity["spheres"]) == 0
         assert len(targets_entity["texts"]) == 1
         assert "hostile" in targets_entity["texts"][0]["text"]
-        assert "url" in targets_entity["models"][0]
-        assert targets_entity["models"][0]["url"] != ""
+        assert "data" in targets_entity["models"][0]
+        assert targets_entity["models"][0]["data"] != ""
         assert "media_type" in targets_entity["models"][0]
 
     def test_ground_plane_entity_present(self):
@@ -559,8 +560,8 @@ class TestSceneStructure:
 # Model loading and optimization tests
 # ---------------------------------------------------------------------------
 
-class TestModelUrls:
-    """Tests for model URL usage in scene entities."""
+class TestLocalModels:
+    """Tests for local model loading and scene entity data embedding."""
 
     def _build_scene(self, bridge, **kwargs):
         """Capture the scene dict by calling publish_scene on an unstarted bridge."""
@@ -575,31 +576,60 @@ class TestModelUrls:
         bridge._started = False
         return captured.get("scene")
 
-    def test_drone_models_always_use_url(self):
-        """Drone models should always use 'url' field with actual URL."""
+    def test_local_model_files_exist(self):
+        """All local .glb model files must exist on disk."""
+        assert DRONE_MODEL_PATH.exists(), f"Missing: {DRONE_MODEL_PATH}"
+        for cls_name, path in TARGET_MODEL_PATHS.items():
+            assert path.exists(), f"Missing {cls_name} model: {path}"
+
+    def test_local_model_files_are_valid_glb(self):
+        """Local model files must start with the glTF magic bytes."""
+        for path in [DRONE_MODEL_PATH] + list(TARGET_MODEL_PATHS.values()):
+            with open(path, "rb") as f:
+                magic = f.read(4)
+            assert magic == b"glTF", f"{path.name} is not a valid glTF binary"
+
+    def test_get_drone_model_data_returns_nonempty(self):
+        """get_drone_model_data returns non-empty base64 string."""
+        data = get_drone_model_data()
+        assert isinstance(data, str)
+        assert len(data) > 0
+
+    def test_get_target_model_data_returns_nonempty(self):
+        """get_target_model_data returns non-empty base64 string for each class."""
+        for cls_name in ("hostile", "friendly", "unknown"):
+            data = get_target_model_data(cls_name)
+            assert isinstance(data, str)
+            assert len(data) > 0
+
+    def test_get_target_model_data_unknown_falls_back(self):
+        """Unknown classification falls back to 'unknown' model."""
+        data = get_target_model_data("nonexistent_class")
+        expected = get_target_model_data("unknown")
+        assert data == expected
+
+    def test_drone_models_use_embedded_data(self):
+        """Drone models should use 'data' field with embedded model bytes."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
         scene = self._build_scene(bridge, drone_positions=positions)
         model = scene["entities"][0]["models"][0]
-        assert "url" in model
-        assert model["url"] == DRONE_MODEL_URL
-        assert "data" not in model
+        assert "data" in model
+        assert model["data"] == get_drone_model_data()
+        assert "url" not in model
 
     def test_drone_models_consistent_across_frames(self):
-        """Drone models should use the same URL on every frame."""
+        """Drone models should use the same data on every frame."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
-        # First frame
         scene1 = self._build_scene(bridge, drone_positions=positions)
-        # Second frame
         scene2 = self._build_scene(bridge, drone_positions=positions)
         model1 = scene1["entities"][0]["models"][0]
         model2 = scene2["entities"][0]["models"][0]
-        assert model1["url"] == DRONE_MODEL_URL
-        assert model2["url"] == DRONE_MODEL_URL
+        assert model1["data"] == model2["data"]
 
-    def test_target_models_always_use_url(self):
-        """Target models should always use 'url' field with actual URL."""
+    def test_target_models_use_embedded_data(self):
+        """Target models should use 'data' field with embedded model bytes."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
         tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
@@ -612,24 +642,22 @@ class TestModelUrls:
         )
         targets_entity = next(e for e in scene["entities"] if e["id"] == "targets")
         model = targets_entity["models"][0]
-        assert "url" in model
-        assert model["url"] == TARGET_MODELS["hostile"]
-        assert "data" not in model
+        assert "data" in model
+        assert model["data"] == get_target_model_data("hostile")
+        assert "url" not in model
 
     def test_target_models_consistent_across_frames(self):
-        """Target models should use the same URL on every frame."""
+        """Target models should use the same data on every frame."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
         tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
         tgt_cls = {"T0": "hostile"}
-        # First frame
         scene1 = self._build_scene(
             bridge,
             drone_positions=positions,
             target_positions=tgt_pos,
             target_classifications=tgt_cls,
         )
-        # Second frame
         scene2 = self._build_scene(
             bridge,
             drone_positions=positions,
@@ -638,11 +666,10 @@ class TestModelUrls:
         )
         targets1 = next(e for e in scene1["entities"] if e["id"] == "targets")
         targets2 = next(e for e in scene2["entities"] if e["id"] == "targets")
-        assert targets1["models"][0]["url"] == TARGET_MODELS["hostile"]
-        assert targets2["models"][0]["url"] == TARGET_MODELS["hostile"]
+        assert targets1["models"][0]["data"] == targets2["models"][0]["data"]
 
-    def test_target_model_url_matches_classification(self):
-        """Target model URL should match the target classification."""
+    def test_target_model_data_matches_classification(self):
+        """Target model data should match the target classification."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
         tgt_pos = {
@@ -659,40 +686,10 @@ class TestModelUrls:
         )
         targets_entity = next(e for e in scene["entities"] if e["id"] == "targets")
         models = targets_entity["models"]
-        urls = [m["url"] for m in models]
-        assert TARGET_MODELS["hostile"] in urls
-        assert TARGET_MODELS["friendly"] in urls
-        assert TARGET_MODELS["unknown"] in urls
-
-    def test_preload_models_importable(self):
-        """preload_models is importable from utils."""
-        from isr_rl_dmpc.utils import preload_models
-        assert preload_models is not None
-
-    def test_preload_models_populates_caches(self):
-        """preload_models downloads models and populates base64 caches."""
-        from unittest.mock import patch, MagicMock
-        import isr_rl_dmpc.utils.foxglove_bridge as bridge_mod
-
-        fake_glb = b"\x00\x01\x02\x03"
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = fake_glb
-        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-        mock_resp.__exit__ = MagicMock(return_value=False)
-
-        with patch.object(bridge_mod.urllib.request, "urlopen", return_value=mock_resp):
-            bridge_mod.preload_models()
-
-        import base64
-        expected = base64.b64encode(fake_glb).decode("ascii")
-        assert bridge_mod._DRONE_MODEL_B64 == expected
-        assert bridge_mod._TARGET_MODEL_B64["hostile"] == expected
-        assert bridge_mod._TARGET_MODEL_B64["friendly"] == expected
-        assert bridge_mod._TARGET_MODEL_B64["unknown"] == expected
-
-        # Clean up global state
-        bridge_mod._DRONE_MODEL_B64 = ""
-        bridge_mod._TARGET_MODEL_B64 = {}
+        data_values = [m["data"] for m in models]
+        assert get_target_model_data("hostile") in data_values
+        assert get_target_model_data("friendly") in data_values
+        assert get_target_model_data("unknown") in data_values
 
 
 # ---------------------------------------------------------------------------

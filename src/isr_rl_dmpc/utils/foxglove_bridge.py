@@ -7,6 +7,10 @@ for interactive 3D visualization, metrics monitoring, and mission analysis.
 Uses the ``foxglove-sdk`` package which replaces the deprecated
 ``foxglove-websocket`` library and eliminates websockets deprecation warnings.
 
+3D models (.glb files) are bundled locally under
+``src/isr_rl_dmpc/models/meshes/`` and embedded directly in SceneUpdate
+messages so that **no network access is required at runtime**.
+
 Usage:
     bridge = FoxgloveBridge(host="0.0.0.0", port=8765)
     bridge.start()
@@ -27,7 +31,7 @@ import base64
 import json
 import logging
 import time
-import urllib.request
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 import numpy as np
@@ -36,7 +40,56 @@ import foxglove
 
 logger = logging.getLogger(__name__)
 
-# JSON schemas for Foxglove panels
+# ---------------------------------------------------------------------------
+# Local 3D model paths (bundled .glb files)
+# ---------------------------------------------------------------------------
+
+_MESHES_DIR = Path(__file__).resolve().parent.parent / "models" / "meshes"
+
+DRONE_MODEL_PATH = _MESHES_DIR / "CesiumDrone.glb"
+
+TARGET_MODEL_PATHS: Dict[str, Path] = {
+    "hostile": _MESHES_DIR / "CesiumMilkTruck.glb",
+    "friendly": _MESHES_DIR / "Cesium_Air.glb",
+    "unknown": _MESHES_DIR / "Box.glb",
+}
+
+# ---------------------------------------------------------------------------
+# Model data cache (loaded once from local files)
+# ---------------------------------------------------------------------------
+
+_model_data_cache: Dict[str, str] = {}
+
+
+def _load_local_model(path: Path) -> str:
+    """Read a local .glb file and return its base64-encoded representation.
+
+    The base64 string is suitable for embedding in a JSON-encoded
+    ``foxglove.SceneUpdate`` ``ModelPrimitive.data`` field.
+    """
+    key = str(path)
+    if key not in _model_data_cache:
+        with open(path, "rb") as fh:
+            _model_data_cache[key] = base64.b64encode(fh.read()).decode("ascii")
+    return _model_data_cache[key]
+
+
+def get_drone_model_data() -> str:
+    """Return base64-encoded drone .glb model data."""
+    return _load_local_model(DRONE_MODEL_PATH)
+
+
+def get_target_model_data(classification: str) -> str:
+    """Return base64-encoded target .glb model data for the given class."""
+    path = TARGET_MODEL_PATHS.get(classification, TARGET_MODEL_PATHS["unknown"])
+    return _load_local_model(path)
+
+
+# ---------------------------------------------------------------------------
+# Official Foxglove SceneUpdate JSON schema
+# https://docs.foxglove.dev/docs/visualization/message-schemas/scene-update
+# ---------------------------------------------------------------------------
+
 _SCENE_UPDATE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -45,8 +98,15 @@ _SCENE_UPDATE_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "type": {"type": "integer"},
-                    "timestamp": {"type": "object"},
+                    "type": {"type": "integer", "description": "Type of deletion (0=MATCHING_ID, 1=ALL)"},
+                    "timestamp": {
+                        "type": "object",
+                        "properties": {
+                            "sec": {"type": "integer"},
+                            "nsec": {"type": "integer"},
+                        },
+                    },
+                    "id": {"type": "string"},
                 },
             },
         },
@@ -55,12 +115,33 @@ _SCENE_UPDATE_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "timestamp": {"type": "object"},
+                    "timestamp": {
+                        "type": "object",
+                        "properties": {
+                            "sec": {"type": "integer"},
+                            "nsec": {"type": "integer"},
+                        },
+                    },
                     "frame_id": {"type": "string"},
                     "id": {"type": "string"},
-                    "lifetime": {"type": "object"},
+                    "lifetime": {
+                        "type": "object",
+                        "properties": {
+                            "sec": {"type": "integer"},
+                            "nsec": {"type": "integer"},
+                        },
+                    },
                     "frame_locked": {"type": "boolean"},
-                    "metadata": {"type": "array"},
+                    "metadata": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "key": {"type": "string"},
+                                "value": {"type": "string"},
+                            },
+                        },
+                    },
                     "arrows": {"type": "array"},
                     "cubes": {"type": "array"},
                     "spheres": {"type": "array"},
@@ -73,16 +154,16 @@ _SCENE_UPDATE_SCHEMA = {
                         "items": {
                             "type": "object",
                             "properties": {
+                                "pose": {"type": "object"},
+                                "scale": {"type": "object"},
+                                "color": {"type": "object"},
+                                "override_color": {"type": "boolean"},
+                                "url": {"type": "string"},
+                                "media_type": {"type": "string"},
                                 "data": {
                                     "type": "string",
                                     "contentEncoding": "base64",
                                 },
-                                "media_type": {"type": "string"},
-                                "url": {"type": "string"},
-                                "override_color": {"type": "boolean"},
-                                "color": {"type": "object"},
-                                "pose": {"type": "object"},
-                                "scale": {"type": "object"},
                             },
                         },
                     },
@@ -118,50 +199,7 @@ def _quat(x: float, y: float, z: float, w: float) -> Dict[str, float]:
     return {"x": float(x), "y": float(y), "z": float(z), "w": float(w)}
 
 
-# --- 3D Model URLs for Foxglove SceneEntity ModelPrimitive ---
-DRONE_MODEL_URL = (
-    "https://raw.githubusercontent.com/CesiumGS/cesium/main/"
-    "Apps/SampleData/models/CesiumDrone/CesiumDrone.glb"
-)
-
-TARGET_MODELS = {
-    "hostile": (
-        "https://raw.githubusercontent.com/CesiumGS/cesium/main/"
-        "Apps/SampleData/models/CesiumMilkTruck/CesiumMilkTruck.glb"
-    ),
-    "friendly": (
-        "https://raw.githubusercontent.com/CesiumGS/cesium/main/"
-        "Apps/SampleData/models/CesiumAir/Cesium_Air.glb"
-    ),
-    "unknown": (
-        "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/"
-        "master/2.0/Box/glTF-Binary/Box.glb"
-    ),
-}
-
 _TARGET_TYPE_MAP = {0: "unknown", 1: "friendly", 2: "hostile", 3: "neutral"}
-
-
-def _load_model_b64(url: str) -> str:
-    """Download a .glb and return base64-encoded string for JSON transport."""
-    with urllib.request.urlopen(url) as resp:
-        return base64.b64encode(resp.read()).decode("ascii")
-
-
-# Module-level caches for base64-encoded model data (populated by preload_models)
-_DRONE_MODEL_B64: str = ""
-_TARGET_MODEL_B64: Dict[str, str] = {}
-
-
-def preload_models() -> None:
-    """Download and base64-encode 3D models. Call once before starting the bridge."""
-    global _DRONE_MODEL_B64
-    logger.info("Preloading drone models...")
-    _DRONE_MODEL_B64 = _load_model_b64(DRONE_MODEL_URL)
-    _TARGET_MODEL_B64["hostile"] = _load_model_b64(TARGET_MODELS["hostile"])
-    _TARGET_MODEL_B64["friendly"] = _load_model_b64(TARGET_MODELS["friendly"])
-    _TARGET_MODEL_B64["unknown"] = _load_model_b64(TARGET_MODELS["unknown"])
-    logger.info("Models loaded.")
 
 
 def extract_targets_from_obs(
@@ -436,7 +474,7 @@ class FoxgloveBridge:
                     "orientation": orient,
                 },
                 "scale": _vec3(2.0, 2.0, 2.0),
-                "url": DRONE_MODEL_URL,
+                "data": get_drone_model_data(),
                 "media_type": "model/gltf-binary",
                 "override_color": False,
                 "color": col,
@@ -492,16 +530,13 @@ class FoxgloveBridge:
                 else:
                     col = _color(1.0, 1.0, 0.0, 0.8)
 
-                model_url = TARGET_MODELS.get(
-                    classification, TARGET_MODELS["unknown"]
-                )
                 target_models.append({
                     "pose": {
                         "position": _vec3(tpos[0], tpos[1], tpos[2]),
                         "orientation": _quat(0, 0, 0, 1),
                     },
                     "scale": _vec3(3.0, 3.0, 3.0),
-                    "url": model_url,
+                    "data": get_target_model_data(classification),
                     "media_type": "model/gltf-binary",
                     "override_color": False,
                     "color": col,
