@@ -23,9 +23,11 @@ Foxglove Studio Connection:
     ws://localhost:8765
 """
 
+import base64
 import json
 import logging
 import time
+import urllib.request
 from typing import Dict, List, Optional, Any
 
 import numpy as np
@@ -66,7 +68,24 @@ _SCENE_UPDATE_SCHEMA = {
                     "lines": {"type": "array"},
                     "triangles": {"type": "array"},
                     "texts": {"type": "array"},
-                    "models": {"type": "array"},
+                    "models": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "type": "string",
+                                    "contentEncoding": "base64",
+                                },
+                                "media_type": {"type": "string"},
+                                "url": {"type": "string"},
+                                "override_color": {"type": "boolean"},
+                                "color": {"type": "object"},
+                                "pose": {"type": "object"},
+                                "scale": {"type": "object"},
+                            },
+                        },
+                    },
                 },
             },
         },
@@ -121,6 +140,28 @@ TARGET_MODELS = {
 }
 
 _TARGET_TYPE_MAP = {0: "unknown", 1: "friendly", 2: "hostile", 3: "neutral"}
+
+
+def _load_model_b64(url: str) -> str:
+    """Download a .glb and return base64-encoded string for JSON transport."""
+    with urllib.request.urlopen(url) as resp:
+        return base64.b64encode(resp.read()).decode("ascii")
+
+
+# Module-level caches for base64-encoded model data (populated by preload_models)
+_DRONE_MODEL_B64: str = ""
+_TARGET_MODEL_B64: Dict[str, str] = {}
+
+
+def preload_models() -> None:
+    """Download and base64-encode 3D models. Call once before starting the bridge."""
+    global _DRONE_MODEL_B64, _TARGET_MODEL_B64
+    logger.info("Preloading drone models...")
+    _DRONE_MODEL_B64 = _load_model_b64(DRONE_MODEL_URL)
+    _TARGET_MODEL_B64["hostile"] = _load_model_b64(TARGET_MODELS["hostile"])
+    _TARGET_MODEL_B64["friendly"] = _load_model_b64(TARGET_MODELS["friendly"])
+    _TARGET_MODEL_B64["unknown"] = _load_model_b64(TARGET_MODELS["unknown"])
+    logger.info("Models loaded.")
 
 
 def extract_targets_from_obs(
@@ -185,6 +226,7 @@ class FoxgloveBridge:
         self._server: Optional[foxglove.WebSocketServer] = None
         self._channels: Dict[str, foxglove.Channel] = {}
         self._started = False
+        self._models_sent = False
 
     def start(self) -> None:
         """Start the WebSocket server and register channels."""
@@ -389,17 +431,30 @@ class FoxgloveBridge:
             else:
                 col = _color(0.2, 0.6, 1.0, 0.9)
 
-            drone_models.append({
-                "pose": {
-                    "position": _vec3(pos[0], pos[1], pos[2]),
-                    "orientation": orient,
-                },
-                "scale": _vec3(2.0, 2.0, 2.0),
-                "url": DRONE_MODEL_URL,
-                "media_type": "model/gltf-binary",
-                "override_color": False,
-                "color": col,
-            })
+            if not self._models_sent:
+                drone_models.append({
+                    "pose": {
+                        "position": _vec3(pos[0], pos[1], pos[2]),
+                        "orientation": orient,
+                    },
+                    "scale": _vec3(2.0, 2.0, 2.0),
+                    "data": _DRONE_MODEL_B64,
+                    "media_type": "model/gltf-binary",
+                    "override_color": False,
+                    "color": col,
+                })
+            else:
+                drone_models.append({
+                    "pose": {
+                        "position": _vec3(pos[0], pos[1], pos[2]),
+                        "orientation": orient,
+                    },
+                    "scale": _vec3(2.0, 2.0, 2.0),
+                    "url": "",
+                    "media_type": "model/gltf-binary",
+                    "override_color": False,
+                    "color": col,
+                })
 
             label = f"D{i}"
             if drone_batteries is not None and len(drone_batteries) > i:
@@ -451,21 +506,32 @@ class FoxgloveBridge:
                 else:
                     col = _color(1.0, 1.0, 0.0, 0.8)
 
-                model_url = TARGET_MODELS.get(
-                    classification, TARGET_MODELS["unknown"]
-                )
-
-                target_models.append({
-                    "pose": {
-                        "position": _vec3(tpos[0], tpos[1], tpos[2]),
-                        "orientation": _quat(0, 0, 0, 1),
-                    },
-                    "scale": _vec3(3.0, 3.0, 3.0),
-                    "url": model_url,
-                    "media_type": "model/gltf-binary",
-                    "override_color": False,
-                    "color": col,
-                })
+                if not self._models_sent:
+                    target_models.append({
+                        "pose": {
+                            "position": _vec3(tpos[0], tpos[1], tpos[2]),
+                            "orientation": _quat(0, 0, 0, 1),
+                        },
+                        "scale": _vec3(3.0, 3.0, 3.0),
+                        "data": _TARGET_MODEL_B64.get(
+                            classification, _TARGET_MODEL_B64.get("unknown", "")
+                        ),
+                        "media_type": "model/gltf-binary",
+                        "override_color": True,
+                        "color": col,
+                    })
+                else:
+                    target_models.append({
+                        "pose": {
+                            "position": _vec3(tpos[0], tpos[1], tpos[2]),
+                            "orientation": _quat(0, 0, 0, 1),
+                        },
+                        "scale": _vec3(3.0, 3.0, 3.0),
+                        "url": "",
+                        "media_type": "model/gltf-binary",
+                        "override_color": True,
+                        "color": col,
+                    })
 
                 target_texts.append({
                     "pose": {
@@ -498,6 +564,7 @@ class FoxgloveBridge:
 
         scene_update = {"deletions": [], "entities": entities}
         self._send("scene", scene_update, timestamp_ns)
+        self._models_sent = True
 
     def publish_metrics(
         self,

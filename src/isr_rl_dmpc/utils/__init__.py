@@ -39,7 +39,7 @@ from .visualization import (
     StatisticsVisualizer,
 )
 
-from .foxglove_bridge import FoxgloveBridge, extract_targets_from_obs
+from .foxglove_bridge import FoxgloveBridge, extract_targets_from_obs, preload_models
 from .mcap_logger import MCAPRecorder
 
 
