@@ -17,6 +17,9 @@ from isr_rl_dmpc.utils.foxglove_bridge import (
     _vec3,
     _quat,
     _now_ns,
+    _auto_grid_extent,
+    _boundary_lines,
+    _MIN_GRID_EXTENT,
     _SCENE_UPDATE_SCHEMA,
     extract_targets_from_obs,
     get_drone_model_data,
@@ -460,15 +463,94 @@ class TestGroundPlane:
         assert model_pos["y"] == pytest.approx(400.0 - half)
         assert model_pos["z"] == pytest.approx(80.0)
 
-    def test_no_shift_without_grid_extent(self):
-        """Without grid_extent, drone positions are published as-is."""
+    def test_auto_extent_without_grid_extent(self):
+        """Without explicit grid_extent, positions are auto-centred and ground plane is present."""
         bridge = FoxgloveBridge()
         raw_pos = np.array([[300.0, 400.0, 50.0]])
         scene = self._build_scene(bridge, drone_positions=raw_pos)
+        # Ground plane must be present even without an explicit grid_extent
+        ground = next(e for e in scene["entities"] if e["id"] == "ground_plane")
+        assert len(ground["cubes"]) == 1
+        # Positions are shifted by auto-computed half
         drones = next(e for e in scene["entities"] if e["id"] == "drones")
         model_pos = drones["models"][0]["pose"]["position"]
-        assert model_pos["x"] == pytest.approx(300.0)
-        assert model_pos["y"] == pytest.approx(400.0)
+        # Auto-extent centres the bounding box, so shifted x != raw x
+        assert model_pos["z"] == pytest.approx(50.0)
+
+
+# ---------------------------------------------------------------------------
+# Auto grid-extent and boundary-lines tests
+# ---------------------------------------------------------------------------
+
+class TestAutoGridExtent:
+    """Tests for _auto_grid_extent and _boundary_lines helpers."""
+
+    def test_auto_extent_covers_all_drones(self):
+        """Auto extent must be large enough to cover all drone positions."""
+        positions = np.array([
+            [100.0, 200.0, 50.0],
+            [1500.0, 800.0, 60.0],
+        ])
+        extent = _auto_grid_extent(positions)
+        assert extent >= 1500.0  # must cover the span
+
+    def test_auto_extent_covers_targets(self):
+        """Auto extent must also encompass target positions."""
+        positions = np.array([[500.0, 500.0, 50.0]])
+        tgt_pos = {"T0": np.array([1800.0, 200.0, 80.0])}
+        extent = _auto_grid_extent(positions, tgt_pos)
+        assert extent >= 1800.0 - 200.0  # span in x
+
+    def test_auto_extent_minimum(self):
+        """Auto extent enforces a minimum even for tightly grouped drones."""
+        positions = np.array([[10.0, 10.0, 50.0], [12.0, 12.0, 50.0]])
+        extent = _auto_grid_extent(positions)
+        assert extent >= _MIN_GRID_EXTENT
+
+    def test_auto_extent_negative_coords(self):
+        """Auto extent works with negative coordinates (targets outside grid)."""
+        positions = np.array([[500.0, 500.0, 50.0]])
+        tgt_pos = {"T0": np.array([-200.0, -100.0, 80.0])}
+        extent = _auto_grid_extent(positions, tgt_pos)
+        assert extent >= 700.0  # span from -200 to 500
+
+    def test_boundary_lines_structure(self):
+        """Boundary lines must have the correct LINE_STRIP structure."""
+        lines = _boundary_lines(2000.0)
+        assert len(lines) == 1
+        line = lines[0]
+        assert line["type"] == 1  # LINE_STRIP
+        assert len(line["points"]) == 5  # closed perimeter
+
+    def test_boundary_lines_match_extent(self):
+        """Boundary line coordinates must match ±half of the extent."""
+        extent = 2000.0
+        h = extent / 2.0
+        lines = _boundary_lines(extent)
+        pts = lines[0]["points"]
+        xs = [p["x"] for p in pts]
+        ys = [p["y"] for p in pts]
+        assert min(xs) == pytest.approx(-h)
+        assert max(xs) == pytest.approx(h)
+        assert min(ys) == pytest.approx(-h)
+        assert max(ys) == pytest.approx(h)
+
+    def test_ground_plane_has_boundary_lines(self):
+        """Ground plane entity must contain boundary lines."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[500.0, 500.0, 50.0]])
+        captured = {}
+
+        def _capture(channel_key, data, timestamp_ns):
+            captured[channel_key] = data
+
+        bridge._send = _capture
+        bridge._started = True
+        bridge.publish_scene(drone_positions=positions, grid_extent=2000.0)
+        bridge._started = False
+        scene = captured.get("scene")
+        ground = next(e for e in scene["entities"] if e["id"] == "ground_plane")
+        assert len(ground["lines"]) >= 1
 
 
 # ---------------------------------------------------------------------------
@@ -521,7 +603,8 @@ class TestSceneStructure:
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
         scene = self._build_scene(bridge, drone_positions=positions)
-        model = scene["entities"][0]["models"][0]
+        drones_entity = next(e for e in scene["entities"] if e["id"] == "drones")
+        model = drones_entity["models"][0]
         assert "pose" in model
         assert "position" in model["pose"]
         assert "orientation" in model["pose"]
@@ -703,7 +786,8 @@ class TestLocalModels:
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
         scene = self._build_scene(bridge, drone_positions=positions)
-        model = scene["entities"][0]["models"][0]
+        drones_entity = next(e for e in scene["entities"] if e["id"] == "drones")
+        model = drones_entity["models"][0]
         assert "data" in model
         assert model["data"] == get_drone_model_data()
         assert "url" not in model
@@ -714,9 +798,9 @@ class TestLocalModels:
         positions = np.array([[50.0, 50.0, 50.0]])
         scene1 = self._build_scene(bridge, drone_positions=positions)
         scene2 = self._build_scene(bridge, drone_positions=positions)
-        model1 = scene1["entities"][0]["models"][0]
-        model2 = scene2["entities"][0]["models"][0]
-        assert model1["data"] == model2["data"]
+        drones1 = next(e for e in scene1["entities"] if e["id"] == "drones")
+        drones2 = next(e for e in scene2["entities"] if e["id"] == "drones")
+        assert drones1["models"][0]["data"] == drones2["models"][0]["data"]
 
     def test_target_models_use_embedded_data(self):
         """Target models should use 'data' field with embedded model bytes."""

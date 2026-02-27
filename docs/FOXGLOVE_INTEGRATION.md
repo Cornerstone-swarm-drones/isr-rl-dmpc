@@ -128,7 +128,7 @@ bridge.start()
 # Publish during simulation loop
 bridge.publish_scene(drone_positions, drone_quaternions, drone_batteries,
                      target_positions, target_classifications, timestamp_ns,
-                     grid_extent=2000.0)  # optional ground plane
+                     grid_extent=2000.0)  # explicit extent; auto-computed when omitted
 bridge.publish_metrics(info_dict, reward, timestamp_ns)
 bridge.publish_coverage(coverage_map, grid_size, timestamp_ns)
 bridge.publish_mission_info(elapsed_time, mission_duration, coverage_efficiency,

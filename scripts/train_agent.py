@@ -182,6 +182,7 @@ def train(config_path: str,
                     target_positions=tgt_pos,
                     target_classifications=tgt_cls,
                     timestamp_ns=ts_ns,
+                    grid_extent=env.grid_size[0] * 100.0,
                 )
                 foxglove_bridge.publish_metrics(info, reward=reward, timestamp_ns=ts_ns)
 

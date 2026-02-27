@@ -233,6 +233,58 @@ def extract_targets_from_obs(
     return positions, classifications
 
 
+_MIN_GRID_EXTENT = 200.0  # m – lower bound so the plane is always visible
+
+
+def _auto_grid_extent(
+    drone_positions: np.ndarray,
+    target_positions: Optional[Dict[str, np.ndarray]] = None,
+) -> float:
+    """Compute a grid extent that encloses all drone and target positions.
+
+    The bounding box of every x/y coordinate is expanded by 20 % on each
+    side so that entities near the edge are still comfortably visible.
+    A minimum of ``_MIN_GRID_EXTENT`` metres is enforced.
+    """
+    all_xy = [drone_positions[:, :2]]
+    if target_positions:
+        for tpos in target_positions.values():
+            all_xy.append(np.array(tpos[:2]).reshape(1, 2))
+    pts = np.concatenate(all_xy, axis=0)
+    span = float(max(np.ptp(pts[:, 0]), np.ptp(pts[:, 1])))
+    # 20 % padding on each side → ×1.4
+    extent = max(span * 1.4, _MIN_GRID_EXTENT)
+    return extent
+
+
+def _boundary_lines(grid_extent: float) -> List[Dict[str, Any]]:
+    """Create four bright border lines along the ground-plane edges.
+
+    Produces a single ``LinePrimitive`` with ``LINE_STRIP`` type that
+    traces the perimeter of the area at z = 0.
+    """
+    h = grid_extent / 2.0
+    return [{
+        "type": 1,  # LINE_STRIP
+        "pose": {
+            "position": _vec3(0, 0, 0),
+            "orientation": _quat(0, 0, 0, 1),
+        },
+        "thickness": 2.0,
+        "scale_invariant": False,
+        "points": [
+            _vec3(-h, -h, 0),
+            _vec3(h, -h, 0),
+            _vec3(h, h, 0),
+            _vec3(-h, h, 0),
+            _vec3(-h, -h, 0),
+        ],
+        "color": _color(0.3, 0.75, 1.0, 0.9),
+        "colors": [],
+        "indices": [],
+    }]
+
+
 class FoxgloveBridge:
     """
     WebSocket bridge for streaming ISR-RL-DMPC simulation data to Foxglove Studio.
@@ -412,46 +464,54 @@ class FoxgloveBridge:
             target_positions: dict mapping target_id -> (3,) position
             target_classifications: dict mapping target_id -> classification string
             timestamp_ns: Timestamp in nanoseconds (default: current time)
-            grid_extent: Size of the ground plane in meters (optional)
+            grid_extent: Size of the ground plane in meters (optional).
+                When not provided, the extent is auto-computed from the
+                bounding box of all drone and target positions with 20%
+                padding so that every entity is visible on the plane.
         """
         if timestamp_ns is None:
             timestamp_ns = _now_ns()
 
         ts = _timestamp_obj(timestamp_ns)
 
+        # --- Auto-compute grid_extent when not provided ---
+        if grid_extent is None or grid_extent <= 0:
+            grid_extent = _auto_grid_extent(drone_positions, target_positions)
+
         # Compute the offset used to shift all objects so the world is
-        # centred at (0, 0).  When grid_extent is given the simulation
-        # arena runs from 0 → grid_extent in x/y, so subtracting half
-        # moves everything to [-half, +half] around the origin.
-        half = (grid_extent / 2.0) if (grid_extent is not None and grid_extent > 0) else 0.0
+        # centred at (0, 0).  The simulation arena runs from
+        # 0 → grid_extent in x/y, so subtracting half moves everything
+        # to [-half, +half] around the origin.
+        half = grid_extent / 2.0
 
         entities: List[Dict[str, Any]] = []
 
         # --- Ground plane entity ---
-        if grid_extent is not None and grid_extent > 0:
-            entities.append({
-                "timestamp": ts,
-                "frame_id": "world",
-                "id": "ground_plane",
-                "lifetime": {"sec": 0, "nsec": 0},
-                "frame_locked": False,
-                "metadata": [],
-                "arrows": [],
-                "cubes": [{
-                    "pose": {
-                        "position": _vec3(0.0, 0.0, -0.25),
-                        "orientation": _quat(0, 0, 0, 1),
-                    },
-                    "size": _vec3(grid_extent, grid_extent, 0.5),
-                    "color": _color(0.15, 0.15, 0.15, 0.4),
-                }],
-                "spheres": [],
-                "cylinders": [],
-                "lines": [],
-                "triangles": [],
-                "texts": [],
-                "models": [],
-            })
+        # Dark matte ground with boundary lines for easy orientation.
+        ground_lines = _boundary_lines(grid_extent)
+        entities.append({
+            "timestamp": ts,
+            "frame_id": "world",
+            "id": "ground_plane",
+            "lifetime": {"sec": 0, "nsec": 0},
+            "frame_locked": False,
+            "metadata": [],
+            "arrows": [],
+            "cubes": [{
+                "pose": {
+                    "position": _vec3(0.0, 0.0, -0.25),
+                    "orientation": _quat(0, 0, 0, 1),
+                },
+                "size": _vec3(grid_extent, grid_extent, 0.5),
+                "color": _color(0.08, 0.08, 0.08, 0.6),
+            }],
+            "spheres": [],
+            "cylinders": [],
+            "lines": ground_lines,
+            "triangles": [],
+            "texts": [],
+            "models": [],
+        })
 
         # --- Drone entities (3D models) ---
         n_drones = len(drone_positions)
