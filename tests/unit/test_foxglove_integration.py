@@ -446,7 +446,7 @@ class TestSceneStructure:
         assert len(drones_entity["texts"]) == 2
 
     def test_drone_model_has_required_fields(self):
-        """Each drone model must have pose, scale, data/url, media_type, and color."""
+        """Each drone model must have pose, scale, url, media_type, and color."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
         scene = self._build_scene(bridge, drone_positions=positions)
@@ -455,8 +455,8 @@ class TestSceneStructure:
         assert "position" in model["pose"]
         assert "orientation" in model["pose"]
         assert "scale" in model
-        # First frame uses 'data' (base64) instead of 'url'
-        assert "data" in model
+        assert "url" in model
+        assert model["url"] != ""
         assert "media_type" in model
         assert "color" in model
         assert model["media_type"] == "model/gltf-binary"
@@ -478,8 +478,8 @@ class TestSceneStructure:
         assert len(targets_entity["spheres"]) == 0
         assert len(targets_entity["texts"]) == 1
         assert "hostile" in targets_entity["texts"][0]["text"]
-        # First frame uses 'data' (base64) for model, not 'url'
-        assert "data" in targets_entity["models"][0]
+        assert "url" in targets_entity["models"][0]
+        assert targets_entity["models"][0]["url"] != ""
         assert "media_type" in targets_entity["models"][0]
 
     def test_ground_plane_entity_present(self):
@@ -559,8 +559,8 @@ class TestSceneStructure:
 # Model loading and optimization tests
 # ---------------------------------------------------------------------------
 
-class TestModelOptimization:
-    """Tests for model base64 encoding and first-frame optimization."""
+class TestModelUrls:
+    """Tests for model URL usage in scene entities."""
 
     def _build_scene(self, bridge, **kwargs):
         """Capture the scene dict by calling publish_scene on an unstarted bridge."""
@@ -575,60 +575,35 @@ class TestModelOptimization:
         bridge._started = False
         return captured.get("scene")
 
-    def test_first_frame_uses_data_field(self):
-        """First frame should embed model using 'data' field, not 'url'."""
-        bridge = FoxgloveBridge()
-        assert bridge._models_sent is False
-        positions = np.array([[50.0, 50.0, 50.0]])
-        scene = self._build_scene(bridge, drone_positions=positions)
-        model = scene["entities"][0]["models"][0]
-        assert "data" in model
-        assert "url" not in model
-
-    def test_subsequent_frames_use_url_field(self):
-        """Subsequent frames should use empty 'url' field, not 'data'."""
+    def test_drone_models_always_use_url(self):
+        """Drone models should always use 'url' field with actual URL."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
-        # First call sets _models_sent = True
-        self._build_scene(bridge, drone_positions=positions)
-        assert bridge._models_sent is True
-        # Second call should use url (empty), not data
         scene = self._build_scene(bridge, drone_positions=positions)
         model = scene["entities"][0]["models"][0]
         assert "url" in model
-        assert model["url"] == ""
+        assert model["url"] == DRONE_MODEL_URL
         assert "data" not in model
 
-    def test_target_models_first_frame_uses_data(self):
-        """Target models on first frame should use 'data' field."""
+    def test_drone_models_consistent_across_frames(self):
+        """Drone models should use the same URL on every frame."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
-        tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
-        tgt_cls = {"T0": "hostile"}
-        scene = self._build_scene(
-            bridge,
-            drone_positions=positions,
-            target_positions=tgt_pos,
-            target_classifications=tgt_cls,
-        )
-        targets_entity = next(e for e in scene["entities"] if e["id"] == "targets")
-        assert "data" in targets_entity["models"][0]
-        assert "url" not in targets_entity["models"][0]
-
-    def test_target_models_subsequent_frame_uses_url(self):
-        """Target models on subsequent frames should use empty 'url'."""
-        bridge = FoxgloveBridge()
-        positions = np.array([[50.0, 50.0, 50.0]])
-        tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
-        tgt_cls = {"T0": "hostile"}
         # First frame
-        self._build_scene(
-            bridge,
-            drone_positions=positions,
-            target_positions=tgt_pos,
-            target_classifications=tgt_cls,
-        )
+        scene1 = self._build_scene(bridge, drone_positions=positions)
         # Second frame
+        scene2 = self._build_scene(bridge, drone_positions=positions)
+        model1 = scene1["entities"][0]["models"][0]
+        model2 = scene2["entities"][0]["models"][0]
+        assert model1["url"] == DRONE_MODEL_URL
+        assert model2["url"] == DRONE_MODEL_URL
+
+    def test_target_models_always_use_url(self):
+        """Target models should always use 'url' field with actual URL."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
+        tgt_cls = {"T0": "hostile"}
         scene = self._build_scene(
             bridge,
             drone_positions=positions,
@@ -638,8 +613,56 @@ class TestModelOptimization:
         targets_entity = next(e for e in scene["entities"] if e["id"] == "targets")
         model = targets_entity["models"][0]
         assert "url" in model
-        assert model["url"] == ""
+        assert model["url"] == TARGET_MODELS["hostile"]
         assert "data" not in model
+
+    def test_target_models_consistent_across_frames(self):
+        """Target models should use the same URL on every frame."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
+        tgt_cls = {"T0": "hostile"}
+        # First frame
+        scene1 = self._build_scene(
+            bridge,
+            drone_positions=positions,
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+        )
+        # Second frame
+        scene2 = self._build_scene(
+            bridge,
+            drone_positions=positions,
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+        )
+        targets1 = next(e for e in scene1["entities"] if e["id"] == "targets")
+        targets2 = next(e for e in scene2["entities"] if e["id"] == "targets")
+        assert targets1["models"][0]["url"] == TARGET_MODELS["hostile"]
+        assert targets2["models"][0]["url"] == TARGET_MODELS["hostile"]
+
+    def test_target_model_url_matches_classification(self):
+        """Target model URL should match the target classification."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        tgt_pos = {
+            "T0": np.array([100.0, 100.0, 80.0]),
+            "T1": np.array([200.0, 200.0, 90.0]),
+            "T2": np.array([300.0, 300.0, 70.0]),
+        }
+        tgt_cls = {"T0": "hostile", "T1": "friendly", "T2": "unknown"}
+        scene = self._build_scene(
+            bridge,
+            drone_positions=positions,
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+        )
+        targets_entity = next(e for e in scene["entities"] if e["id"] == "targets")
+        models = targets_entity["models"]
+        urls = [m["url"] for m in models]
+        assert TARGET_MODELS["hostile"] in urls
+        assert TARGET_MODELS["friendly"] in urls
+        assert TARGET_MODELS["unknown"] in urls
 
     def test_preload_models_importable(self):
         """preload_models is importable from utils."""

@@ -226,7 +226,6 @@ class FoxgloveBridge:
         self._server: Optional[foxglove.WebSocketServer] = None
         self._channels: Dict[str, foxglove.Channel] = {}
         self._started = False
-        self._models_sent = False
 
     def start(self) -> None:
         """Start the WebSocket server and register channels."""
@@ -431,30 +430,17 @@ class FoxgloveBridge:
             else:
                 col = _color(0.2, 0.6, 1.0, 0.9)
 
-            if not self._models_sent:
-                drone_models.append({
-                    "pose": {
-                        "position": _vec3(pos[0], pos[1], pos[2]),
-                        "orientation": orient,
-                    },
-                    "scale": _vec3(2.0, 2.0, 2.0),
-                    "data": _DRONE_MODEL_B64,
-                    "media_type": "model/gltf-binary",
-                    "override_color": False,
-                    "color": col,
-                })
-            else:
-                drone_models.append({
-                    "pose": {
-                        "position": _vec3(pos[0], pos[1], pos[2]),
-                        "orientation": orient,
-                    },
-                    "scale": _vec3(2.0, 2.0, 2.0),
-                    "url": "",
-                    "media_type": "model/gltf-binary",
-                    "override_color": False,
-                    "color": col,
-                })
+            drone_models.append({
+                "pose": {
+                    "position": _vec3(pos[0], pos[1], pos[2]),
+                    "orientation": orient,
+                },
+                "scale": _vec3(2.0, 2.0, 2.0),
+                "url": DRONE_MODEL_URL,
+                "media_type": "model/gltf-binary",
+                "override_color": False,
+                "color": col,
+            })
 
             label = f"D{i}"
             if drone_batteries is not None and len(drone_batteries) > i:
@@ -506,32 +492,20 @@ class FoxgloveBridge:
                 else:
                     col = _color(1.0, 1.0, 0.0, 0.8)
 
-                if not self._models_sent:
-                    target_models.append({
-                        "pose": {
-                            "position": _vec3(tpos[0], tpos[1], tpos[2]),
-                            "orientation": _quat(0, 0, 0, 1),
-                        },
-                        "scale": _vec3(3.0, 3.0, 3.0),
-                        "data": _TARGET_MODEL_B64.get(
-                            classification, _TARGET_MODEL_B64.get("unknown", "")
-                        ),
-                        "media_type": "model/gltf-binary",
-                        "override_color": False,
-                        "color": col,
-                    })
-                else:
-                    target_models.append({
-                        "pose": {
-                            "position": _vec3(tpos[0], tpos[1], tpos[2]),
-                            "orientation": _quat(0, 0, 0, 1),
-                        },
-                        "scale": _vec3(3.0, 3.0, 3.0),
-                        "url": "",
-                        "media_type": "model/gltf-binary",
-                        "override_color": False,
-                        "color": col,
-                    })
+                model_url = TARGET_MODELS.get(
+                    classification, TARGET_MODELS["unknown"]
+                )
+                target_models.append({
+                    "pose": {
+                        "position": _vec3(tpos[0], tpos[1], tpos[2]),
+                        "orientation": _quat(0, 0, 0, 1),
+                    },
+                    "scale": _vec3(3.0, 3.0, 3.0),
+                    "url": model_url,
+                    "media_type": "model/gltf-binary",
+                    "override_color": False,
+                    "color": col,
+                })
 
                 target_texts.append({
                     "pose": {
@@ -564,7 +538,6 @@ class FoxgloveBridge:
 
         scene_update = {"deletions": [], "entities": entities}
         self._send("scene", scene_update, timestamp_ns)
-        self._models_sent = True
 
     def publish_metrics(
         self,
