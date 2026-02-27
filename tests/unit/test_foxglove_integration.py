@@ -1,0 +1,335 @@
+"""
+Tests for Foxglove Studio integration: FoxgloveBridge and MCAPRecorder.
+"""
+
+import asyncio
+import json
+import tempfile
+import time
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from isr_rl_dmpc.utils.foxglove_bridge import (
+    FoxgloveBridge,
+    _timestamp_obj,
+    _color,
+    _vec3,
+    _quat,
+    _now_ns,
+)
+from isr_rl_dmpc.utils.mcap_logger import MCAPRecorder
+from isr_rl_dmpc.core.data_structures import DroneState, TargetState, MissionState
+from isr_rl_dmpc.core.state_manager import StateManager
+
+
+# ---------------------------------------------------------------------------
+# Helper utilities tests
+# ---------------------------------------------------------------------------
+
+class TestHelperUtilities:
+    """Tests for bridge helper functions."""
+
+    def test_timestamp_obj_conversion(self):
+        """Timestamp nanoseconds correctly split into sec/nsec."""
+        ts = _timestamp_obj(1_500_000_000)
+        assert ts["sec"] == 1
+        assert ts["nsec"] == 500_000_000
+
+    def test_timestamp_obj_zero(self):
+        """Zero timestamp produces zero sec/nsec."""
+        ts = _timestamp_obj(0)
+        assert ts["sec"] == 0
+        assert ts["nsec"] == 0
+
+    def test_color_dict(self):
+        """_color creates RGBA dict."""
+        c = _color(0.1, 0.2, 0.3, 0.4)
+        assert c == {"r": 0.1, "g": 0.2, "b": 0.3, "a": 0.4}
+
+    def test_vec3_dict(self):
+        """_vec3 creates xyz dict."""
+        v = _vec3(1.0, 2.0, 3.0)
+        assert v == {"x": 1.0, "y": 2.0, "z": 3.0}
+
+    def test_quat_dict(self):
+        """_quat creates xyzw dict."""
+        q = _quat(0.1, 0.2, 0.3, 0.4)
+        assert q == {"x": 0.1, "y": 0.2, "z": 0.3, "w": 0.4}
+
+    def test_now_ns_returns_positive(self):
+        """_now_ns returns a positive nanosecond timestamp."""
+        ns = _now_ns()
+        assert ns > 0
+        assert isinstance(ns, int)
+
+
+# ---------------------------------------------------------------------------
+# FoxgloveBridge tests (without actual server start)
+# ---------------------------------------------------------------------------
+
+class TestFoxgloveBridgeInit:
+    """Test FoxgloveBridge initialization and properties."""
+
+    def test_default_init(self):
+        """Bridge initializes with default parameters."""
+        bridge = FoxgloveBridge()
+        assert bridge.host == "0.0.0.0"
+        assert bridge.port == 8765
+        assert bridge.server_name == "ISR-RL-DMPC Simulation"
+        assert bridge.is_running is False
+
+    def test_custom_init(self):
+        """Bridge accepts custom parameters."""
+        bridge = FoxgloveBridge(host="127.0.0.1", port=9999, server_name="Test")
+        assert bridge.host == "127.0.0.1"
+        assert bridge.port == 9999
+        assert bridge.server_name == "Test"
+
+    def test_publish_scene_before_start_no_error(self):
+        """Publishing before start does not raise an error."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[0, 0, 50], [100, 100, 50]])
+        # Should silently return without error
+        bridge.publish_scene(drone_positions=positions)
+
+    def test_publish_metrics_before_start_no_error(self):
+        """Publishing metrics before start does not raise."""
+        bridge = FoxgloveBridge()
+        bridge.publish_metrics({"step": 0, "coverage": 0.5})
+
+    def test_publish_coverage_before_start_no_error(self):
+        """Publishing coverage before start does not raise."""
+        bridge = FoxgloveBridge()
+        bridge.publish_coverage(np.zeros(100), (10, 10))
+
+    def test_publish_mission_info_before_start_no_error(self):
+        """Publishing mission info before start does not raise."""
+        bridge = FoxgloveBridge()
+        bridge.publish_mission_info(elapsed_time=10.0, mission_duration=3600.0)
+
+
+# ---------------------------------------------------------------------------
+# MCAPRecorder tests
+# ---------------------------------------------------------------------------
+
+class TestMCAPRecorderInit:
+    """Test MCAPRecorder initialization."""
+
+    def test_default_init(self):
+        """Recorder initializes with default path."""
+        recorder = MCAPRecorder()
+        assert recorder.filepath == Path("recording.mcap")
+        assert recorder.is_recording is False
+
+    def test_custom_path(self):
+        """Recorder accepts custom path."""
+        recorder = MCAPRecorder("/tmp/test.mcap")
+        assert recorder.filepath == Path("/tmp/test.mcap")
+
+
+class TestMCAPRecorderRecording:
+    """Test MCAPRecorder recording functionality."""
+
+    def test_start_stop(self, tmp_path):
+        """Recorder can start and stop cleanly."""
+        filepath = str(tmp_path / "test.mcap")
+        recorder = MCAPRecorder(filepath)
+        recorder.start()
+        assert recorder.is_recording is True
+        recorder.stop()
+        assert recorder.is_recording is False
+        assert Path(filepath).exists()
+
+    def test_context_manager(self, tmp_path):
+        """Recorder works as context manager."""
+        filepath = str(tmp_path / "test_ctx.mcap")
+        with MCAPRecorder(filepath) as recorder:
+            assert recorder.is_recording is True
+        assert recorder.is_recording is False
+        assert Path(filepath).exists()
+
+    def test_record_scene(self, tmp_path):
+        """Recording scene data produces a valid MCAP file."""
+        filepath = str(tmp_path / "scene.mcap")
+        with MCAPRecorder(filepath) as recorder:
+            positions = np.array([[10.0, 20.0, 50.0], [100.0, 200.0, 60.0]])
+            batteries = np.array([4500.0, 3000.0])
+            recorder.record_scene(
+                drone_positions=positions,
+                drone_batteries=batteries,
+                timestamp_ns=int(time.time() * 1e9),
+            )
+        assert Path(filepath).stat().st_size > 0
+
+    def test_record_scene_with_targets(self, tmp_path):
+        """Recording scene with targets produces valid output."""
+        filepath = str(tmp_path / "scene_targets.mcap")
+        with MCAPRecorder(filepath) as recorder:
+            positions = np.array([[10.0, 20.0, 50.0]])
+            target_positions = {
+                "T0": np.array([50.0, 50.0, 80.0]),
+                "T1": np.array([150.0, 150.0, 90.0]),
+            }
+            target_classifications = {"T0": "hostile", "T1": "friendly"}
+            recorder.record_scene(
+                drone_positions=positions,
+                target_positions=target_positions,
+                target_classifications=target_classifications,
+                timestamp_ns=int(time.time() * 1e9),
+            )
+        assert Path(filepath).stat().st_size > 0
+
+    def test_record_metrics(self, tmp_path):
+        """Recording metrics works correctly."""
+        filepath = str(tmp_path / "metrics.mcap")
+        with MCAPRecorder(filepath) as recorder:
+            info = {
+                "step": 42,
+                "coverage": 0.75,
+                "avg_battery": 3500.0,
+                "active_drones": 4,
+                "total_drones": 4,
+                "collisions": 0,
+            }
+            recorder.record_metrics(info, reward=0.5, timestamp_ns=int(time.time() * 1e9))
+        assert Path(filepath).stat().st_size > 0
+
+    def test_record_coverage(self, tmp_path):
+        """Recording coverage grid works correctly."""
+        filepath = str(tmp_path / "coverage.mcap")
+        with MCAPRecorder(filepath) as recorder:
+            coverage = np.zeros(400)
+            coverage[:200] = 1.0
+            recorder.record_coverage(coverage, (20, 20), timestamp_ns=int(time.time() * 1e9))
+        assert Path(filepath).stat().st_size > 0
+
+    def test_record_mission_info(self, tmp_path):
+        """Recording mission info works correctly."""
+        filepath = str(tmp_path / "mission.mcap")
+        with MCAPRecorder(filepath) as recorder:
+            recorder.record_mission_info(
+                elapsed_time=120.0,
+                mission_duration=3600.0,
+                coverage_efficiency=0.85,
+                num_waypoints=10,
+                timestamp_ns=int(time.time() * 1e9),
+            )
+        assert Path(filepath).stat().st_size > 0
+
+    def test_record_before_start_no_error(self, tmp_path):
+        """Recording before start silently does nothing."""
+        recorder = MCAPRecorder(str(tmp_path / "nostart.mcap"))
+        # Should not raise
+        recorder.record_metrics({"step": 0}, reward=0.0)
+
+    def test_mcap_file_readable(self, tmp_path):
+        """Recorded MCAP file can be read back."""
+        from mcap.reader import make_reader
+
+        filepath = str(tmp_path / "readable.mcap")
+        with MCAPRecorder(filepath) as recorder:
+            for i in range(5):
+                positions = np.random.randn(3, 3) * 100
+                recorder.record_scene(
+                    drone_positions=positions,
+                    timestamp_ns=int(time.time() * 1e9) + i * 1_000_000,
+                )
+                recorder.record_metrics(
+                    {"step": i, "coverage": i * 0.1},
+                    reward=0.01,
+                    timestamp_ns=int(time.time() * 1e9) + i * 1_000_000,
+                )
+
+        # Read back
+        with open(filepath, "rb") as f:
+            reader = make_reader(f)
+            summary = reader.get_summary()
+            assert summary is not None
+            # Should have channels registered
+            assert len(summary.channels) > 0
+
+    def test_multi_step_recording(self, tmp_path):
+        """Recording multiple steps creates a growing file."""
+        filepath = str(tmp_path / "multi.mcap")
+        with MCAPRecorder(filepath) as recorder:
+            for step in range(20):
+                ts = int(time.time() * 1e9) + step * 20_000_000  # 20ms intervals
+                positions = np.random.randn(4, 3) * 100 + 500
+                batteries = np.random.uniform(1000, 5000, size=4)
+                recorder.record_scene(
+                    drone_positions=positions,
+                    drone_batteries=batteries,
+                    timestamp_ns=ts,
+                )
+                recorder.record_metrics(
+                    info={
+                        "step": step,
+                        "coverage": step / 20.0,
+                        "avg_battery": float(np.mean(batteries)),
+                        "active_drones": 4,
+                        "total_drones": 4,
+                        "collisions": 0,
+                    },
+                    reward=0.01 * (1.0 - step / 20.0),
+                    timestamp_ns=ts,
+                )
+        assert Path(filepath).stat().st_size > 100
+
+
+# ---------------------------------------------------------------------------
+# Integration with StateManager
+# ---------------------------------------------------------------------------
+
+class TestStateManagerIntegration:
+    """Test FoxgloveBridge integration with StateManager."""
+
+    def test_publish_from_state_manager_no_error(self):
+        """Publishing from StateManager does not raise (bridge not started)."""
+        bridge = FoxgloveBridge()
+        sm = StateManager(n_drones=3)
+
+        # Populate states
+        for i in range(3):
+            sm.update_drone_state(i, DroneState(
+                position=np.array([i * 100.0, 0.0, 50.0]),
+                battery_energy=4000.0 - i * 500,
+            ))
+
+        sm.update_target_state("hostile_1", TargetState(
+            position=np.array([200.0, 200.0, 80.0]),
+            classification_confidence=-0.8,
+            target_id="hostile_1",
+        ))
+
+        sm.update_mission_state(MissionState(
+            elapsed_time=60.0,
+            mission_duration=3600.0,
+            coverage_efficiency=0.5,
+        ))
+
+        # Should not raise even though bridge is not started
+        bridge.publish_from_state_manager(sm)
+
+
+# ---------------------------------------------------------------------------
+# Module import tests
+# ---------------------------------------------------------------------------
+
+class TestModuleImports:
+    """Test that new modules are importable from the package."""
+
+    def test_import_foxglove_bridge(self):
+        """FoxgloveBridge is importable from utils."""
+        from isr_rl_dmpc.utils import FoxgloveBridge
+        assert FoxgloveBridge is not None
+
+    def test_import_mcap_recorder(self):
+        """MCAPRecorder is importable from utils."""
+        from isr_rl_dmpc.utils import MCAPRecorder
+        assert MCAPRecorder is not None
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
