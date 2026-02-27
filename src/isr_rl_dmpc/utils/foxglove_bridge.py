@@ -9,7 +9,9 @@ Uses the ``foxglove-sdk`` package which replaces the deprecated
 
 3D models (.glb files) are bundled locally under
 ``src/isr_rl_dmpc/models/meshes/`` and embedded directly in SceneUpdate
-messages so that **no network access is required at runtime**.
+messages so that **no network access is required at runtime**.  The drone
+model uses the `hector_quadrotor <https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor>`_
+URDF mesh (BSD-licensed, converted to glTF-binary).
 
 Usage:
     bridge = FoxgloveBridge(host="0.0.0.0", port=8765)
@@ -46,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 _MESHES_DIR = Path(__file__).resolve().parent.parent / "models" / "meshes"
 
-DRONE_MODEL_PATH = _MESHES_DIR / "CesiumDrone.glb"
+DRONE_MODEL_PATH = _MESHES_DIR / "quadrotor_base.glb"
 
 TARGET_MODEL_PATHS: Dict[str, Path] = {
     "hostile": _MESHES_DIR / "CesiumMilkTruck.glb",
