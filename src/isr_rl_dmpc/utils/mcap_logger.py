@@ -30,6 +30,8 @@ import numpy as np
 
 from mcap.writer import Writer
 
+from isr_rl_dmpc.utils.foxglove_bridge import DRONE_MODEL_URL, TARGET_MODELS
+
 logger = logging.getLogger(__name__)
 
 
@@ -220,8 +222,8 @@ class MCAPRecorder:
 
         entities = []
 
-        # Drone cubes
-        drone_cubes = []
+        # Drone models
+        drone_models = []
         drone_texts = []
         for i in range(len(drone_positions)):
             pos = drone_positions[i]
@@ -237,13 +239,16 @@ class MCAPRecorder:
                 orient = {"x": float(q[1]), "y": float(q[2]),
                           "z": float(q[3]), "w": float(q[0])}
 
-            drone_cubes.append({
+            drone_models.append({
                 "pose": {
                     "position": {"x": float(pos[0]), "y": float(pos[1]),
                                  "z": float(pos[2])},
                     "orientation": orient,
                 },
-                "size": {"x": 2.0, "y": 2.0, "z": 0.5},
+                "scale": {"x": 2.0, "y": 2.0, "z": 2.0},
+                "url": DRONE_MODEL_URL,
+                "media_type": "model/gltf-binary",
+                "override_color": False,
                 "color": col,
             })
 
@@ -253,7 +258,7 @@ class MCAPRecorder:
             drone_texts.append({
                 "pose": {
                     "position": {"x": float(pos[0]), "y": float(pos[1]),
-                                 "z": float(pos[2]) + 3},
+                                 "z": float(pos[2]) + 4},
                     "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
                 },
                 "billboard": True,
@@ -266,14 +271,14 @@ class MCAPRecorder:
         entities.append({
             "timestamp": ts, "frame_id": "world", "id": "drones",
             "lifetime": {"sec": 0, "nsec": 0}, "frame_locked": False,
-            "metadata": [], "arrows": [], "cubes": drone_cubes, "spheres": [],
+            "metadata": [], "arrows": [], "cubes": [], "spheres": [],
             "cylinders": [], "lines": [], "triangles": [],
-            "texts": drone_texts, "models": [],
+            "texts": drone_texts, "models": drone_models,
         })
 
-        # Target spheres
+        # Target models
         if target_positions:
-            target_spheres = []
+            target_models = []
             target_texts = []
             for tid, tpos in target_positions.items():
                 cls_name = (target_classifications.get(tid, "unknown")
@@ -285,13 +290,20 @@ class MCAPRecorder:
                 else:
                     col = {"r": 1.0, "g": 1.0, "b": 0.0, "a": 0.8}
 
-                target_spheres.append({
+                model_url = TARGET_MODELS.get(
+                    cls_name, TARGET_MODELS["unknown"]
+                )
+
+                target_models.append({
                     "pose": {
                         "position": {"x": float(tpos[0]), "y": float(tpos[1]),
                                      "z": float(tpos[2])},
                         "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
                     },
-                    "size": {"x": 3.0, "y": 3.0, "z": 3.0},
+                    "scale": {"x": 3.0, "y": 3.0, "z": 3.0},
+                    "url": model_url,
+                    "media_type": "model/gltf-binary",
+                    "override_color": False,
                     "color": col,
                 })
                 target_texts.append({
@@ -308,9 +320,9 @@ class MCAPRecorder:
             entities.append({
                 "timestamp": ts, "frame_id": "world", "id": "targets",
                 "lifetime": {"sec": 0, "nsec": 0}, "frame_locked": False,
-                "metadata": [], "arrows": [], "cubes": [], "spheres": target_spheres,
+                "metadata": [], "arrows": [], "cubes": [], "spheres": [],
                 "cylinders": [], "lines": [], "triangles": [],
-                "texts": target_texts, "models": [],
+                "texts": target_texts, "models": target_models,
             })
 
         self._write_message("scene", {"deletions": [], "entities": entities},
