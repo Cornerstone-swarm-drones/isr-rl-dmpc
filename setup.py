@@ -9,7 +9,7 @@ setup(
     url="https://github.com/Cornerstone-swarm-drones/isr-rl-dmpc.git",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
-    python_requires=">=3.8",
+    python_requires=">=3.10",
     install_requires=[
         "numpy>=1.21.0",
         "scipy>=1.7.0",
