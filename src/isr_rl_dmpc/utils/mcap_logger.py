@@ -30,7 +30,10 @@ import numpy as np
 
 from mcap.writer import Writer
 
-from isr_rl_dmpc.utils.foxglove_bridge import DRONE_MODEL_URL, TARGET_MODELS
+from isr_rl_dmpc.utils.foxglove_bridge import (
+    get_drone_model_data,
+    get_target_model_data,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +249,7 @@ class MCAPRecorder:
                     "orientation": orient,
                 },
                 "scale": {"x": 2.0, "y": 2.0, "z": 2.0},
-                "url": DRONE_MODEL_URL,
+                "data": get_drone_model_data(),
                 "media_type": "model/gltf-binary",
                 "override_color": False,
                 "color": col,
@@ -290,10 +293,6 @@ class MCAPRecorder:
                 else:
                     col = {"r": 1.0, "g": 1.0, "b": 0.0, "a": 0.8}
 
-                model_url = TARGET_MODELS.get(
-                    cls_name, TARGET_MODELS["unknown"]
-                )
-
                 target_models.append({
                     "pose": {
                         "position": {"x": float(tpos[0]), "y": float(tpos[1]),
@@ -301,7 +300,7 @@ class MCAPRecorder:
                         "orientation": {"x": 0, "y": 0, "z": 0, "w": 1},
                     },
                     "scale": {"x": 3.0, "y": 3.0, "z": 3.0},
-                    "url": model_url,
+                    "data": get_target_model_data(cls_name),
                     "media_type": "model/gltf-binary",
                     "override_color": False,
                     "color": col,

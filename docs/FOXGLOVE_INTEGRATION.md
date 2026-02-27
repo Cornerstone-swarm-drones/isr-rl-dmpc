@@ -107,10 +107,12 @@ The integration publishes data on these topics:
 
 The 3D scene includes:
 
-- **Drone 3D models** — CesiumDrone .glb models color-coded by battery level (green = full, red = empty) with labels showing drone ID and battery
-- **Target 3D models** — distinct models per threat class (CesiumMilkTruck = hostile, CesiumAir = friendly, Box = unknown) with color tinting
+- **Drone 3D models** — hector_quadrotor .glb model (converted from the [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor) URDF, bundled locally under `src/isr_rl_dmpc/models/meshes/`) color-coded by battery level (green = full, red = empty) with labels showing drone ID and battery
+- **Target 3D models** — distinct models per threat class (CesiumMilkTruck = hostile, CesiumAir = friendly, Box = unknown) with color tinting, loaded from local .glb files
 - **Target labels** — showing target ID and classification
 - **Ground plane** — semi-transparent reference plane showing the mission area extent
+
+All 3D models are embedded directly in SceneUpdate messages from local files — **no network access is required at runtime**.
 
 ## API Reference
 
@@ -259,7 +261,7 @@ foxglove:
 
 Import the default layout from `config/foxglove_layout.json` for a pre-configured dashboard with:
 
-- **3D Panel** — Drone 3D models (CesiumDrone .glb), target models (per threat class), and ground plane
+- **3D Panel** — Drone 3D models (local hector_quadrotor .glb), target models (local per-threat-class .glb), and ground plane
 - **Plot Panel** — Real-time coverage, reward, and battery metrics
 - **Raw Messages** — Coverage grid and mission info inspection
 

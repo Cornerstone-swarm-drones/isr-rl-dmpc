@@ -51,12 +51,13 @@ isr-rl-dmpc/
 │   ├── agents/                # RL agents (DMPCAgent, ActorCriticTrainer)
 │   ├── core/                  # Data structures (DroneState, TargetState, MissionState)
 │   ├── gym_env/               # Gymnasium environment (ISRGridEnv, simulator, rewards)
-│   ├── models/                # Pre-trained models and network definitions
+│   ├── models/                # Pre-trained models, network definitions, and 3D meshes
 │   ├── modules/               # 9 core functional modules
 │   ├── utils/                 # Math, logging, visualization, and conversions
 │   └── config.py              # Configuration system with dataclass validation
 ├── scripts/                   # Training, evaluation, and hyperparameter search
 │   ├── train_agent.py         # Main training loop
+│   ├── foxglove_visualize.py  # Foxglove Studio visualization (live/record)
 │   ├── hyperparameter_search.py  # Grid/random hyperparameter search
 │   ├── benchmark.py           # Performance benchmarking
 │   ├── test_mission.py        # Mission validation
@@ -100,6 +101,7 @@ isr-rl-dmpc/
 | [GYM_DESIGN.md](docs/GYM_DESIGN.md) | Gymnasium environment design and usage |
 | [API_REFERENCE.md](docs/API_REFERENCE.md) | Function and class API documentation |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
+| [FOXGLOVE_INTEGRATION.md](docs/FOXGLOVE_INTEGRATION.md) | Foxglove Studio visualization setup and usage |
 | [WORKFLOW.md](docs/WORKFLOW.md) | Git workflow guide for contributors |
 
 ## Technology Stack
@@ -111,7 +113,7 @@ isr-rl-dmpc/
 | Convex Optimization | [CVXPY](https://www.cvxpy.org/) |
 | Task Allocation | Hungarian Algorithm (SciPy) |
 | Scientific Computing | NumPy, SciPy, scikit-learn |
-| Visualization | Matplotlib |
+| Visualization | Matplotlib, [Foxglove Studio](https://foxglove.dev/) |
 | Configuration | YAML with dataclass validation |
 
 ## Training
