@@ -155,7 +155,7 @@ _TARGET_MODEL_B64: Dict[str, str] = {}
 
 def preload_models() -> None:
     """Download and base64-encode 3D models. Call once before starting the bridge."""
-    global _DRONE_MODEL_B64, _TARGET_MODEL_B64
+    global _DRONE_MODEL_B64
     logger.info("Preloading drone models...")
     _DRONE_MODEL_B64 = _load_model_b64(DRONE_MODEL_URL)
     _TARGET_MODEL_B64["hostile"] = _load_model_b64(TARGET_MODELS["hostile"])
