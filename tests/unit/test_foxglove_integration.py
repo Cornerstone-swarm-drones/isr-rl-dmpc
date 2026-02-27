@@ -398,6 +398,153 @@ class TestGroundPlane:
 
 
 # ---------------------------------------------------------------------------
+# Scene structure verification tests
+# ---------------------------------------------------------------------------
+
+class TestSceneStructure:
+    """Verify the scene entity structure matches what Foxglove Studio expects."""
+
+    def _build_scene(self, bridge, **kwargs):
+        """Capture the scene dict by calling publish_scene on an unstarted bridge."""
+        # Directly call the internal scene-building logic via the public method.
+        # Since the bridge is not started, _send is a no-op, but we can
+        # inspect the arguments it would send by monkey-patching _send.
+        captured = {}
+
+        def _capture(channel_key, data, timestamp_ns):
+            captured[channel_key] = data
+
+        bridge._send = _capture
+        bridge._started = True  # allow _send to be called
+        bridge.publish_scene(**kwargs)
+        bridge._started = False
+        return captured.get("scene")
+
+    def test_drone_entity_has_cubes_arrows_cylinders(self):
+        """Drones entity should contain cubes (body), arrows (heading), cylinders (rotors)."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[100.0, 200.0, 50.0], [300.0, 400.0, 60.0]])
+        batteries = np.array([4000.0, 2000.0])
+        scene = self._build_scene(
+            bridge,
+            drone_positions=positions,
+            drone_batteries=batteries,
+        )
+        assert scene is not None
+        drones_entity = next(e for e in scene["entities"] if e["id"] == "drones")
+
+        # Body cubes: 1 per drone
+        assert len(drones_entity["cubes"]) == 2
+        # Rotor cylinders: 4 per drone
+        assert len(drones_entity["cylinders"]) == 8
+        # Heading arrows: 1 per drone
+        assert len(drones_entity["arrows"]) == 2
+        # Labels: 1 per drone
+        assert len(drones_entity["texts"]) == 2
+
+    def test_drone_cube_has_required_fields(self):
+        """Each drone cube must have pose, size, and color."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        scene = self._build_scene(bridge, drone_positions=positions)
+        cube = scene["entities"][0]["cubes"][0]
+        assert "pose" in cube
+        assert "position" in cube["pose"]
+        assert "orientation" in cube["pose"]
+        assert "size" in cube
+        assert "color" in cube
+
+    def test_target_entity_has_spheres_and_labels(self):
+        """Targets should have spheres and text labels."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
+        tgt_cls = {"T0": "hostile"}
+        scene = self._build_scene(
+            bridge,
+            drone_positions=positions,
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+        )
+        targets_entity = next(e for e in scene["entities"] if e["id"] == "targets")
+        assert len(targets_entity["spheres"]) == 1
+        assert len(targets_entity["texts"]) == 1
+        assert "hostile" in targets_entity["texts"][0]["text"]
+
+    def test_ground_plane_entity_present(self):
+        """Ground plane entity should be present when grid_extent is set."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        scene = self._build_scene(
+            bridge, drone_positions=positions, grid_extent=2000.0,
+        )
+        ground = next(e for e in scene["entities"] if e["id"] == "ground_plane")
+        assert len(ground["cubes"]) == 1
+
+    def test_all_entities_have_required_fields(self):
+        """Every entity must have the required Foxglove SceneEntity fields."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[50.0, 50.0, 50.0]])
+        tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
+        tgt_cls = {"T0": "friendly"}
+        scene = self._build_scene(
+            bridge,
+            drone_positions=positions,
+            target_positions=tgt_pos,
+            target_classifications=tgt_cls,
+            grid_extent=2000.0,
+        )
+        required = {
+            "timestamp", "frame_id", "id", "lifetime", "frame_locked",
+            "metadata", "arrows", "cubes", "spheres", "cylinders",
+            "lines", "triangles", "texts", "models",
+        }
+        for entity in scene["entities"]:
+            missing = required - set(entity.keys())
+            assert not missing, f"Entity '{entity['id']}' missing fields: {missing}"
+
+    def test_scene_mcap_roundtrip_with_targets(self, tmp_path):
+        """Scene with drones, targets, and ground plane can be recorded and read back."""
+        from mcap.reader import make_reader
+
+        filepath = str(tmp_path / "scene_roundtrip.mcap")
+        with MCAPRecorder(filepath) as recorder:
+            positions = np.array([[100.0, 200.0, 50.0], [300.0, 400.0, 60.0]])
+            batteries = np.array([4500.0, 3000.0])
+            tgt_pos = {
+                "T0": np.array([500.0, 500.0, 80.0]),
+                "T1": np.array([600.0, 600.0, 90.0]),
+            }
+            tgt_cls = {"T0": "hostile", "T1": "friendly"}
+            for step in range(5):
+                ts = int(time.time() * 1e9) + step * 100_000_000
+                recorder.record_scene(
+                    drone_positions=positions,
+                    drone_batteries=batteries,
+                    target_positions=tgt_pos,
+                    target_classifications=tgt_cls,
+                    timestamp_ns=ts,
+                )
+                recorder.record_metrics(
+                    {"step": step, "coverage": 0.5, "active_drones": 2,
+                     "total_drones": 2, "collisions": 0, "avg_battery": 3750.0},
+                    reward=0.1,
+                    timestamp_ns=ts,
+                )
+
+        # Verify MCAP is readable
+        with open(filepath, "rb") as f:
+            reader = make_reader(f)
+            summary = reader.get_summary()
+            assert summary is not None
+            assert len(summary.channels) >= 2
+            # Verify scene and metrics channels exist
+            topics = {ch.topic for ch in summary.channels.values()}
+            assert "/swarm/scene" in topics
+            assert "/swarm/metrics" in topics
+
+
+# ---------------------------------------------------------------------------
 # Module import tests
 # ---------------------------------------------------------------------------
 

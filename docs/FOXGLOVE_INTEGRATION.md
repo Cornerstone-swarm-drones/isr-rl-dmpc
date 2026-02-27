@@ -107,7 +107,9 @@ The integration publishes data on these topics:
 
 The 3D scene includes:
 
-- **Drone cubes** — color-coded by battery level (green = full, red = empty) with labels showing drone ID and battery
+- **Drone body cubes** — color-coded by battery level (green = full, red = empty) with labels showing drone ID and battery
+- **Rotor cylinders** — 4 cylinders per drone forming a quadcopter shape above the body
+- **Heading arrows** — white arrows showing each drone's forward direction
 - **Target spheres** — color-coded by classification (red = hostile, green = friendly, yellow = unknown)
 - **Target labels** — showing target ID and classification
 - **Ground plane** — semi-transparent reference plane showing the mission area extent
@@ -260,7 +262,7 @@ foxglove:
 
 Import the default layout from `config/foxglove_layout.json` for a pre-configured dashboard with:
 
-- **3D Panel** — Drone positions (cubes), target markers (spheres), and ground plane
+- **3D Panel** — Drone models (body cubes + rotor cylinders + heading arrows), target markers (spheres), and ground plane
 - **Plot Panel** — Real-time coverage, reward, and battery metrics
 - **Raw Messages** — Coverage grid and mission info inspection
 

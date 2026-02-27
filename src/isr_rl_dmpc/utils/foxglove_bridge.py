@@ -189,50 +189,65 @@ class FoxgloveBridge:
 
         self._channels["metrics"] = foxglove.Channel(
             "/swarm/metrics",
-            schema={
-                "type": "object",
-                "properties": {
-                    "step": {"type": "integer"},
-                    "coverage": {"type": "number"},
-                    "avg_battery": {"type": "number"},
-                    "active_drones": {"type": "integer"},
-                    "total_drones": {"type": "integer"},
-                    "collisions": {"type": "integer"},
-                    "reward": {"type": "number"},
-                },
-            },
+            schema=foxglove.Schema(
+                name="isr.SwarmMetrics",
+                encoding="jsonschema",
+                data=json.dumps({
+                    "type": "object",
+                    "properties": {
+                        "step": {"type": "integer"},
+                        "coverage": {"type": "number"},
+                        "avg_battery": {"type": "number"},
+                        "active_drones": {"type": "integer"},
+                        "total_drones": {"type": "integer"},
+                        "collisions": {"type": "integer"},
+                        "reward": {"type": "number"},
+                    },
+                }).encode("utf-8"),
+            ),
+            message_encoding="json",
         )
 
         self._channels["coverage"] = foxglove.Channel(
             "/mission/coverage",
-            schema={
-                "type": "object",
-                "properties": {
-                    "grid_size": {
-                        "type": "array",
-                        "items": {"type": "integer"},
+            schema=foxglove.Schema(
+                name="isr.CoverageGrid",
+                encoding="jsonschema",
+                data=json.dumps({
+                    "type": "object",
+                    "properties": {
+                        "grid_size": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                        },
+                        "coverage_map": {
+                            "type": "array",
+                            "items": {"type": "number"},
+                        },
+                        "coverage_percentage": {"type": "number"},
                     },
-                    "coverage_map": {
-                        "type": "array",
-                        "items": {"type": "number"},
-                    },
-                    "coverage_percentage": {"type": "number"},
-                },
-            },
+                }).encode("utf-8"),
+            ),
+            message_encoding="json",
         )
 
         self._channels["mission_info"] = foxglove.Channel(
             "/mission/info",
-            schema={
-                "type": "object",
-                "properties": {
-                    "elapsed_time": {"type": "number"},
-                    "mission_duration": {"type": "number"},
-                    "progress": {"type": "number"},
-                    "coverage_efficiency": {"type": "number"},
-                    "num_waypoints": {"type": "integer"},
-                },
-            },
+            schema=foxglove.Schema(
+                name="isr.MissionInfo",
+                encoding="jsonschema",
+                data=json.dumps({
+                    "type": "object",
+                    "properties": {
+                        "elapsed_time": {"type": "number"},
+                        "mission_duration": {"type": "number"},
+                        "progress": {"type": "number"},
+                        "coverage_efficiency": {"type": "number"},
+                        "num_waypoints": {"type": "integer"},
+                    },
+                }).encode("utf-8"),
+            ),
+            message_encoding="json",
         )
 
         logger.info(
@@ -334,7 +349,12 @@ class FoxgloveBridge:
         # --- Drone entities ---
         n_drones = len(drone_positions)
         drone_cubes: List[Dict[str, Any]] = []
+        drone_cylinders: List[Dict[str, Any]] = []
+        drone_arrows: List[Dict[str, Any]] = []
         drone_texts: List[Dict[str, Any]] = []
+
+        # Rotor arm offsets from drone center (quadcopter layout)
+        _rotor_offsets = [(1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0), (1.0, -1.0)]
 
         for i in range(n_drones):
             pos = drone_positions[i]
@@ -353,6 +373,7 @@ class FoxgloveBridge:
             else:
                 orient = _quat(0, 0, 0, 1)
 
+            # Central body cube
             drone_cubes.append({
                 "pose": {
                     "position": _vec3(pos[0], pos[1], pos[2]),
@@ -360,6 +381,34 @@ class FoxgloveBridge:
                 },
                 "size": _vec3(2.0, 2.0, 0.5),
                 "color": col,
+            })
+
+            # Rotor discs (4 cylinders for quadcopter shape)
+            for dx, dy in _rotor_offsets:
+                drone_cylinders.append({
+                    "pose": {
+                        "position": _vec3(
+                            pos[0] + dx, pos[1] + dy, pos[2] + 0.3
+                        ),
+                        "orientation": _quat(0, 0, 0, 1),
+                    },
+                    "size": _vec3(0.8, 0.8, 0.1),
+                    "color": _color(0.6, 0.6, 0.6, 0.7),
+                    "bottom_scale": 1.0,
+                    "top_scale": 1.0,
+                })
+
+            # Heading arrow (forward direction)
+            drone_arrows.append({
+                "pose": {
+                    "position": _vec3(pos[0], pos[1], pos[2]),
+                    "orientation": orient,
+                },
+                "shaft_length": 2.5,
+                "shaft_diameter": 0.2,
+                "head_length": 0.8,
+                "head_diameter": 0.5,
+                "color": _color(1.0, 1.0, 1.0, 0.8),
             })
 
             label = f"D{i}"
@@ -384,10 +433,10 @@ class FoxgloveBridge:
             "lifetime": {"sec": 0, "nsec": 0},
             "frame_locked": False,
             "metadata": [],
-            "arrows": [],
+            "arrows": drone_arrows,
             "cubes": drone_cubes,
             "spheres": [],
-            "cylinders": [],
+            "cylinders": drone_cylinders,
             "lines": [],
             "triangles": [],
             "texts": drone_texts,
