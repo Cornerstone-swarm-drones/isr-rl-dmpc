@@ -123,7 +123,7 @@ from isr_rl_dmpc.utils import FoxgloveBridge
 
 # Initialize and start
 bridge = FoxgloveBridge(host="0.0.0.0", port=8765)
-await bridge.start()
+bridge.start()
 
 # Publish during simulation loop
 bridge.publish_scene(drone_positions, drone_quaternions, drone_batteries,
@@ -138,7 +138,7 @@ bridge.publish_mission_info(elapsed_time, mission_duration, coverage_efficiency,
 bridge.publish_from_state_manager(state_manager, timestamp_ns)
 
 # Stop
-await bridge.stop()
+bridge.stop()
 ```
 
 ### extract_targets_from_obs
@@ -172,14 +172,13 @@ with MCAPRecorder("recording.mcap") as recorder:
 ### Integration with Training Loop
 
 ```python
-import asyncio
 from isr_rl_dmpc.gym_env.isr_env import ISRGridEnv
 from isr_rl_dmpc.utils import FoxgloveBridge, extract_targets_from_obs
 
-async def train_with_visualization():
+def train_with_visualization():
     env = ISRGridEnv(num_drones=4, max_targets=3)
     bridge = FoxgloveBridge(port=8765)
-    await bridge.start()
+    bridge.start()
 
     obs, info = env.reset()
     for step in range(1000):
@@ -202,7 +201,7 @@ async def train_with_visualization():
         if done:
             obs, info = env.reset()
 
-    await bridge.stop()
+    bridge.stop()
 ```
 
 Or use the built-in training flag:
