@@ -30,6 +30,8 @@ import numpy as np
 
 from mcap.writer import Writer
 
+from isr_rl_dmpc.utils.foxglove_bridge import DRONE_MODEL_URL, TARGET_MODELS
+
 logger = logging.getLogger(__name__)
 
 
@@ -244,8 +246,7 @@ class MCAPRecorder:
                     "orientation": orient,
                 },
                 "scale": {"x": 2.0, "y": 2.0, "z": 2.0},
-                "url": "https://raw.githubusercontent.com/CesiumGS/cesium/main/"
-                       "Apps/SampleData/models/CesiumDrone/CesiumDrone.glb",
+                "url": DRONE_MODEL_URL,
                 "media_type": "model/gltf-binary",
                 "override_color": False,
                 "color": col,
@@ -277,20 +278,6 @@ class MCAPRecorder:
 
         # Target models
         if target_positions:
-            _target_model_urls = {
-                "hostile": (
-                    "https://raw.githubusercontent.com/CesiumGS/cesium/main/"
-                    "Apps/SampleData/models/CesiumMilkTruck/CesiumMilkTruck.glb"
-                ),
-                "friendly": (
-                    "https://raw.githubusercontent.com/CesiumGS/cesium/main/"
-                    "Apps/SampleData/models/CesiumAir/Cesium_Air.glb"
-                ),
-                "unknown": (
-                    "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/"
-                    "master/2.0/Box/glTF-Binary/Box.glb"
-                ),
-            }
             target_models = []
             target_texts = []
             for tid, tpos in target_positions.items():
@@ -303,8 +290,8 @@ class MCAPRecorder:
                 else:
                     col = {"r": 1.0, "g": 1.0, "b": 0.0, "a": 0.8}
 
-                model_url = _target_model_urls.get(
-                    cls_name, _target_model_urls["unknown"]
+                model_url = TARGET_MODELS.get(
+                    cls_name, TARGET_MODELS["unknown"]
                 )
 
                 target_models.append({
