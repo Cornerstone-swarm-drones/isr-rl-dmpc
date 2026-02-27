@@ -25,7 +25,7 @@ from src.isr_rl_dmpc.utils import setup_logger
 class SensorCalibrator:
     """Calibrate swarm sensors."""
     
-    def __init__(self, output_dir: str = 'calibration_data'):
+    def __init__(self, output_dir: str = 'data/sensor_calibration'):
         """Initialize calibrator."""
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
@@ -392,7 +392,7 @@ def main():
     parser = argparse.ArgumentParser(description='Calibrate ISR swarm sensors')
     parser.add_argument('--samples', type=int, default=100,
                        help='Number of calibration samples')
-    parser.add_argument('--output-dir', type=str, default='calibration_data',
+    parser.add_argument('--output-dir', type=str, default='data/sensor_calibration',
                        help='Output directory')
     parser.add_argument('--rf-only', action='store_true',
                        help='Only calibrate RF sensor')

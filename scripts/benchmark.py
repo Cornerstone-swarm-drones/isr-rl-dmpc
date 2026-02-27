@@ -397,12 +397,17 @@ def main():
         all_results[device] = suite.results
     
     # Save results
-    output_path = Path(args.output)
+    
+    output_dir = Path("data") 
+    output_path = output_dir / Path(args.output).name
+
     with open(output_path, 'w') as f:
         json.dump(all_results, f, indent=2)
-    
+
     print(f"All results saved to: {output_path}")
-    
+
+
+
     # Performance comparison if comparing
     if args.compare and 'cuda' in all_results and 'cpu' in all_results:
         print("\n" + "="*70)
