@@ -2,7 +2,6 @@
 Tests for Foxglove Studio integration: FoxgloveBridge and MCAPRecorder.
 """
 
-import asyncio
 import json
 import tempfile
 import time
@@ -18,6 +17,7 @@ from isr_rl_dmpc.utils.foxglove_bridge import (
     _vec3,
     _quat,
     _now_ns,
+    extract_targets_from_obs,
 )
 from isr_rl_dmpc.utils.mcap_logger import MCAPRecorder
 from isr_rl_dmpc.core.data_structures import DroneState, TargetState, MissionState
@@ -314,6 +314,90 @@ class TestStateManagerIntegration:
 
 
 # ---------------------------------------------------------------------------
+# extract_targets_from_obs tests
+# ---------------------------------------------------------------------------
+
+class TestExtractTargetsFromObs:
+    """Tests for the extract_targets_from_obs helper."""
+
+    def test_empty_targets(self):
+        """All-zero observation returns empty dicts."""
+        obs = np.zeros((5, 12))
+        pos, cls = extract_targets_from_obs(obs)
+        assert len(pos) == 0
+        assert len(cls) == 0
+
+    def test_single_hostile_target(self):
+        """A single hostile target is extracted correctly."""
+        obs = np.zeros((3, 12))
+        obs[0, :3] = [100.0, 200.0, 50.0]
+        obs[0, 8] = 2.0  # HOSTILE
+        pos, cls = extract_targets_from_obs(obs)
+        assert len(pos) == 1
+        assert "T0" in pos
+        np.testing.assert_array_almost_equal(pos["T0"], [100.0, 200.0, 50.0])
+        assert cls["T0"] == "hostile"
+
+    def test_multiple_target_types(self):
+        """Multiple targets with different types."""
+        obs = np.zeros((4, 12))
+        obs[0, :3] = [10.0, 20.0, 30.0]
+        obs[0, 8] = 1.0  # FRIENDLY
+        obs[1, :3] = [40.0, 50.0, 60.0]
+        obs[1, 8] = 2.0  # HOSTILE
+        obs[2, :3] = [70.0, 80.0, 90.0]
+        obs[2, 8] = 0.0  # UNKNOWN
+        # obs[3] is all-zero -> should be skipped
+        pos, cls = extract_targets_from_obs(obs)
+        assert len(pos) == 3
+        assert cls["T0"] == "friendly"
+        assert cls["T1"] == "hostile"
+        assert cls["T2"] == "unknown"
+
+    def test_neutral_target(self):
+        """Neutral target type (3) is recognized."""
+        obs = np.zeros((1, 12))
+        obs[0, :3] = [5.0, 5.0, 5.0]
+        obs[0, 8] = 3.0  # NEUTRAL
+        pos, cls = extract_targets_from_obs(obs)
+        assert cls["T0"] == "neutral"
+
+    def test_skips_zero_position(self):
+        """Targets at origin with zero position are skipped (padding)."""
+        obs = np.zeros((3, 12))
+        obs[0, :3] = [0.0, 0.0, 0.0]  # zero -> skipped
+        obs[0, 8] = 2.0
+        obs[1, :3] = [100.0, 200.0, 50.0]
+        obs[1, 8] = 1.0
+        pos, cls = extract_targets_from_obs(obs)
+        assert len(pos) == 1
+        assert "T1" in pos
+
+
+# ---------------------------------------------------------------------------
+# Ground plane in scene tests
+# ---------------------------------------------------------------------------
+
+class TestGroundPlane:
+    """Tests for the ground plane in publish_scene."""
+
+    def test_publish_scene_with_ground_plane_no_error(self):
+        """Publishing scene with grid_extent does not raise."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[0, 0, 50], [100, 100, 50]])
+        bridge.publish_scene(
+            drone_positions=positions,
+            grid_extent=2000.0,
+        )
+
+    def test_publish_scene_without_ground_plane_no_error(self):
+        """Publishing scene without grid_extent still works."""
+        bridge = FoxgloveBridge()
+        positions = np.array([[0, 0, 50]])
+        bridge.publish_scene(drone_positions=positions)
+
+
+# ---------------------------------------------------------------------------
 # Module import tests
 # ---------------------------------------------------------------------------
 
@@ -329,6 +413,11 @@ class TestModuleImports:
         """MCAPRecorder is importable from utils."""
         from isr_rl_dmpc.utils import MCAPRecorder
         assert MCAPRecorder is not None
+
+    def test_import_extract_targets_from_obs(self):
+        """extract_targets_from_obs is importable from utils."""
+        from isr_rl_dmpc.utils import extract_targets_from_obs
+        assert extract_targets_from_obs is not None
 
 
 if __name__ == "__main__":

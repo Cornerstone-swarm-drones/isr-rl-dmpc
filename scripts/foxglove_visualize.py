@@ -83,7 +83,7 @@ async def run_live(args):
         port=args.port,
         server_name="ISR-RL-DMPC Simulation",
     )
-    await bridge.start()
+    bridge.start()
 
     logger.info(
         "Foxglove bridge ready — connect Foxglove Studio to ws://%s:%d",
@@ -190,9 +190,7 @@ async def run_live(args):
     finally:
         if env is not None:
             env.close()
-        await bridge.stop()
-
-
+        bridge.stop()
 def run_record(args):
     """Run simulation and record to MCAP file."""
     from isr_rl_dmpc.utils.mcap_logger import MCAPRecorder
@@ -310,7 +308,7 @@ async def run_both(args):
         port=args.port,
         server_name="ISR-RL-DMPC Simulation",
     )
-    await bridge.start()
+    bridge.start()
 
     logger.info(
         "Foxglove bridge ready — connect Foxglove Studio to ws://%s:%d",
@@ -441,7 +439,7 @@ async def run_both(args):
         finally:
             if env is not None:
                 env.close()
-            await bridge.stop()
+            bridge.stop()
 
     logger.info("Recording complete: %s", output_path)
 

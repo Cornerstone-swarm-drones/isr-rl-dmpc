@@ -4,23 +4,25 @@ Foxglove Studio WebSocket bridge for real-time ISR-RL-DMPC visualization.
 Provides a WebSocket server that streams simulation data to Foxglove Studio
 for interactive 3D visualization, metrics monitoring, and mission analysis.
 
+Uses the ``foxglove-sdk`` package which replaces the deprecated
+``foxglove-websocket`` library and eliminates websockets deprecation warnings.
+
 Usage:
     bridge = FoxgloveBridge(host="0.0.0.0", port=8765)
-    await bridge.start()
+    bridge.start()
 
     # During simulation loop:
     bridge.publish_drone_states(drone_states, timestamp_ns)
     bridge.publish_target_states(target_states, timestamp_ns)
     bridge.publish_mission_state(mission_state, timestamp_ns)
 
-    await bridge.stop()
+    bridge.stop()
 
 Foxglove Studio Connection:
     Open Foxglove Studio and connect via:
     ws://localhost:8765
 """
 
-import asyncio
 import json
 import logging
 import time
@@ -28,13 +30,12 @@ from typing import Dict, List, Optional, Any
 
 import numpy as np
 
-from foxglove_websocket.server import FoxgloveServer, FoxgloveServerListener
-from foxglove_websocket.types import ChannelWithoutId
+import foxglove
 
 logger = logging.getLogger(__name__)
 
 # JSON schemas for Foxglove panels
-_SCENE_UPDATE_SCHEMA = json.dumps({
+_SCENE_UPDATE_SCHEMA = {
     "type": "object",
     "properties": {
         "deletions": {
@@ -70,16 +71,7 @@ _SCENE_UPDATE_SCHEMA = json.dumps({
             },
         },
     },
-})
-
-_LOCATION_FIX_SCHEMA = json.dumps({
-    "type": "object",
-    "properties": {
-        "latitude": {"type": "number"},
-        "longitude": {"type": "number"},
-        "altitude": {"type": "number"},
-    },
-})
+}
 
 
 def _timestamp_obj(ns: int) -> Dict[str, int]:
@@ -139,23 +131,11 @@ def extract_targets_from_obs(
     return positions, classifications
 
 
-class _BridgeListener(FoxgloveServerListener):
-    """Handles Foxglove client subscription events."""
-
-    def __init__(self) -> None:
-        self.subscribed_channels: set = set()
-
-    async def on_subscribe(self, server: FoxgloveServer, channel_id: int) -> None:
-        self.subscribed_channels.add(channel_id)
-
-    async def on_unsubscribe(self, server: FoxgloveServer, channel_id: int) -> None:
-        self.subscribed_channels.discard(channel_id)
-
-
 class FoxgloveBridge:
     """
     WebSocket bridge for streaming ISR-RL-DMPC simulation data to Foxglove Studio.
 
+    Uses ``foxglove-sdk`` for a high-performance, warning-free WebSocket server.
     Publishes drone positions, target states, coverage grids, and mission metrics
     as Foxglove-compatible JSON messages over WebSocket.
 
@@ -181,97 +161,78 @@ class FoxgloveBridge:
         self.port = port
         self.server_name = server_name
 
-        self._server: Optional[FoxgloveServer] = None
-        self._listener = _BridgeListener()
-        self._channels: Dict[str, int] = {}
+        self._server: Optional[foxglove.WebSocketServer] = None
+        self._channels: Dict[str, foxglove.Channel] = {}
         self._started = False
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Start the WebSocket server and register channels."""
-        self._server = FoxgloveServer(
-            self.host,
-            self.port,
-            self.server_name,
-            capabilities=["time"],
+        self._server = foxglove.start_server(
+            name=self.server_name,
+            host=self.host,
+            port=self.port,
+            capabilities=[foxglove.Capability.Time],
             supported_encodings=["json"],
         )
-        self._server.set_listener(self._listener)
-
-        await self._server.start()
         self._started = True
 
         # Register channels
-        self._channels["scene"] = await self._server.add_channel(
-            ChannelWithoutId(
-                topic="/swarm/scene",
-                encoding="json",
-                schemaName="foxglove.SceneUpdate",
-                schema=_SCENE_UPDATE_SCHEMA,
-                schemaEncoding="jsonschema",
-            )
+        self._channels["scene"] = foxglove.Channel(
+            "/swarm/scene",
+            schema=foxglove.Schema(
+                name="foxglove.SceneUpdate",
+                encoding="jsonschema",
+                data=json.dumps(_SCENE_UPDATE_SCHEMA).encode("utf-8"),
+            ),
+            message_encoding="json",
         )
 
-        self._channels["metrics"] = await self._server.add_channel(
-            ChannelWithoutId(
-                topic="/swarm/metrics",
-                encoding="json",
-                schemaName="isr.SwarmMetrics",
-                schema=json.dumps({
-                    "type": "object",
-                    "properties": {
-                        "step": {"type": "integer"},
-                        "coverage": {"type": "number"},
-                        "avg_battery": {"type": "number"},
-                        "active_drones": {"type": "integer"},
-                        "total_drones": {"type": "integer"},
-                        "collisions": {"type": "integer"},
-                        "reward": {"type": "number"},
-                    },
-                }),
-                schemaEncoding="jsonschema",
-            )
+        self._channels["metrics"] = foxglove.Channel(
+            "/swarm/metrics",
+            schema={
+                "type": "object",
+                "properties": {
+                    "step": {"type": "integer"},
+                    "coverage": {"type": "number"},
+                    "avg_battery": {"type": "number"},
+                    "active_drones": {"type": "integer"},
+                    "total_drones": {"type": "integer"},
+                    "collisions": {"type": "integer"},
+                    "reward": {"type": "number"},
+                },
+            },
         )
 
-        self._channels["coverage"] = await self._server.add_channel(
-            ChannelWithoutId(
-                topic="/mission/coverage",
-                encoding="json",
-                schemaName="isr.CoverageGrid",
-                schema=json.dumps({
-                    "type": "object",
-                    "properties": {
-                        "grid_size": {
-                            "type": "array",
-                            "items": {"type": "integer"},
-                        },
-                        "coverage_map": {
-                            "type": "array",
-                            "items": {"type": "number"},
-                        },
-                        "coverage_percentage": {"type": "number"},
+        self._channels["coverage"] = foxglove.Channel(
+            "/mission/coverage",
+            schema={
+                "type": "object",
+                "properties": {
+                    "grid_size": {
+                        "type": "array",
+                        "items": {"type": "integer"},
                     },
-                }),
-                schemaEncoding="jsonschema",
-            )
+                    "coverage_map": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                    },
+                    "coverage_percentage": {"type": "number"},
+                },
+            },
         )
 
-        self._channels["mission_info"] = await self._server.add_channel(
-            ChannelWithoutId(
-                topic="/mission/info",
-                encoding="json",
-                schemaName="isr.MissionInfo",
-                schema=json.dumps({
-                    "type": "object",
-                    "properties": {
-                        "elapsed_time": {"type": "number"},
-                        "mission_duration": {"type": "number"},
-                        "progress": {"type": "number"},
-                        "coverage_efficiency": {"type": "number"},
-                        "num_waypoints": {"type": "integer"},
-                    },
-                }),
-                schemaEncoding="jsonschema",
-            )
+        self._channels["mission_info"] = foxglove.Channel(
+            "/mission/info",
+            schema={
+                "type": "object",
+                "properties": {
+                    "elapsed_time": {"type": "number"},
+                    "mission_duration": {"type": "number"},
+                    "progress": {"type": "number"},
+                    "coverage_efficiency": {"type": "number"},
+                    "num_waypoints": {"type": "integer"},
+                },
+            },
         )
 
         logger.info(
@@ -281,10 +242,14 @@ class FoxgloveBridge:
             self.port,
         )
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop the WebSocket server."""
+        for ch in self._channels.values():
+            ch.close()
+        self._channels.clear()
         if self._server is not None:
-            await self._server.close()
+            self._server.stop()
+            self._server = None
             self._started = False
             logger.info("Foxglove bridge stopped")
 
@@ -298,23 +263,13 @@ class FoxgloveBridge:
     # ------------------------------------------------------------------
 
     def _send(self, channel_key: str, data: Dict[str, Any], timestamp_ns: int) -> None:
-        """Send a JSON message on a channel (fire-and-forget)."""
-        if not self._started or self._server is None:
+        """Send a JSON message on a channel."""
+        if not self._started:
             return
-        chan_id = self._channels.get(channel_key)
-        if chan_id is None:
+        ch = self._channels.get(channel_key)
+        if ch is None:
             return
-        payload = json.dumps(data).encode("utf-8")
-        asyncio.ensure_future(
-            self._async_send(chan_id, timestamp_ns, payload)
-        )
-
-    async def _async_send(
-        self, chan_id: int, timestamp_ns: int, payload: bytes
-    ) -> None:
-        """Async wrapper for send_message."""
-        if self._server is not None:
-            await self._server.send_message(chan_id, timestamp_ns, payload)
+        ch.log(data, log_time=timestamp_ns)
 
     # ------------------------------------------------------------------
     # High-level publish methods

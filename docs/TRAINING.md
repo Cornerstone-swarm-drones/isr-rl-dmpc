@@ -39,6 +39,16 @@ Repeat for N episodes
 python scripts/train_agent.py --config config/default_config.yaml
 ```
 
+### Training with Live Foxglove Visualization
+
+Enable real-time visualization of drone positions, targets, and metrics during training:
+
+```bash
+python scripts/train_agent.py --foxglove --foxglove-port 8765
+```
+
+Then open Foxglove Studio and connect to `ws://localhost:8765` to watch the training in real-time.
+
 ### Full Options
 
 ```bash
@@ -50,7 +60,8 @@ python scripts/train_agent.py \
     --eval-freq 100 \
     --output-dir data/training_logs \
     --device cuda \
-    --seed 42
+    --seed 42 \
+    --foxglove
 ```
 
 | Argument | Default | Description |
@@ -63,6 +74,8 @@ python scripts/train_agent.py \
 | `--output-dir` | `data/training_logs` | Output directory |
 | `--device` | `cuda` (if available) | `cuda` or `cpu` |
 | `--seed` | `42` | Random seed for reproducibility |
+| `--foxglove` | disabled | Enable live Foxglove Studio visualization |
+| `--foxglove-port` | `8765` | WebSocket server port for Foxglove |
 
 ## Hyperparameter Reference
 

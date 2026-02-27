@@ -9,7 +9,6 @@ Compatible with existing isr_rl_dmpc package:
 """
 
 import argparse
-import asyncio
 import numpy as np
 import torch
 import yaml
@@ -352,14 +351,8 @@ if __name__ == '__main__':
     if args.foxglove:
         from isr_rl_dmpc.utils.foxglove_bridge import FoxgloveBridge
 
-        async def _start_bridge(port: int) -> FoxgloveBridge:
-            b = FoxgloveBridge(host="0.0.0.0", port=port)
-            await b.start()
-            return b
-
-        bridge = asyncio.get_event_loop().run_until_complete(
-            _start_bridge(args.foxglove_port)
-        )
+        bridge = FoxgloveBridge(host="0.0.0.0", port=args.foxglove_port)
+        bridge.start()
         print(
             f"Foxglove bridge started on ws://0.0.0.0:{args.foxglove_port} — "
             "connect Foxglove Studio to visualize training"
@@ -379,7 +372,7 @@ if __name__ == '__main__':
         )
     finally:
         if bridge is not None:
-            asyncio.get_event_loop().run_until_complete(bridge.stop())
+            bridge.stop()
 
     print("\n" + "=" * 60)
     print("TRAINING COMPLETE")
