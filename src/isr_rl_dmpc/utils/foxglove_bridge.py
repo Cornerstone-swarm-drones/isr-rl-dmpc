@@ -517,7 +517,7 @@ class FoxgloveBridge:
                             classification, _TARGET_MODEL_B64.get("unknown", "")
                         ),
                         "media_type": "model/gltf-binary",
-                        "override_color": True,
+                        "override_color": False,
                         "color": col,
                     })
                 else:
@@ -529,7 +529,7 @@ class FoxgloveBridge:
                         "scale": _vec3(3.0, 3.0, 3.0),
                         "url": "",
                         "media_type": "model/gltf-binary",
-                        "override_color": True,
+                        "override_color": False,
                         "color": col,
                     })
 

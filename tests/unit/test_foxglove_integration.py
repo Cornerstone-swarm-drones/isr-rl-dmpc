@@ -646,6 +646,31 @@ class TestModelOptimization:
         from isr_rl_dmpc.utils import preload_models
         assert preload_models is not None
 
+    def test_preload_models_populates_caches(self):
+        """preload_models downloads models and populates base64 caches."""
+        from unittest.mock import patch, MagicMock
+        import isr_rl_dmpc.utils.foxglove_bridge as bridge_mod
+
+        fake_glb = b"\x00\x01\x02\x03"
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = fake_glb
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(bridge_mod.urllib.request, "urlopen", return_value=mock_resp):
+            bridge_mod.preload_models()
+
+        import base64
+        expected = base64.b64encode(fake_glb).decode("ascii")
+        assert bridge_mod._DRONE_MODEL_B64 == expected
+        assert bridge_mod._TARGET_MODEL_B64["hostile"] == expected
+        assert bridge_mod._TARGET_MODEL_B64["friendly"] == expected
+        assert bridge_mod._TARGET_MODEL_B64["unknown"] == expected
+
+        # Clean up global state
+        bridge_mod._DRONE_MODEL_B64 = ""
+        bridge_mod._TARGET_MODEL_B64 = {}
+
 
 # ---------------------------------------------------------------------------
 # Module import tests
