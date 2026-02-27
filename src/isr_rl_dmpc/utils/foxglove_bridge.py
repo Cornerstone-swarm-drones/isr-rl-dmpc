@@ -419,11 +419,16 @@ class FoxgloveBridge:
 
         ts = _timestamp_obj(timestamp_ns)
 
+        # Compute the offset used to shift all objects so the world is
+        # centred at (0, 0).  When grid_extent is given the simulation
+        # arena runs from 0 → grid_extent in x/y, so subtracting half
+        # moves everything to [-half, +half] around the origin.
+        half = (grid_extent / 2.0) if (grid_extent is not None and grid_extent > 0) else 0.0
+
         entities: List[Dict[str, Any]] = []
 
         # --- Ground plane entity ---
         if grid_extent is not None and grid_extent > 0:
-            half = grid_extent / 2.0
             entities.append({
                 "timestamp": ts,
                 "frame_id": "world",
@@ -434,7 +439,7 @@ class FoxgloveBridge:
                 "arrows": [],
                 "cubes": [{
                     "pose": {
-                        "position": _vec3(half, half, -0.25),
+                        "position": _vec3(0.0, 0.0, -0.25),
                         "orientation": _quat(0, 0, 0, 1),
                     },
                     "size": _vec3(grid_extent, grid_extent, 0.5),
@@ -455,6 +460,10 @@ class FoxgloveBridge:
 
         for i in range(n_drones):
             pos = drone_positions[i]
+            # Shift to origin-centred coordinates
+            cx = float(pos[0]) - half
+            cy = float(pos[1]) - half
+            cz = float(pos[2])
 
             # Orientation
             if drone_quaternions is not None and len(drone_quaternions) > i:
@@ -472,7 +481,7 @@ class FoxgloveBridge:
 
             drone_models.append({
                 "pose": {
-                    "position": _vec3(pos[0], pos[1], pos[2]),
+                    "position": _vec3(cx, cy, cz),
                     "orientation": orient,
                 },
                 "scale": _vec3(2.0, 2.0, 2.0),
@@ -487,7 +496,7 @@ class FoxgloveBridge:
                 label += f" [{drone_batteries[i]:.0f}Wh]"
             drone_texts.append({
                 "pose": {
-                    "position": _vec3(pos[0], pos[1], pos[2] + 4),
+                    "position": _vec3(cx, cy, cz + 4),
                     "orientation": _quat(0, 0, 0, 1),
                 },
                 "billboard": True,
@@ -532,9 +541,14 @@ class FoxgloveBridge:
                 else:
                     col = _color(1.0, 1.0, 0.0, 0.8)
 
+                # Shift to origin-centred coordinates
+                tx = float(tpos[0]) - half
+                ty = float(tpos[1]) - half
+                tz = float(tpos[2])
+
                 target_models.append({
                     "pose": {
-                        "position": _vec3(tpos[0], tpos[1], tpos[2]),
+                        "position": _vec3(tx, ty, tz),
                         "orientation": _quat(0, 0, 0, 1),
                     },
                     "scale": _vec3(3.0, 3.0, 3.0),
@@ -546,7 +560,7 @@ class FoxgloveBridge:
 
                 target_texts.append({
                     "pose": {
-                        "position": _vec3(tpos[0], tpos[1], tpos[2] + 5),
+                        "position": _vec3(tx, ty, tz + 5),
                         "orientation": _quat(0, 0, 0, 1),
                     },
                     "billboard": True,
