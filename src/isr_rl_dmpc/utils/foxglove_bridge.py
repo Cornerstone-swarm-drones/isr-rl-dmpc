@@ -99,6 +99,27 @@ def _quat(x: float, y: float, z: float, w: float) -> Dict[str, float]:
     return {"x": float(x), "y": float(y), "z": float(z), "w": float(w)}
 
 
+# --- 3D Model URLs for Foxglove SceneEntity ModelPrimitive ---
+DRONE_MODEL_URL = (
+    "https://raw.githubusercontent.com/CesiumGS/cesium/main/"
+    "Apps/SampleData/models/CesiumDrone/CesiumDrone.glb"
+)
+
+TARGET_MODELS = {
+    "hostile": (
+        "https://raw.githubusercontent.com/CesiumGS/cesium/main/"
+        "Apps/SampleData/models/CesiumMilkTruck/CesiumMilkTruck.glb"
+    ),
+    "friendly": (
+        "https://raw.githubusercontent.com/CesiumGS/cesium/main/"
+        "Apps/SampleData/models/CesiumAir/Cesium_Air.glb"
+    ),
+    "unknown": (
+        "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/"
+        "master/2.0/Box/glTF-Binary/Box.glb"
+    ),
+}
+
 _TARGET_TYPE_MAP = {0: "unknown", 1: "friendly", 2: "hostile", 3: "neutral"}
 
 
@@ -346,25 +367,13 @@ class FoxgloveBridge:
                 "models": [],
             })
 
-        # --- Drone entities ---
+        # --- Drone entities (3D models) ---
         n_drones = len(drone_positions)
-        drone_cubes: List[Dict[str, Any]] = []
-        drone_cylinders: List[Dict[str, Any]] = []
-        drone_arrows: List[Dict[str, Any]] = []
+        drone_models: List[Dict[str, Any]] = []
         drone_texts: List[Dict[str, Any]] = []
-
-        # Rotor arm offsets from drone center (quadcopter layout)
-        _rotor_offsets = [(1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0), (1.0, -1.0)]
 
         for i in range(n_drones):
             pos = drone_positions[i]
-
-            # Color by battery level (green = full, red = empty)
-            if drone_batteries is not None and len(drone_batteries) > i:
-                batt_frac = float(np.clip(drone_batteries[i] / 5000.0, 0, 1))
-                col = _color(1.0 - batt_frac, batt_frac, 0.2, 0.9)
-            else:
-                col = _color(0.2, 0.6, 1.0, 0.9)
 
             # Orientation
             if drone_quaternions is not None and len(drone_quaternions) > i:
@@ -373,42 +382,23 @@ class FoxgloveBridge:
             else:
                 orient = _quat(0, 0, 0, 1)
 
-            # Central body cube
-            drone_cubes.append({
+            # Color by battery level (green = full, red = empty)
+            if drone_batteries is not None and len(drone_batteries) > i:
+                batt_frac = float(np.clip(drone_batteries[i] / 5000.0, 0, 1))
+                col = _color(1.0 - batt_frac, batt_frac, 0.2, 0.9)
+            else:
+                col = _color(0.2, 0.6, 1.0, 0.9)
+
+            drone_models.append({
                 "pose": {
                     "position": _vec3(pos[0], pos[1], pos[2]),
                     "orientation": orient,
                 },
-                "size": _vec3(2.0, 2.0, 0.5),
+                "scale": _vec3(2.0, 2.0, 2.0),
+                "url": DRONE_MODEL_URL,
+                "media_type": "model/gltf-binary",
+                "override_color": False,
                 "color": col,
-            })
-
-            # Rotor discs (4 cylinders for quadcopter shape)
-            for dx, dy in _rotor_offsets:
-                drone_cylinders.append({
-                    "pose": {
-                        "position": _vec3(
-                            pos[0] + dx, pos[1] + dy, pos[2] + 0.3
-                        ),
-                        "orientation": _quat(0, 0, 0, 1),
-                    },
-                    "size": _vec3(0.8, 0.8, 0.1),
-                    "color": _color(0.6, 0.6, 0.6, 0.7),
-                    "bottom_scale": 1.0,
-                    "top_scale": 1.0,
-                })
-
-            # Heading arrow (forward direction)
-            drone_arrows.append({
-                "pose": {
-                    "position": _vec3(pos[0], pos[1], pos[2]),
-                    "orientation": orient,
-                },
-                "shaft_length": 2.5,
-                "shaft_diameter": 0.2,
-                "head_length": 0.8,
-                "head_diameter": 0.5,
-                "color": _color(1.0, 1.0, 1.0, 0.8),
             })
 
             label = f"D{i}"
@@ -416,7 +406,7 @@ class FoxgloveBridge:
                 label += f" [{drone_batteries[i]:.0f}Wh]"
             drone_texts.append({
                 "pose": {
-                    "position": _vec3(pos[0], pos[1], pos[2] + 3),
+                    "position": _vec3(pos[0], pos[1], pos[2] + 4),
                     "orientation": _quat(0, 0, 0, 1),
                 },
                 "billboard": True,
@@ -433,19 +423,19 @@ class FoxgloveBridge:
             "lifetime": {"sec": 0, "nsec": 0},
             "frame_locked": False,
             "metadata": [],
-            "arrows": drone_arrows,
-            "cubes": drone_cubes,
+            "arrows": [],
+            "cubes": [],
             "spheres": [],
-            "cylinders": drone_cylinders,
+            "cylinders": [],
             "lines": [],
             "triangles": [],
             "texts": drone_texts,
-            "models": [],
+            "models": drone_models,
         })
 
-        # --- Target entities ---
+        # --- Target entities (3D models) ---
         if target_positions:
-            target_spheres: List[Dict[str, Any]] = []
+            target_models: List[Dict[str, Any]] = []
             target_texts: List[Dict[str, Any]] = []
 
             for tid, tpos in target_positions.items():
@@ -461,12 +451,19 @@ class FoxgloveBridge:
                 else:
                     col = _color(1.0, 1.0, 0.0, 0.8)
 
-                target_spheres.append({
+                model_url = TARGET_MODELS.get(
+                    classification, TARGET_MODELS["unknown"]
+                )
+
+                target_models.append({
                     "pose": {
                         "position": _vec3(tpos[0], tpos[1], tpos[2]),
                         "orientation": _quat(0, 0, 0, 1),
                     },
-                    "size": _vec3(3.0, 3.0, 3.0),
+                    "scale": _vec3(3.0, 3.0, 3.0),
+                    "url": model_url,
+                    "media_type": "model/gltf-binary",
+                    "override_color": False,
                     "color": col,
                 })
 
@@ -491,12 +488,12 @@ class FoxgloveBridge:
                 "metadata": [],
                 "arrows": [],
                 "cubes": [],
-                "spheres": target_spheres,
+                "spheres": [],
                 "cylinders": [],
                 "lines": [],
                 "triangles": [],
                 "texts": target_texts,
-                "models": [],
+                "models": target_models,
             })
 
         scene_update = {"deletions": [], "entities": entities}

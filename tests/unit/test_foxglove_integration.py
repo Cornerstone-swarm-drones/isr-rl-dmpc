@@ -18,6 +18,8 @@ from isr_rl_dmpc.utils.foxglove_bridge import (
     _quat,
     _now_ns,
     extract_targets_from_obs,
+    DRONE_MODEL_URL,
+    TARGET_MODELS,
 )
 from isr_rl_dmpc.utils.mcap_logger import MCAPRecorder
 from isr_rl_dmpc.core.data_structures import DroneState, TargetState, MissionState
@@ -420,8 +422,8 @@ class TestSceneStructure:
         bridge._started = False
         return captured.get("scene")
 
-    def test_drone_entity_has_cubes_arrows_cylinders(self):
-        """Drones entity should contain cubes (body), arrows (heading), cylinders (rotors)."""
+    def test_drone_entity_has_models_and_texts(self):
+        """Drones entity should contain models (3D) and text labels."""
         bridge = FoxgloveBridge()
         positions = np.array([[100.0, 200.0, 50.0], [300.0, 400.0, 60.0]])
         batteries = np.array([4000.0, 2000.0])
@@ -433,29 +435,33 @@ class TestSceneStructure:
         assert scene is not None
         drones_entity = next(e for e in scene["entities"] if e["id"] == "drones")
 
-        # Body cubes: 1 per drone
-        assert len(drones_entity["cubes"]) == 2
-        # Rotor cylinders: 4 per drone
-        assert len(drones_entity["cylinders"]) == 8
-        # Heading arrows: 1 per drone
-        assert len(drones_entity["arrows"]) == 2
+        # 3D models: 1 per drone
+        assert len(drones_entity["models"]) == 2
+        # No cubes, cylinders, or arrows (replaced by models)
+        assert len(drones_entity["cubes"]) == 0
+        assert len(drones_entity["cylinders"]) == 0
+        assert len(drones_entity["arrows"]) == 0
         # Labels: 1 per drone
         assert len(drones_entity["texts"]) == 2
 
-    def test_drone_cube_has_required_fields(self):
-        """Each drone cube must have pose, size, and color."""
+    def test_drone_model_has_required_fields(self):
+        """Each drone model must have pose, scale, url, media_type, and color."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
         scene = self._build_scene(bridge, drone_positions=positions)
-        cube = scene["entities"][0]["cubes"][0]
-        assert "pose" in cube
-        assert "position" in cube["pose"]
-        assert "orientation" in cube["pose"]
-        assert "size" in cube
-        assert "color" in cube
+        model = scene["entities"][0]["models"][0]
+        assert "pose" in model
+        assert "position" in model["pose"]
+        assert "orientation" in model["pose"]
+        assert "scale" in model
+        assert "url" in model
+        assert "media_type" in model
+        assert "color" in model
+        assert model["media_type"] == "model/gltf-binary"
+        assert model["url"].endswith(".glb")
 
-    def test_target_entity_has_spheres_and_labels(self):
-        """Targets should have spheres and text labels."""
+    def test_target_entity_has_models_and_labels(self):
+        """Targets should have 3D models and text labels."""
         bridge = FoxgloveBridge()
         positions = np.array([[50.0, 50.0, 50.0]])
         tgt_pos = {"T0": np.array([100.0, 100.0, 80.0])}
@@ -467,9 +473,12 @@ class TestSceneStructure:
             target_classifications=tgt_cls,
         )
         targets_entity = next(e for e in scene["entities"] if e["id"] == "targets")
-        assert len(targets_entity["spheres"]) == 1
+        assert len(targets_entity["models"]) == 1
+        assert len(targets_entity["spheres"]) == 0
         assert len(targets_entity["texts"]) == 1
         assert "hostile" in targets_entity["texts"][0]["text"]
+        # Verify model URL is for hostile classification
+        assert "CesiumMilkTruck" in targets_entity["models"][0]["url"]
 
     def test_ground_plane_entity_present(self):
         """Ground plane entity should be present when grid_extent is set."""
