@@ -249,7 +249,7 @@ def _auto_grid_extent(
     all_xy = [drone_positions[:, :2]]
     if target_positions:
         for tpos in target_positions.values():
-            all_xy.append(np.array(tpos[:2]).reshape(1, 2))
+            all_xy.append(np.atleast_2d(tpos[:2]))
     pts = np.concatenate(all_xy, axis=0)
     span = float(max(np.ptp(pts[:, 0]), np.ptp(pts[:, 1])))
     # 20 % padding on each side → ×1.4

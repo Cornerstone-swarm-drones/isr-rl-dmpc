@@ -495,11 +495,12 @@ class TestAutoGridExtent:
         assert extent >= 1500.0  # must cover the span
 
     def test_auto_extent_covers_targets(self):
-        """Auto extent must also encompass target positions."""
+        """Auto extent must also encompass target positions in x and y."""
         positions = np.array([[500.0, 500.0, 50.0]])
         tgt_pos = {"T0": np.array([1800.0, 200.0, 80.0])}
         extent = _auto_grid_extent(positions, tgt_pos)
-        assert extent >= 1800.0 - 200.0  # span in x
+        # x-span = 1800-500 = 1300, y-span = 500-200 = 300, max = 1300
+        assert extent == pytest.approx(1300.0 * 1.4)
 
     def test_auto_extent_minimum(self):
         """Auto extent enforces a minimum even for tightly grouped drones."""
@@ -512,7 +513,8 @@ class TestAutoGridExtent:
         positions = np.array([[500.0, 500.0, 50.0]])
         tgt_pos = {"T0": np.array([-200.0, -100.0, 80.0])}
         extent = _auto_grid_extent(positions, tgt_pos)
-        assert extent >= 700.0  # span from -200 to 500
+        # x-span = 500-(-200) = 700, y-span = 500-(-100) = 600, max = 700
+        assert extent == pytest.approx(700.0 * 1.4)
 
     def test_boundary_lines_structure(self):
         """Boundary lines must have the correct LINE_STRIP structure."""
