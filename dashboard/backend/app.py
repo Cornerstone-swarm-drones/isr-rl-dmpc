@@ -1,6 +1,5 @@
 """ISR-RL-DMPC Dashboard – FastAPI backend."""
 
-import os
 import pathlib
 
 from fastapi import FastAPI

@@ -210,7 +210,10 @@ async def get_run_stats(run_id: str):
     run_dir = TRAINING_LOGS_DIR / run_id
     stats_file = run_dir / "training_stats.json"
     if not stats_file.is_file():
-        raise HTTPException(status_code=404, detail=f"training_stats.json not found for run '{run_id}'.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"training_stats.json not found for run '{run_id}'.",
+        )
 
     try:
         with open(stats_file, "r") as fh:

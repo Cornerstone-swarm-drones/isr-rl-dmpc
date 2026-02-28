@@ -4,7 +4,6 @@ import pathlib
 
 import yaml
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CONFIG_DIR = ROOT / "config"
