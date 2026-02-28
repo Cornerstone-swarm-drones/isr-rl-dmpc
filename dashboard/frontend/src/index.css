@@ -422,6 +422,137 @@ html, body, #root {
 .badge.idle { background: rgba(136,153,170,0.15); color: var(--text-secondary); }
 .badge.completed { background: rgba(41,121,255,0.15); color: var(--accent-blue); }
 
+/* ── Help & Math sections ── */
+.help-section h3,
+.math-section h3 {
+  cursor: default;
+}
+
+.help-body {
+  padding: 4px 0 4px 8px;
+  border-left: 2px solid var(--accent-cyan);
+  margin-top: 8px;
+}
+
+.math-overview,
+.math-detail {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.math-overview {
+  background: rgba(106, 191, 105, 0.06);
+  border: 1px solid rgba(106, 191, 105, 0.15);
+}
+
+.math-detail {
+  background: rgba(168, 114, 196, 0.06);
+  border: 1px solid rgba(168, 114, 196, 0.15);
+  margin-top: 10px;
+}
+
+.math-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.math-block {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.math-heading {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 8px !important;
+}
+
+.math-line {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  font-family: inherit;
+  white-space: pre-wrap;
+}
+
+/* ── Info grid (Mission tab) ── */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.info-block {
+  padding: 10px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.info-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--accent-cyan);
+  margin-bottom: 8px;
+}
+
+.info-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.info-kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 11px;
+}
+.info-kv span:nth-child(odd) { color: var(--text-secondary); }
+.info-kv span:nth-child(even) { color: var(--text-primary); font-weight: 600; }
+
+.scenario-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scenario-chip {
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.scenario-chip strong {
+  font-size: 12px;
+  text-transform: capitalize;
+  color: var(--accent-cyan);
+}
+
+.scenario-chip span {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.scenario-meta {
+  font-size: 10px !important;
+  color: var(--text-dim) !important;
+}
+
 /* scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
