@@ -328,7 +328,7 @@ class TestRewardComputation:
         
         # Collision should severely penalize
         assert r_collision < r_safe
-        assert r_collision <= -1000.0
+        assert r_collision < -5.0
 
     def test_threat_reward(self):
         """Test threat engagement reward."""

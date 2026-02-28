@@ -107,10 +107,10 @@ The integration publishes data on these topics:
 
 The 3D scene includes:
 
-- **Drone 3D models** — hector_quadrotor .glb model (converted from the [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor) URDF, bundled locally under `src/isr_rl_dmpc/models/meshes/`) color-coded by battery level (green = full, red = empty) with labels showing drone ID and battery
+- **Drone 3D models** — hector_quadrotor .glb model (converted from the [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor) URDF, bundled locally under `src/isr_rl_dmpc/models/meshes/`) color-coded by battery level (green = full, red = empty) with semi-transparent labels (alpha 0.55, font size 10) showing drone ID and battery in Wh
 - **Target 3D models** — distinct models per threat class (CesiumMilkTruck = hostile, CesiumAir = friendly, Box = unknown) with color tinting, loaded from local .glb files
 - **Target labels** — showing target ID and classification
-- **Ground plane** — semi-transparent reference plane showing the mission area extent
+- **Ground plane** — semi-transparent reference plane with auto-computed extent that encloses all drones and targets (20% padding, minimum 200m)
 
 All 3D models are embedded directly in SceneUpdate messages from local files — **no network access is required at runtime**.
 
