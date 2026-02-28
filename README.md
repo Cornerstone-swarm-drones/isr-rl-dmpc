@@ -118,16 +118,20 @@ isr-rl-dmpc/
 
 ## Training
 
-Train the DMPC agent using the default configuration:
+Train the DMPC agent for a specific task using task-specific reward weights:
 
 ```bash
-python scripts/train_agent.py \
-    --config config/default_config.yaml \
-    --num-episodes 500 \
-    --num-steps 1000 \
-    --device cuda \
-    --output-dir data/training_logs
+# Recon mission (area coverage)
+python scripts/train_agent.py --task recon --num-drones 4 --num-episodes 500
+
+# Intel mission (search and classify)
+python scripts/train_agent.py --task intel --num-drones 5 --max-targets 4
+
+# Target pursuit (engage threats)
+python scripts/train_agent.py --task target_pursuit --num-drones 6 --max-targets 3 --device cuda
 ```
+
+Models are saved per task and configuration to `data/trained_models/<task>_d<N>_t<M>.pt`.
 
 Run hyperparameter search to find the best configuration:
 

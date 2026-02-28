@@ -36,15 +36,40 @@ Repeat for N episodes
 ### Basic Usage
 
 ```bash
-python scripts/train_agent.py --config config/default_config.yaml
+python scripts/train_agent.py --config config/default_config.yaml --task recon
 ```
+
+### Task-Based Training
+
+Models are trained and saved per task type. Each task applies different reward weight
+presets so the agent learns behaviour appropriate for the mission:
+
+| Task | Description | Primary Reward Focus |
+|---|---|---|
+| `recon` | Area reconnaissance — maximise area coverage | Coverage (w=50) |
+| `intel` | Intelligence gathering — search and classify targets | Coverage + Threat (w=20/5) |
+| `target_pursuit` | Target pursuit — track and engage hostile targets | Threat (w=20) |
+
+```bash
+# Train a recon model with 6 drones and 2 targets
+python scripts/train_agent.py --task recon --num-drones 6 --max-targets 2
+
+# Train a target pursuit model
+python scripts/train_agent.py --task target_pursuit --num-drones 8 --max-targets 5
+
+# Train an intel model
+python scripts/train_agent.py --task intel --num-drones 4 --max-targets 3
+```
+
+Models are saved to both `data/training_logs/<task>_d<N>_t<M>_<timestamp>/` and
+`data/trained_models/<task>_d<N>_t<M>.pt` for easy loading in production.
 
 ### Training with Live Foxglove Visualization
 
 Enable real-time visualization of drone positions, targets, and metrics during training:
 
 ```bash
-python scripts/train_agent.py --foxglove --foxglove-port 8765
+python scripts/train_agent.py --task recon --foxglove --foxglove-port 8765
 ```
 
 Then open Foxglove Studio and connect to `ws://localhost:8765` to watch the training in real-time.
@@ -54,6 +79,9 @@ Then open Foxglove Studio and connect to `ws://localhost:8765` to watch the trai
 ```bash
 python scripts/train_agent.py \
     --config config/default_config.yaml \
+    --task recon \
+    --num-drones 10 \
+    --max-targets 5 \
     --num-episodes 500 \
     --num-steps 1000 \
     --save-freq 50 \
@@ -67,6 +95,9 @@ python scripts/train_agent.py \
 | Argument | Default | Description |
 |---|---|---|
 | `--config` | `config/default_config.yaml` | Path to configuration file |
+| `--task` | `recon` | Task type: `recon`, `intel`, or `target_pursuit` |
+| `--num-drones` | `10` | Number of drones (overrides config) |
+| `--max-targets` | `5` | Number of targets (overrides config) |
 | `--num-episodes` | `500` | Total training episodes |
 | `--num-steps` | `1000` | Maximum steps per episode |
 | `--save-freq` | `50` | Checkpoint save frequency (episodes) |
@@ -186,21 +217,45 @@ exploration:
 
 ## Reward Weight Tuning
 
-Reward weights directly shape agent behavior. Adjust them in `config/default_config.yaml` or `config/learning_config.yaml`:
+Reward weights directly shape agent behavior. The training script supports three
+built-in task presets that apply optimised weights automatically via `--task`:
 
-| Weight | Default | Effect of Increasing | Effect of Decreasing |
-|---|---|---|---|
-| `coverage` | `10.0` | Agent prioritizes area coverage | Agent may ignore uncovered areas |
-| `energy` | `-5.0` | Stronger energy conservation | Agent uses energy freely |
-| `collision` | `-100.0` | More conservative trajectories | Agent takes riskier paths |
-| `target_engagement` | `20.0` | Agent prioritizes threat engagement | Agent may ignore threats |
-| `formation` | `2.0` | Tighter formation maintenance | Looser swarm coordination |
+### Built-in Task Presets (defined in `reward_shaper.py` and `learning_config.yaml`)
+
+| Task | `w_coverage` | `w_energy` | `w_safety` | `w_threat` | `w_learning` |
+|---|---|---|---|---|---|
+| `recon` | 50.0 | 1.0 | 10.0 | 0.5 | 0.1 |
+| `intel` | 20.0 | 2.0 | 10.0 | 5.0 | 0.1 |
+| `target_pursuit` | 5.0 | 0.5 | 10.0 | 20.0 | 0.1 |
+
+### Reward Component Ranges
+
+Each component is normalised so that weights directly control relative importance:
+
+| Component | Per-Step Range | Description |
+|---|---|---|
+| Coverage (`r_cov`) | `[-0.1, 1.0]` | Incremental + absolute coverage level |
+| Energy (`r_eng`) | `[-0.01, 0]` | Penalises energy consumption |
+| Safety (`r_safe`) | `[-10.0, 0.1]` | Collision/geofence penalty, +0.1 when safe |
+| Threat (`r_threat`) | `[-1.0, 1.0]` | Normalised per-detection reward |
+| Learning (`r_learn`) | `[-0.1, 0]` | TD-error gradient signal |
+
+### Manual Weight Tuning
+
+You can also adjust weights in `config/default_config.yaml` or `config/learning_config.yaml`:
+
+| Weight | Effect of Increasing | Effect of Decreasing |
+|---|---|---|
+| `coverage` | Agent prioritizes area coverage | Agent may ignore uncovered areas |
+| `energy` | Stronger energy conservation | Agent uses energy freely |
+| `safety` | More conservative trajectories | Agent takes riskier paths |
+| `threat` | Agent prioritizes threat engagement | Agent may ignore threats |
 
 **Tips:**
 
-- Keep the collision penalty at least 10× larger than any positive reward to ensure safety
-- Increase `coverage` weight for surveillance missions; increase `target_engagement` for threat response
-- If the agent does not move, reduce `energy` penalty magnitude
+- Keep the safety weight high enough to discourage collisions (≥ 10)
+- For surveillance-only missions, set `w_threat` low and `w_coverage` high
+- If the agent does not move, reduce `w_energy`
 
 ## Network Architecture Tuning
 
@@ -289,7 +344,12 @@ agent.load("data/training_logs/<timestamp>/checkpoint_ep200.pt")
 
 ## Recommended Configurations
 
-### Surveillance Mission (Long Duration, High Coverage)
+### Recon Mission (Long Duration, High Coverage)
+
+```bash
+python scripts/train_agent.py --task recon --num-drones 4 --max-targets 0 \
+    --num-episodes 500 --num-steps 1000
+```
 
 ```yaml
 learning:
@@ -298,12 +358,14 @@ learning:
   learning_rate_actor: 0.00005
   batch_size: 64
   buffer_size: 500000
-  weight_coverage: 15.0
-  weight_energy: 3.0
-  weight_formation: 5.0
 ```
 
-### Threat Response (Fast Reaction, Target Engagement)
+### Intel Mission (Search and Classify)
+
+```bash
+python scripts/train_agent.py --task intel --num-drones 5 --max-targets 4 \
+    --num-episodes 500 --num-steps 1000
+```
 
 ```yaml
 learning:
@@ -312,12 +374,14 @@ learning:
   learning_rate_actor: 0.0001
   batch_size: 32
   buffer_size: 100000
-  weight_coverage: 5.0
-  weight_target_engagement: 30.0
-  weight_collision: -150.0
 ```
 
-### Search and Track (Balanced Performance)
+### Target Pursuit (Fast Reaction, Engage Threats)
+
+```bash
+python scripts/train_agent.py --task target_pursuit --num-drones 6 --max-targets 3 \
+    --num-episodes 500 --num-steps 500
+```
 
 ```yaml
 learning:
@@ -326,7 +390,4 @@ learning:
   learning_rate_actor: 0.0001
   batch_size: 32
   buffer_size: 100000
-  weight_coverage: 10.0
-  weight_target_engagement: 20.0
-  weight_energy: 5.0
 ```

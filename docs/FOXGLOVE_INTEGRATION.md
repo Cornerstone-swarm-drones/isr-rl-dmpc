@@ -261,7 +261,7 @@ foxglove:
 
 Import the default layout from `config/foxglove_layout.json` for a pre-configured dashboard with:
 
-- **3D Panel** — Drone 3D models (local hector_quadrotor .glb), target models (local per-threat-class .glb), and ground plane
+- **3D Panel** — Follows `swarm_center` frame so all drones stay visible. Camera distance 300 m, angled overhead view. Drone 3D models (local hector_quadrotor .glb), target models (local per-threat-class .glb), and ground plane
 - **Plot Panel** — Real-time coverage, reward, and battery metrics
 - **Raw Messages** — Coverage grid and mission info inspection
 
