@@ -6,28 +6,13 @@ import {
 
 const CURVE_COLORS = ["#00e5ff", "#2979ff", "#00e676", "#ff9100", "#d500f9", "#ff1744", "#76ff03"];
 
-export default function TrainingView({ status, config }) {
+export default function TrainingView({ status, config, trainCfg, setTrainCfg, sweepCfg, setSweepCfg }) {
   const [runs, setRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState(null);
   const [metrics, setMetrics] = useState([]);
   const [stats, setStats] = useState(null);
   const [compareIds, setCompareIds] = useState([]);
   const [compareData, setCompareData] = useState({});
-
-  /* Training launch config */
-  const [trainCfg, setTrainCfg] = useState({
-    num_episodes: 100,
-    num_steps: 500,
-    seed: 42,
-    device: "cpu",
-    task: "recon",
-  });
-
-  /* Sweep config */
-  const [sweepCfg, setSweepCfg] = useState({
-    num_trials: 10,
-    device: "cpu",
-  });
 
   const fetchJSON = useCallback(async (url) => {
     try {
