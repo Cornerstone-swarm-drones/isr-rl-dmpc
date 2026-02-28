@@ -206,6 +206,10 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# Dashboard frontend
+node_modules/
+dashboard/frontend/dist/
+
 # Training outputs and checkpoints
 data/**
 !data/
