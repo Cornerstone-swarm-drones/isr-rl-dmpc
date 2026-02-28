@@ -42,6 +42,7 @@ _training_state: dict[str, Any] = {
     "run_id": None,
     "status": "idle",
     "start_time": None,
+    "output_dir": None,
 }
 
 
@@ -102,6 +103,7 @@ async def start_training(req: TrainRequest):
         run_id=run_id,
         status="running",
         start_time=time.time(),
+        output_dir=str(TRAINING_LOGS_DIR),
     )
     return {"run_id": run_id, "status": "running"}
 
@@ -124,9 +126,80 @@ async def stop_training():
     return {"status": "stopped"}
 
 
+def _latest_training_progress() -> dict[str, Any]:
+    """Read the latest episode/step from the most recent training CSV.
+
+    Uses an efficient tail-read approach to avoid loading the entire file.
+    """
+    if not TRAINING_LOGS_DIR.is_dir():
+        return {}
+    # Find the most recent run directory (sorted by name = timestamp)
+    run_dirs = sorted(
+        (d for d in TRAINING_LOGS_DIR.iterdir() if d.is_dir()),
+        key=lambda d: d.name,
+        reverse=True,
+    )
+    if not run_dirs:
+        return {}
+    latest_dir = run_dirs[0]
+    csv_files = list(latest_dir.glob("*.csv"))
+    if not csv_files:
+        return {}
+    # Efficiently read header + last line without loading entire file
+    csv_path = csv_files[0]
+    try:
+        with open(csv_path, "r") as fh:
+            header_line = fh.readline().strip()
+            if not header_line:
+                return {}
+            # Seek to end and read backwards to find last line
+            fh.seek(0, 2)
+            file_size = fh.tell()
+            if file_size < 2:
+                return {}
+            # Read last 4 KB (more than enough for one CSV row)
+            read_size = min(4096, file_size)
+            fh.seek(file_size - read_size)
+            tail = fh.read()
+            tail_lines = tail.strip().splitlines()
+            if not tail_lines:
+                return {}
+            last_line = tail_lines[-1]
+            # Skip if last line is the header itself
+            if last_line == header_line:
+                return {}
+        headers = header_line.split(",")
+        last_row = last_line.split(",")
+        row = dict(zip(headers, last_row))
+        result: dict[str, Any] = {}
+        if "episode" in row:
+            try:
+                result["current_episode"] = int(float(row["episode"]))
+            except (ValueError, TypeError):
+                pass
+        if "steps" in row:
+            try:
+                result["current_step"] = int(float(row["steps"]))
+            except (ValueError, TypeError):
+                pass
+        if "reward" in row:
+            try:
+                result["latest_reward"] = float(row["reward"])
+            except (ValueError, TypeError):
+                pass
+        if "coverage" in row:
+            try:
+                result["latest_coverage"] = float(row["coverage"])
+            except (ValueError, TypeError):
+                pass
+        return result
+    except Exception:
+        return {}
+
+
 @router.get("/status")
 async def training_status():
-    """Return current training status."""
+    """Return current training status including live progress."""
     _check_process()
     result: dict[str, Any] = {
         "status": _training_state["status"],
@@ -134,6 +207,10 @@ async def training_status():
     }
     if _training_state["start_time"] is not None:
         result["elapsed_seconds"] = round(time.time() - _training_state["start_time"], 2)
+    # Include live episode/step progress when training is running or just completed
+    if _training_state["status"] in ("running", "completed"):
+        progress = _latest_training_progress()
+        result.update(progress)
     return result
 
 

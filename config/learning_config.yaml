@@ -20,8 +20,8 @@ policy_network:
 training:
   algorithm: "SAC" # Soft Actor-Critic
   discount_factor: 0.99
-  learning_rate_critic: 1.0e-3
-  learning_rate_actor: 1.0e-4
+  learning_rate_critic: 3.0e-4
+  learning_rate_actor: 3.0e-5
   tau: 0.005 # soft target update rate
   batch_size: 256
   num_epochs: 500

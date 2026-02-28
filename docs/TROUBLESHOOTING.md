@@ -85,6 +85,7 @@ Make sure you are running commands from the repository root directory.
 - Episode reward decreasing over time
 - NaN values in loss or reward
 - Critic loss exploding
+- Actor loss reaching very large magnitudes (e.g. 1e18)
 
 **Solutions:**
 
@@ -92,8 +93,8 @@ Make sure you are running commands from the repository root directory.
 
    ```yaml
    learning:
-     learning_rate_critic: 0.0005  # from 0.001
-     learning_rate_actor: 0.00005  # from 0.0001
+     learning_rate_critic: 0.0003  # from 0.001
+     learning_rate_actor: 0.00003  # from 0.0001
    ```
 
 2. **Reduce gradient clipping threshold:**
@@ -110,12 +111,10 @@ Make sure you are running commands from the repository root directory.
      warmup_steps: 20000  # from 10000
    ```
 
-4. **Check reward weights** — an extremely large collision penalty can cause value function instability. Try:
+4. **Check reward weights** — an extremely large safety penalty can cause value function instability.
+   Per-step rewards are automatically clipped to [-10, 10]. Advantages are normalized before policy gradient updates.
 
-   ```yaml
-   learning:
-     weight_collision: -50.0  # from -100.0
-   ```
+5. **Actor loss exploding:** This typically indicates unnormalized advantages. The DMPCAgent normalizes advantages automatically (zero mean, unit std). If the issue persists, reduce the actor learning rate further.
 
 ---
 

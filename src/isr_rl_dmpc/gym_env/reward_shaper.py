@@ -232,7 +232,7 @@ class RewardShaper:
             target_states: (max_targets, 12) state matrix
 
         Returns:
-            Safety reward in [-10.0, 0.1]
+            Safety reward in [-1.0, 0.1]
         """
         r_safe = 0.0
         
@@ -243,7 +243,7 @@ class RewardShaper:
             active_i = drone_states[i, 15]  # Active flag
             
             if active_i < 0.5:  # Inactive = collision occurred
-                r_safe -= 10.0
+                r_safe -= 1.0
                 return float(r_safe)
             
             for j in range(i + 1, self.num_drones):
@@ -251,7 +251,7 @@ class RewardShaper:
                 distance = np.linalg.norm(pos_i - pos_j)
                 
                 if distance < min_separation and distance > 0:
-                    r_safe -= 10.0  # Collision
+                    r_safe -= 1.0  # Collision
                     return float(r_safe)
         
         # Check geofence violations (bounds = ±2000m x,y, 0-500m z)
@@ -270,13 +270,13 @@ class RewardShaper:
                 z < geofence['z_min'] or
                 z > geofence['z_max']):
                 
-                r_safe -= 5.0  # Out of bounds
+                r_safe -= 0.5  # Out of bounds
                 return float(r_safe)
         
         # Small positive reward for safe operation
         r_safe += 0.1
         
-        return float(np.clip(r_safe, -10.0, 0.1))
+        return float(np.clip(r_safe, -1.0, 0.1))
 
     def _threat_reward(self, target_states: np.ndarray) -> float:
         """

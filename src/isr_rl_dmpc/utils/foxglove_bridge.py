@@ -533,8 +533,9 @@ class FoxgloveBridge:
                 orient = _quat(0, 0, 0, 1)
 
             # Color by battery level (green = full, red = empty)
+            # drone_batteries values are normalized fractions (0.0 = empty, 1.0 = full)
             if drone_batteries is not None and len(drone_batteries) > i:
-                batt_frac = float(np.clip(drone_batteries[i] / 5000.0, 0, 1))
+                batt_frac = float(np.clip(drone_batteries[i], 0, 1))
                 col = _color(1.0 - batt_frac, batt_frac, 0.2, 0.9)
             else:
                 col = _color(0.2, 0.6, 1.0, 0.9)
@@ -553,16 +554,17 @@ class FoxgloveBridge:
 
             label = f"D{i}"
             if drone_batteries is not None and len(drone_batteries) > i:
-                label += f" [{drone_batteries[i]:.0f}Wh]"
+                batt_wh = float(drone_batteries[i]) * 55.0  # Convert fraction to Wh
+                label += f" [{batt_wh:.1f}Wh]"
             drone_texts.append({
                 "pose": {
                     "position": _vec3(cx, cy, cz + 4),
                     "orientation": _quat(0, 0, 0, 1),
                 },
                 "billboard": True,
-                "font_size": 14.0,
+                "font_size": 10.0,
                 "scale_invariant": True,
-                "color": _color(1, 1, 1, 1),
+                "color": _color(1, 1, 1, 0.55),
                 "text": label,
             })
 

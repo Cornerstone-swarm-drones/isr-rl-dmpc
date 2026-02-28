@@ -180,9 +180,9 @@ The learning rates have the most significant impact on training stability and co
 
 | Configuration | Critic LR | Actor LR | Use Case |
 |---|---|---|---|
-| Conservative | `5e-4` | `5e-5` | Stable training, slower convergence |
-| Default | `1e-3` | `1e-4` | Balanced performance |
-| Aggressive | `5e-3` | `5e-4` | Fast convergence, risk of instability |
+| Conservative | `1e-4` | `1e-5` | Stable training, slower convergence |
+| Default | `3e-4` | `3e-5` | Balanced performance |
+| Aggressive | `1e-3` | `1e-4` | Fast convergence, risk of instability |
 
 ### Step 3: Tune Discount Factor
 
@@ -236,7 +236,7 @@ Each component is normalised so that weights directly control relative importanc
 |---|---|---|
 | Coverage (`r_cov`) | `[-0.1, 1.0]` | Incremental + absolute coverage level |
 | Energy (`r_eng`) | `[-0.01, 0]` | Penalises energy consumption |
-| Safety (`r_safe`) | `[-10.0, 0.1]` | Collision/geofence penalty, +0.1 when safe |
+| Safety (`r_safe`) | `[-1.0, 0.1]` | Collision/geofence penalty, +0.1 when safe |
 | Threat (`r_threat`) | `[-1.0, 1.0]` | Normalised per-detection reward |
 | Learning (`r_learn`) | `[-0.1, 0]` | TD-error gradient signal |
 
@@ -325,11 +325,11 @@ Training logs are written to `data/training_logs/<timestamp>/`:
 
 Key metrics to monitor:
 
-- **Episode reward** — Should increase over training
+- **Episode reward** — Should increase over training. Per-step rewards are clipped to [-10, 10] to prevent gradient explosion.
 - **Coverage efficiency** — Target ≥ 0.90 for surveillance missions
 - **Collision count** — Should decrease and stabilize near zero
 - **Critic loss** — Should decrease and stabilize
-- **Actor loss** — May fluctuate; watch for divergence
+- **Actor loss** — May fluctuate; watch for divergence. Advantages are normalized (zero mean, unit std) before the policy gradient update for stable training.
 
 ## Checkpointing and Resuming
 

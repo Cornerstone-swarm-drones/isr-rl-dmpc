@@ -207,8 +207,8 @@ def train(config_path: str,
                 tgt_pos, tgt_cls = extract_targets_from_obs(next_obs["targets"])
                 foxglove_bridge.publish_scene(
                     drone_positions=swarm[:, :3],
-                    drone_quaternions=swarm[:, 9:13],
-                    drone_batteries=swarm[:, 16],
+                    drone_quaternions=swarm[:, 6:10],
+                    drone_batteries=swarm[:, 13],
                     target_positions=tgt_pos,
                     target_classifications=tgt_cls,
                     timestamp_ns=ts_ns,

@@ -2,9 +2,16 @@ import React from "react";
 
 export default function StatusBar({ mode, missionStatus, trainingStatus }) {
   const simTime = missionStatus?.step_count ?? 0;
-  const controlHz = 50;
   const isActive = missionStatus?.active ?? false;
   const trStatus = trainingStatus?.status ?? "idle";
+
+  // Live training progress: prefer training API progress when training
+  const displayStep = trStatus === "running" || trStatus === "completed"
+    ? (trainingStatus?.current_step ?? simTime)
+    : simTime;
+  const displayLoop = trStatus === "running" || trStatus === "completed"
+    ? `Ep ${trainingStatus?.current_episode ?? 0}`
+    : "50 Hz";
 
   return (
     <header className="topbar">
@@ -16,11 +23,11 @@ export default function StatusBar({ mode, missionStatus, trainingStatus }) {
       </div>
 
       <div className="status-item">
-        <span>Loop: {controlHz} Hz</span>
+        <span>Loop: {displayLoop}</span>
       </div>
 
       <div className="status-item">
-        <span>Step: {simTime}</span>
+        <span>Step: {displayStep}</span>
       </div>
 
       {missionStatus?.total_reward !== undefined && (
