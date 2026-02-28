@@ -28,7 +28,10 @@ def main():
     parser = argparse.ArgumentParser(description="Launch ISR-RL-DMPC Dashboard")
     parser.add_argument("--host", default="127.0.0.1", help="Backend host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Backend port (default: 8000)")
-    parser.add_argument("--dev", action="store_true", help="Run in development mode with Vite hot-reload")
+    parser.add_argument(
+        "--dev", action="store_true",
+        help="Run in development mode with Vite hot-reload",
+    )
     args = parser.parse_args()
 
     # Ensure PYTHONPATH includes src/

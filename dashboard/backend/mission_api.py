@@ -117,9 +117,15 @@ async def step_mission(req: StepRequest = StepRequest()):
     """Advance the simulation by one step."""
     env = _sim_state["env"]
     if env is None:
-        raise HTTPException(status_code=400, detail="No active environment. Call /reset first.")
+        raise HTTPException(
+            status_code=400,
+            detail="No active environment. Call /reset first.",
+        )
     if _sim_state["done"]:
-        raise HTTPException(status_code=400, detail="Episode is done. Call /reset to start a new one.")
+        raise HTTPException(
+            status_code=400,
+            detail="Episode is done. Call /reset to start a new one.",
+        )
 
     try:
         if req.action is not None:
