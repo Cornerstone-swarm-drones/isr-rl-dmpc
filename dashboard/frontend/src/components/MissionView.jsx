@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area,
 } from "recharts";
 
-export default function MissionView({ status, config }) {
+export default function MissionView({ status, config, mode }) {
+  const cfgMission = config?.mission || {};
   const [simConfig, setSimConfig] = useState({
     num_drones: 4,
     max_targets: 10,
@@ -13,6 +14,19 @@ export default function MissionView({ status, config }) {
   const [stepHistory, setStepHistory] = useState([]);
   const [running, setRunning] = useState(false);
   const [autoStep, setAutoStep] = useState(false);
+
+  /* Sync simConfig from loaded config */
+  useEffect(() => {
+    if (!config) return;
+    setSimConfig((prev) => ({
+      ...prev,
+      num_drones: config?.drone?.num_drones ?? prev.num_drones,
+      max_targets: config?.mission?.max_targets ?? prev.max_targets,
+      mission_duration: config?.mission?.max_duration
+        ? Math.round(config.mission.max_duration * (config?.sensor?.control_frequency || 50))
+        : prev.mission_duration,
+    }));
+  }, [config]);
 
   const postJSON = useCallback(async (url, body) => {
     const r = await fetch(url, {
@@ -144,19 +158,6 @@ export default function MissionView({ status, config }) {
               <Area type="monotone" dataKey="coverage" stroke="#00e676" fill="rgba(0,230,118,0.15)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Module chain diagram */}
-      <div className="card">
-        <h3>⚙ Per-Step Module Chain</h3>
-        <div className="module-chain" style={{ fontSize: 12, padding: "8px 0" }}>
-          {["Planner","Formation","DMPC","Attitude","Sensors/EKF","Classification","Threat/Alloc","Reward"].map((m, i) => (
-            <React.Fragment key={m}>
-              {i > 0 && <span className="chain-arrow">→</span>}
-              <span className={`module-chip${status?.active ? " active" : ""}`}>{m}</span>
-            </React.Fragment>
-          ))}
         </div>
       </div>
     </div>

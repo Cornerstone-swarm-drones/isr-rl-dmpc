@@ -6,7 +6,7 @@ import {
 
 const CURVE_COLORS = ["#00e5ff", "#2979ff", "#00e676", "#ff9100", "#d500f9", "#ff1744", "#76ff03"];
 
-export default function TrainingView({ status }) {
+export default function TrainingView({ status, config }) {
   const [runs, setRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState(null);
   const [metrics, setMetrics] = useState([]);
@@ -20,6 +20,7 @@ export default function TrainingView({ status }) {
     num_steps: 500,
     seed: 42,
     device: "cpu",
+    task: "recon",
   });
 
   /* Sweep config */
@@ -133,6 +134,17 @@ export default function TrainingView({ status }) {
               >
                 <option value="cpu">cpu</option>
                 <option value="cuda">cuda</option>
+              </select>
+            </label>
+            <label style={{ fontSize: 11 }}>
+              Task
+              <select value={trainCfg.task}
+                onChange={(e) => setTrainCfg((c) => ({ ...c, task: e.target.value }))}
+                style={{ display: "block", marginTop: 4 }}
+              >
+                <option value="recon">Recon</option>
+                <option value="intel">Intel</option>
+                <option value="target_pursuit">Target Pursuit</option>
               </select>
             </label>
             <div className="btn-group">

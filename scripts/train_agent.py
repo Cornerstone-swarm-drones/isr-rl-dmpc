@@ -29,6 +29,13 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Train ISR-RL-DMPC Agent')
     parser.add_argument('--config', type=str, default='config/default_config.yaml',
                         help='Path to configuration file')
+    parser.add_argument('--task', type=str, default='recon',
+                        choices=['recon', 'intel', 'target_pursuit'],
+                        help='Task type: recon, intel, or target_pursuit')
+    parser.add_argument('--num-drones', type=int, default=None,
+                        help='Override number of drones')
+    parser.add_argument('--max-targets', type=int, default=None,
+                        help='Override number of targets')
     parser.add_argument('--num-episodes', type=int, default=500,
                         help='Number of training episodes')
     parser.add_argument('--num-steps', type=int, default=1000,
@@ -67,6 +74,9 @@ def _obs_dim(env: ISRGridEnv) -> int:
 
 
 def train(config_path: str,
+          task: str = 'recon',
+          num_drones: Optional[int] = None,
+          max_targets: Optional[int] = None,
           num_episodes: int = 500,
           num_steps_per_episode: int = 1000,
           save_freq: int = 50,
@@ -80,6 +90,9 @@ def train(config_path: str,
 
     Args:
         config_path: Path to configuration YAML file
+        task: Task type ('recon', 'intel', or 'target_pursuit')
+        num_drones: Override number of drones (None = use config default)
+        max_targets: Override number of targets (None = use config default)
         num_episodes: Number of training episodes
         num_steps_per_episode: Maximum steps per episode
         save_freq: Checkpoint save frequency (episodes)
@@ -94,25 +107,42 @@ def train(config_path: str,
     """
     # Setup
     set_seeds(seed)
-    output_path = Path(output_dir) / datetime.now().strftime('%Y%m%d_%H%M%S')
+
+    # Build descriptive run directory: task_drones_targets_timestamp
+    n_drones = num_drones if num_drones is not None else 10
+    n_targets = max_targets if max_targets is not None else 5
+    run_tag = f"{task}_d{n_drones}_t{n_targets}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    output_path = Path(output_dir) / run_tag
     output_path.mkdir(parents=True, exist_ok=True)
 
     logger = setup_logger('train_agent', str(output_path / 'train.log'))
     metrics_logger = MetricsLogger(name='train_metrics', log_dir=str(output_path))
 
     logger.info(f"Starting training with config: {config_path}")
+    logger.info(f"Task: {task} | Drones: {n_drones} | Targets: {n_targets}")
     logger.info(f"Device: {device}, Seed: {seed}")
     logger.info(f"Episodes: {num_episodes}, Steps per episode: {num_steps_per_episode}")
 
     # Load configuration
     cfg = load_config(config_path)
 
+    # Apply task-specific reward weights
+    from isr_rl_dmpc.gym_env.reward_shaper import TASK_REWARD_PRESETS, RewardWeights
+    task_weights = TASK_REWARD_PRESETS.get(task, TASK_REWARD_PRESETS["recon"])
+    logger.info(f"Reward weights ({task}): coverage={task_weights.w_coverage}, "
+                f"energy={task_weights.w_energy}, safety={task_weights.w_safety}, "
+                f"threat={task_weights.w_threat}, learning={task_weights.w_learning}")
+
     # Load environment (using keyword arguments as ISRGridEnv expects)
     env = ISRGridEnv(
-        num_drones=10,
-        max_targets=5,
+        num_drones=n_drones,
+        max_targets=n_targets,
         mission_duration=num_steps_per_episode,
     )
+
+    # Override reward weights for the chosen task
+    if env.reward_shaper is not None:
+        env.reward_shaper.weights = task_weights
 
     # Determine observation dimension from the environment
     state_dim = _obs_dim(env)
@@ -278,10 +308,22 @@ def train(config_path: str,
     agent.save(final_path)
     logger.info(f"Training complete. Final model saved: {final_path}")
 
+    # Also save into trained_models directory with descriptive name
+    models_dir = Path("data/trained_models")
+    models_dir.mkdir(parents=True, exist_ok=True)
+    named_model_path = models_dir / f"{task}_d{n_drones}_t{n_targets}.pt"
+    agent.save(named_model_path)
+    logger.info(f"Named model saved: {named_model_path}")
+
     # Save training statistics
     stats_path = output_path / "training_stats.json"
     with open(stats_path, 'w') as f:
-        json_stats = {}
+        json_stats = {
+            "task": task,
+            "num_drones": n_drones,
+            "max_targets": n_targets,
+            "config_path": config_path,
+        }
         for k, vals in stats.items():
             if isinstance(vals, list):
                 json_stats[k] = [float(v) for v in vals]
@@ -362,6 +404,9 @@ if __name__ == '__main__':
     try:
         stats = train(
             config_path=args.config,
+            task=args.task,
+            num_drones=args.num_drones,
+            max_targets=args.max_targets,
             num_episodes=args.num_episodes,
             num_steps_per_episode=args.num_steps,
             save_freq=args.save_freq,
