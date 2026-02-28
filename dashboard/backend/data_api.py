@@ -56,9 +56,6 @@ async def list_recordings():
 async def read_file(path: str):
     """Read and return contents of a file from the data/ directory."""
     # Path traversal protection
-    if ".." in path.split("/"):
-        raise HTTPException(status_code=400, detail="Path traversal is not allowed.")
-
     filepath = DATA_DIR / path
     resolved = filepath.resolve()
     if not str(resolved).startswith(str(DATA_DIR.resolve())):

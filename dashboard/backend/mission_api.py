@@ -113,7 +113,7 @@ async def reset_mission(req: ResetRequest):
 
 
 @router.post("/step")
-async def step_mission(req: StepRequest | None = None):
+async def step_mission(req: StepRequest = StepRequest()):
     """Advance the simulation by one step."""
     env = _sim_state["env"]
     if env is None:
@@ -122,7 +122,7 @@ async def step_mission(req: StepRequest | None = None):
         raise HTTPException(status_code=400, detail="Episode is done. Call /reset to start a new one.")
 
     try:
-        if req and req.action is not None:
+        if req.action is not None:
             action = np.array(req.action, dtype=np.float32)
         else:
             action = env.action_space.sample()
