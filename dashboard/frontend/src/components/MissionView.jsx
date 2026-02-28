@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, ScatterChart, Scatter, Cell, Legend, ZAxis,
@@ -116,10 +116,16 @@ export default function MissionView({ status, config, mode, simConfig, setSimCon
   };
 
   const latest = stepHistory[stepHistory.length - 1] || {};
-  const totalCollisions = stepHistory.reduce((sum, s) => sum + (s.collisions || 0), 0);
-  const avgReward = stepHistory.length > 0
-    ? (stepHistory.reduce((sum, s) => sum + s.reward, 0) / stepHistory.length).toFixed(3)
-    : "–";
+  const totalCollisions = useMemo(
+    () => stepHistory.reduce((sum, s) => sum + (s.collisions || 0), 0),
+    [stepHistory],
+  );
+  const avgReward = useMemo(
+    () => stepHistory.length > 0
+      ? (stepHistory.reduce((sum, s) => sum + s.reward, 0) / stepHistory.length).toFixed(3)
+      : "–",
+    [stepHistory],
+  );
 
   return (
     <div>
@@ -154,7 +160,7 @@ export default function MissionView({ status, config, mode, simConfig, setSimCon
                   <div key={key} className="scenario-chip">
                     <strong>{key.replace(/_/g, " ")}</strong>
                     <span>{sc.description}</span>
-                    <span className="scenario-meta">{sc.num_drones} drones · {sc.area_size?.[0]}×{sc.area_size?.[1]} m · {sc.formation_type}</span>
+                    <span className="scenario-meta">{sc.num_drones} drones · {sc.area_size?.[0] ?? "?"}×{sc.area_size?.[1] ?? "?"} m · {sc.formation_type || "–"}</span>
                   </div>
                 ))}
               </div>
