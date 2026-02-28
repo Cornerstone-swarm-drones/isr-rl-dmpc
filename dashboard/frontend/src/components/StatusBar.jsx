@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function StatusBar({ mode, missionStatus, trainingStatus, moduleChain }) {
+export default function StatusBar({ mode, missionStatus, trainingStatus }) {
   const simTime = missionStatus?.step_count ?? 0;
   const controlHz = 50;
   const isActive = missionStatus?.active ?? false;
@@ -8,7 +8,7 @@ export default function StatusBar({ mode, missionStatus, trainingStatus, moduleC
 
   return (
     <header className="topbar">
-      <span className="mode-label">{mode === "operate" ? "OPERATE" : "TRAIN"}</span>
+      <span className={`mode-label ${mode}`}>{mode === "operate" ? "OPERATE" : "TRAIN"}</span>
 
       <div className="status-item">
         <span className={`status-dot ${isActive ? "active" : "inactive"}`} />
@@ -32,16 +32,6 @@ export default function StatusBar({ mode, missionStatus, trainingStatus, moduleC
       <div className="status-item">
         <span className={`status-dot ${trStatus === "running" ? "active" : trStatus === "completed" ? "warning" : "inactive"}`} />
         <span>Training: <span className={`badge ${trStatus}`}>{trStatus.toUpperCase()}</span></span>
-      </div>
-
-      {/* Module chain */}
-      <div className="module-chain">
-        {moduleChain.map((mod, i) => (
-          <React.Fragment key={mod}>
-            {i > 0 && <span className="chain-arrow">→</span>}
-            <span className={`module-chip${isActive ? " active" : ""}`}>{mod}</span>
-          </React.Fragment>
-        ))}
       </div>
     </header>
   );

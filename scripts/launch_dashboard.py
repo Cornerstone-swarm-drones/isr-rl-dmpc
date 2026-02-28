@@ -42,10 +42,13 @@ def main():
     vite_proc = None
     if args.dev:
         print(f"[Dashboard] Starting Vite dev server at {FRONTEND_DIR} ...")
+        is_windows = os.name == "nt"
+        npx_cmd = "npx.cmd" if is_windows else "npx"
         vite_proc = subprocess.Popen(
-            ["npx", "vite", "--host"],
+            [npx_cmd, "vite", "--host"],
             cwd=str(FRONTEND_DIR),
             env=env,
+            shell=is_windows,  # True on Windows, False on Linux/Mac
         )
 
     print(f"[Dashboard] Starting FastAPI backend on http://{args.host}:{args.port} ...")

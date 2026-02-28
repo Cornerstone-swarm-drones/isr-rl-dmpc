@@ -1,5 +1,4 @@
 {
-  "configById": {},
   "globalVariables": {},
   "userNodes": {},
   "playbackConfig": {
@@ -26,17 +25,19 @@
       "id": "3d-panel",
       "type": "3D",
       "config": {
-        "followTf": "world",
+        "followTf": "swarm_center",
+        "followMode": "follow-position",
         "scene": {
-          "backgroundColor": "#1a1a2e",
+          "backgroundColor": "#1c1f23",
           "enableStats": false
         },
         "cameraState": {
           "perspective": true,
-          "distance": 500,
-          "phi": 45,
+          "distance": 300,
+          "phi": 55,
           "theta": -45,
-          "targetOffset": [0, 0, 50]
+          "targetOffset": [0, 0, 30],
+          "fovy": 60
         },
         "topics": {
           "/swarm/scene": {

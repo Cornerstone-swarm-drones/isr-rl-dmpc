@@ -1,25 +1,32 @@
-/* ── ISR-RL-DMPC Dashboard – SciFi Dark Theme ── */
+/* ── ISR-RL-DMPC Dashboard – Matte Dark Theme ── */
 :root {
-  --bg-primary: #0a0e17;
-  --bg-secondary: #111827;
-  --bg-card: #1a2235;
-  --bg-card-hover: #1f2a40;
-  --accent-cyan: #00e5ff;
-  --accent-blue: #2979ff;
-  --accent-green: #00e676;
-  --accent-orange: #ff9100;
-  --accent-red: #ff1744;
-  --accent-purple: #d500f9;
-  --text-primary: #e0e6ed;
-  --text-secondary: #8899aa;
-  --text-dim: #556677;
-  --border-color: #1e2d44;
-  --glow-cyan: 0 0 12px rgba(0, 229, 255, 0.25);
-  --glow-green: 0 0 12px rgba(0, 230, 118, 0.25);
-  --glow-red: 0 0 12px rgba(255, 23, 68, 0.25);
+  --bg-primary: #141618;
+  --bg-secondary: #1c1f23;
+  --bg-card: #23272e;
+  --bg-card-hover: #2a2f38;
+  --accent-cyan: #5ba4b5;
+  --accent-blue: #5b8def;
+  --accent-green: #6abf69;
+  --accent-orange: #d19a5b;
+  --accent-red: #c75a5a;
+  --accent-purple: #a872c4;
+  --text-primary: #d4d8de;
+  --text-secondary: #8b949e;
+  --text-dim: #5a6370;
+  --border-color: #30363d;
+  --glow-cyan: 0 0 6px rgba(91, 164, 181, 0.15);
+  --glow-green: 0 0 6px rgba(106, 191, 105, 0.15);
+  --glow-red: 0 0 6px rgba(199, 90, 90, 0.15);
   --sidebar-width: 300px;
   --topbar-height: 48px;
   font-family: "JetBrains Mono", "Fira Code", "SF Mono", "Cascadia Code", monospace;
+}
+
+/* ── Mode-specific accent overrides ── */
+.app-layout[data-mode="train"] {
+  --accent-cyan: #d19a5b;
+  --accent-blue: #c4935a;
+  --accent-green: #a8b84d;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -73,14 +80,22 @@ html, body, #root {
 .status-dot.warning { background: var(--accent-orange); }
 
 .topbar .mode-label {
-  background: var(--accent-cyan);
-  color: var(--bg-primary);
   padding: 2px 10px;
   border-radius: 4px;
   font-weight: 700;
   font-size: 11px;
   letter-spacing: 1px;
   text-transform: uppercase;
+}
+
+.topbar .mode-label.operate {
+  background: var(--accent-blue);
+  color: var(--bg-primary);
+}
+
+.topbar .mode-label.train {
+  background: var(--accent-orange);
+  color: var(--bg-primary);
 }
 
 /* ── Sidebar ── */

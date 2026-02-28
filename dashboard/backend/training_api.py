@@ -51,6 +51,7 @@ class TrainRequest(BaseModel):
     seed: int = 42
     device: str = "cpu"
     config_path: str | None = None
+    task: str = "recon"
 
 
 class SweepRequest(BaseModel):
@@ -81,6 +82,7 @@ async def start_training(req: TrainRequest):
         "--num-steps", str(req.num_steps),
         "--seed", str(req.seed),
         "--device", req.device,
+        "--task", req.task,
     ]
     if req.config_path:
         cmd.extend(["--config", req.config_path])

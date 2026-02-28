@@ -25,6 +25,35 @@ class RewardWeights:
     w_learning: float = 0.1  # Learning signal
 
 
+# Task-specific weight presets that produce well-scaled rewards.
+# Coverage reward is delta-based (max ~0.01/step), energy is ~[-0.01,0],
+# safety gives +0.1 per safe step, threat up to ±500 per detection.
+# Weights are scaled so that no single component dominates.
+TASK_REWARD_PRESETS = {
+    "recon": RewardWeights(
+        w_coverage=50.0,   # Primary: maximise area coverage
+        w_energy=1.0,      # Moderate energy conservation
+        w_safety=10.0,     # Safety always critical
+        w_threat=0.5,      # Low priority – recon only
+        w_learning=0.1,
+    ),
+    "intel": RewardWeights(
+        w_coverage=20.0,   # Still important for search
+        w_energy=2.0,      # Longer missions need energy mgmt
+        w_safety=10.0,
+        w_threat=5.0,      # Moderate – classify targets
+        w_learning=0.1,
+    ),
+    "target_pursuit": RewardWeights(
+        w_coverage=5.0,    # Background coverage
+        w_energy=0.5,      # Aggressive manoeuvres allowed
+        w_safety=10.0,
+        w_threat=20.0,     # Primary: engage/track threats
+        w_learning=0.1,
+    ),
+}
+
+
 class RewardShaper:
     """
     Multi-objective reward function with component tracking.
@@ -133,23 +162,27 @@ class RewardShaper:
         """
         Compute coverage reward (area surveillance incentive).
 
-        Rewards systematic grid coverage. Delta-based: rewards incremental
-        improvement in coverage ratio.
+        Rewards systematic grid coverage. Combines incremental gain with
+        absolute coverage level to keep the signal meaningful throughout
+        the episode.
 
         Args:
             coverage_map: (grid_cells,) binary coverage grid
 
         Returns:
-            Coverage reward in [0, 0.01]
+            Coverage reward in [-0.1, 1.0]
         """
         current_coverage = np.mean(coverage_map)
         delta_coverage = current_coverage - self.prev_coverage
         
-        # Reward for new coverage
-        # Max: 0.01 per step (full coverage in 100 steps)
-        r_cov = max(0.0, delta_coverage) * 0.01
+        # Incremental reward for new coverage (scaled to be meaningful)
+        r_inc = max(0.0, delta_coverage) * 10.0
         
-        return r_cov
+        # Small ongoing reward proportional to total coverage achieved
+        r_abs = current_coverage * 0.1
+        
+        r_cov = r_inc + r_abs
+        return float(np.clip(r_cov, -0.1, 1.0))
 
     def _energy_reward(
         self,
@@ -199,7 +232,7 @@ class RewardShaper:
             target_states: (max_targets, 12) state matrix
 
         Returns:
-            Safety reward in [-1000, 0.1]
+            Safety reward in [-10.0, 0.1]
         """
         r_safe = 0.0
         
@@ -210,7 +243,7 @@ class RewardShaper:
             active_i = drone_states[i, 15]  # Active flag
             
             if active_i < 0.5:  # Inactive = collision occurred
-                r_safe -= 1000.0
+                r_safe -= 10.0
                 return float(r_safe)
             
             for j in range(i + 1, self.num_drones):
@@ -218,7 +251,7 @@ class RewardShaper:
                 distance = np.linalg.norm(pos_i - pos_j)
                 
                 if distance < min_separation and distance > 0:
-                    r_safe -= 1000.0  # Collision
+                    r_safe -= 10.0  # Collision
                     return float(r_safe)
         
         # Check geofence violations (bounds = ±2000m x,y, 0-500m z)
@@ -237,28 +270,29 @@ class RewardShaper:
                 z < geofence['z_min'] or
                 z > geofence['z_max']):
                 
-                r_safe -= 100.0  # Out of bounds
+                r_safe -= 5.0  # Out of bounds
                 return float(r_safe)
         
         # Small positive reward for safe operation
         r_safe += 0.1
         
-        return float(np.clip(r_safe, -1000.0, 0.1))
+        return float(np.clip(r_safe, -10.0, 0.1))
 
     def _threat_reward(self, target_states: np.ndarray) -> float:
         """
         Compute threat engagement reward.
 
-        Rewards correct threat assessment and engagement. Penalties for
-        misclassification or inappropriate action.
+        Rewards correct threat assessment and engagement. Scaled so that
+        the per-step contribution stays within a reasonable range.
 
         Args:
             target_states: (max_targets, 12) state matrix
 
         Returns:
-            Threat reward in [-500, 500]
+            Threat reward in [-1.0, 1.0]
         """
         r_threat = 0.0
+        detected_count = 0
         
         # Target state columns:
         # 0-2: position, 3-5: velocity, 6: threat_level, 7: priority,
@@ -267,20 +301,24 @@ class RewardShaper:
         for i in range(len(target_states)):
             is_detected = target_states[i, 10]
             target_type = int(target_states[i, 8])
-            threat_level = target_states[i, 6]
             
             if is_detected < 0.5:  # Not detected
                 continue
             
+            detected_count += 1
             # Reward for detecting hostile targets
             if target_type == 2:  # Hostile (enum value)
-                r_threat += 500.0  # Positive reward for detection
+                r_threat += 1.0  # Positive reward for detection
             elif target_type == 1:  # Friendly
-                r_threat -= 500.0  # Negative reward (shouldn't engage)
+                r_threat -= 1.0  # Negative reward (shouldn't engage)
             else:  # Unknown/Neutral
-                r_threat += 100.0  # Small reward for investigation
+                r_threat += 0.2  # Small reward for investigation
         
-        return float(np.clip(r_threat, -500.0, 500.0))
+        # Normalise by number of detections to keep magnitude bounded
+        if detected_count > 0:
+            r_threat /= detected_count
+        
+        return float(np.clip(r_threat, -1.0, 1.0))
 
     def _learning_reward(
         self,
