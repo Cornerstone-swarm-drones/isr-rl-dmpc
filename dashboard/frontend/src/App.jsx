@@ -24,7 +24,7 @@ export default function App() {
     if (!tabs.includes(activeTab)) {
       setActiveTab(tabs[0]);
     }
-  }, [mode]);
+  }, [mode, activeTab]);
 
   /* ── Fetch helpers ── */
   const fetchJSON = useCallback(async (url) => {

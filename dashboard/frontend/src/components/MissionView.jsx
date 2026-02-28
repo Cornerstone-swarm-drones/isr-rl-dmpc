@@ -23,7 +23,7 @@ export default function MissionView({ status, config, mode }) {
       num_drones: config?.drone?.num_drones ?? prev.num_drones,
       max_targets: config?.mission?.max_targets ?? prev.max_targets,
       mission_duration: config?.mission?.max_duration
-        ? Math.round(config.mission.max_duration / (1.0 / (config?.sensor?.control_frequency || 50)))
+        ? Math.round(config.mission.max_duration * (config?.sensor?.control_frequency || 50))
         : prev.mission_duration,
     }));
   }, [config]);
