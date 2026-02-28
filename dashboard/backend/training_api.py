@@ -20,6 +20,23 @@ SCRIPTS_DIR = ROOT / "scripts"
 
 router = APIRouter()
 
+
+def _parse_metrics_csv(csv_path: pathlib.Path) -> list[dict[str, Any]]:
+    """Parse a CSV metrics file into a list of dicts with numeric coercion."""
+    rows: list[dict[str, Any]] = []
+    with open(csv_path, "r", newline="") as fh:
+        reader = csv.DictReader(fh)
+        for row in reader:
+            parsed: dict[str, Any] = {}
+            for k, v in row.items():
+                try:
+                    parsed[k] = float(v)
+                except (ValueError, TypeError):
+                    parsed[k] = v
+            rows.append(parsed)
+    return rows
+
+
 _training_state: dict[str, Any] = {
     "process": None,
     "run_id": None,
@@ -181,17 +198,7 @@ async def get_run_metrics(run_id: str):
 
     metrics_file = csv_files[0]
     try:
-        with open(metrics_file, "r", newline="") as fh:
-            reader = csv.DictReader(fh)
-            rows = []
-            for row in reader:
-                parsed: dict[str, Any] = {}
-                for k, v in row.items():
-                    try:
-                        parsed[k] = float(v)
-                    except (ValueError, TypeError):
-                        parsed[k] = v
-                rows.append(parsed)
+        rows = _parse_metrics_csv(metrics_file)
         return {"metrics": rows, "filename": metrics_file.name}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -231,18 +238,7 @@ async def compare_runs(run_ids: str = Query(..., description="Comma-separated ru
             continue
 
         try:
-            with open(csv_files[0], "r", newline="") as fh:
-                reader = csv.DictReader(fh)
-                rows = []
-                for row in reader:
-                    parsed: dict[str, Any] = {}
-                    for k, v in row.items():
-                        try:
-                            parsed[k] = float(v)
-                        except (ValueError, TypeError):
-                            parsed[k] = v
-                    rows.append(parsed)
-            results[rid] = {"metrics": rows}
+            results[rid] = {"metrics": _parse_metrics_csv(csv_files[0])}
         except Exception as exc:
             results[rid] = {"error": str(exc)}
 
