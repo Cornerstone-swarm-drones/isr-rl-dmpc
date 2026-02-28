@@ -119,8 +119,8 @@ async def run_live(args):
                 # Extract drone state from observation
                 swarm = obs["swarm"]  # (N, 18)
                 drone_positions = swarm[:, :3]
-                drone_quats = swarm[:, 9:13]
-                drone_batteries = swarm[:, 16]
+                drone_quats = swarm[:, 6:10]
+                drone_batteries = swarm[:, 13]
 
                 # Extract target positions and classifications from obs
                 tgt_pos, tgt_cls = extract_targets_from_obs(obs["targets"])
@@ -228,8 +228,8 @@ def run_record(args):
 
                 swarm = obs["swarm"]
                 drone_positions = swarm[:, :3]
-                drone_quats = swarm[:, 9:13]
-                drone_batteries = swarm[:, 16]
+                drone_quats = swarm[:, 6:10]
+                drone_batteries = swarm[:, 13]
 
                 # Extract target positions and classifications from obs
                 tgt_pos, tgt_cls = extract_targets_from_obs(obs["targets"])
@@ -345,8 +345,8 @@ async def run_both(args):
 
                     swarm = obs["swarm"]
                     drone_positions = swarm[:, :3]
-                    drone_quats = swarm[:, 9:13]
-                    drone_batteries = swarm[:, 16]
+                    drone_quats = swarm[:, 6:10]
+                    drone_batteries = swarm[:, 13]
                     tgt_pos, tgt_cls = extract_targets_from_obs(obs["targets"])
 
                     bridge.publish_scene(

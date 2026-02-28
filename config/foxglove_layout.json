@@ -28,20 +28,27 @@
         "followTf": "swarm_center",
         "followMode": "follow-position",
         "scene": {
-          "backgroundColor": "#1c1f23",
+          "backgroundColor": "#0a0e14",
           "enableStats": false
         },
         "cameraState": {
           "perspective": true,
-          "distance": 300,
-          "phi": 55,
+          "distance": 2500,
+          "phi": 60,
           "theta": -45,
-          "targetOffset": [0, 0, 30],
-          "fovy": 60
+          "targetOffset": [0, 0, 50],
+          "fovy": 50
+        },
+        "publish": {
+          "type": "point"
+        },
+        "transforms": {
+          "enablePreloading": true
         },
         "topics": {
           "/swarm/scene": {
-            "visible": true
+            "visible": true,
+            "color": "#4fc3f7"
           }
         }
       }

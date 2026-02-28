@@ -19,7 +19,7 @@ foxglove:
   visualization:
     # Drone marker appearance
     drone_marker_size: [2.0, 2.0, 0.5]  # [x, y, z] meters
-    drone_label_font_size: 14.0
+    drone_label_font_size: 10.0
 
     # Target marker appearance
     target_marker_size: [3.0, 3.0, 3.0]  # sphere diameter in meters

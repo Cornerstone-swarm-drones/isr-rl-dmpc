@@ -211,6 +211,10 @@ class DMPCAgent:
             targets = rewards + self.learner.gamma * next_values * dones
             advantages = targets - values
 
+            # Normalize advantages for stable policy gradients
+            if advantages.numel() > 1:
+                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
         # Policy log-prob
         mean, log_std = self.learner.policy_network(states)
         std = torch.exp(log_std)

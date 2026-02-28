@@ -343,7 +343,7 @@ class ISRGridEnv(gym.Env):
             action: Motor commands
 
         Returns:
-            Scalar reward value
+            Scalar reward value (clipped to [-10, 10] for training stability)
         """
         if self.reward_shaper is None:
             # Stub: return small positive reward for progress
@@ -367,7 +367,8 @@ class ISRGridEnv(gym.Env):
             step=self.step_count
         )
         
-        return float(reward)
+        # Clip reward to bounded range for training stability
+        return float(np.clip(reward, -10.0, 10.0))
 
     def _get_observation(self) -> Dict[str, np.ndarray]:
         """
