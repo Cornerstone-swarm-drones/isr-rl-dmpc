@@ -127,7 +127,10 @@ async def stop_training():
 
 
 def _latest_training_progress() -> dict[str, Any]:
-    """Read the latest episode/step from the most recent training CSV."""
+    """Read the latest episode/step from the most recent training CSV.
+
+    Uses an efficient tail-read approach to avoid loading the entire file.
+    """
     if not TRAINING_LOGS_DIR.is_dir():
         return {}
     # Find the most recent run directory (sorted by name = timestamp)
@@ -142,15 +145,33 @@ def _latest_training_progress() -> dict[str, Any]:
     csv_files = list(latest_dir.glob("*.csv"))
     if not csv_files:
         return {}
-    # Read last line of the CSV for current progress
+    # Efficiently read header + last line without loading entire file
+    csv_path = csv_files[0]
     try:
-        lines = csv_files[0].read_text().strip().splitlines()
-        if len(lines) < 2:
-            return {}
-        headers = lines[0].split(",")
-        last_row = lines[-1].split(",")
+        with open(csv_path, "r") as fh:
+            header_line = fh.readline().strip()
+            if not header_line:
+                return {}
+            # Seek to end and read backwards to find last line
+            fh.seek(0, 2)
+            file_size = fh.tell()
+            if file_size < 2:
+                return {}
+            # Read last 4 KB (more than enough for one CSV row)
+            read_size = min(4096, file_size)
+            fh.seek(file_size - read_size)
+            tail = fh.read()
+            tail_lines = tail.strip().splitlines()
+            if not tail_lines:
+                return {}
+            last_line = tail_lines[-1]
+            # Skip if last line is the header itself
+            if last_line == header_line:
+                return {}
+        headers = header_line.split(",")
+        last_row = last_line.split(",")
         row = dict(zip(headers, last_row))
-        result: dict[str, Any] = {"current_episode": len(lines) - 1}
+        result: dict[str, Any] = {}
         if "episode" in row:
             try:
                 result["current_episode"] = int(float(row["episode"]))
