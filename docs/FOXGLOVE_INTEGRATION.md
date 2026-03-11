@@ -1,16 +1,33 @@
 # Foxglove Studio Integration
 
-This guide covers the Foxglove Studio integration for real-time and offline visualization of ISR-RL-DMPC simulation data.
+This guide covers the Foxglove Studio integration for real-time telemetry and offline playback of ISR-RL-DMPC simulation data.
 
 ## Overview
 
-[Foxglove Studio](https://foxglove.dev/) is an open-source robotics visualization tool that provides interactive 3D views, time-series plots, and data inspection panels. The ISR-RL-DMPC integration supports:
+[Foxglove Studio](https://foxglove.dev/) is an open-source robotics visualization tool that provides interactive 3D views, time-series plots, and data inspection panels. It is best used here as the **telemetry and playback layer**, not as the primary simulator. The ISR-RL-DMPC integration supports:
 
 - **Live visualization** via WebSocket — stream simulation data in real-time
 - **MCAP recording** — record simulation runs for offline playback and analysis
 - **Simultaneous live + recording** — stream and record at the same time
 - **Training visualization** — visualize agent training in real-time with the `--foxglove` flag
 - **StateManager integration** — publish directly from the existing state management system
+
+## Recommended Simulator for Terrain and Atmosphere
+
+If you need a full simulator with terrain-aware flight and atmospheric visuals/physics, use **NVIDIA Isaac Sim** alongside this Foxglove integration.
+
+Recommended division of roles:
+
+- **NVIDIA Isaac Sim** — terrain, sky/lighting, weather-style atmosphere, and high-fidelity physics
+- **ISR-RL-DMPC** — swarm intelligence, RL training, and mission logic
+- **Foxglove Studio** — live telemetry, plots, debugging, and MCAP playback
+
+This keeps the current Foxglove workflow intact while providing a better simulator option for:
+
+- uneven terrain and imported map meshes
+- atmosphere/lighting effects such as fog, sky, and time-of-day visuals
+- wind-disturbed or contact-heavy flight physics
+- visually richer demos of multi-drone missions
 
 ## Quick Start
 
