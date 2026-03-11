@@ -113,8 +113,27 @@ isr-rl-dmpc/
 | Convex Optimization | [CVXPY](https://www.cvxpy.org/) |
 | Task Allocation | Hungarian Algorithm (SciPy) |
 | Scientific Computing | NumPy, SciPy, scikit-learn |
-| Visualization | Matplotlib, [Foxglove Studio](https://foxglove.dev/) |
+| Visualization | Matplotlib, [Foxglove Studio](https://foxglove.dev/) for telemetry and playback |
+| Recommended High-Fidelity Simulator | [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac/sim) for terrain, atmosphere, and physics-rich swarm scenes |
 | Configuration | YAML with dataclass validation |
+
+## Recommended Simulator Upgrade
+
+Foxglove Studio remains useful in this project as a **visualization and telemetry** tool, but it is not a full physics simulator. If the swarm workflow needs a richer simulator with terrain-aware flight and atmospheric effects, the recommended upgrade path is **NVIDIA Isaac Sim**.
+
+Why Isaac Sim is a better simulator fit for this project:
+
+- **Terrain support** — heightmaps, imported meshes, and large outdoor environments
+- **Atmosphere and lighting** — sky, sun, fog, and weather-style visuals for more realistic scenes
+- **Physics-rich flight testing** — PhysX-based rigid body simulation with wind and contact interactions
+- **Python-first integration** — works well with the existing Python RL/training stack
+- **Keep Foxglove where it helps** — Isaac Sim can provide the world simulation, while Foxglove continues to handle live telemetry dashboards and MCAP playback
+
+Suggested split of responsibilities:
+
+- **Isaac Sim** → world simulation, terrain, atmosphere, and high-fidelity drone physics
+- **ISR-RL-DMPC** → swarm control, RL training, mission logic, and decision making
+- **Foxglove Studio** → live monitoring, plots, debugging, and offline playback
 
 ## Training
 
