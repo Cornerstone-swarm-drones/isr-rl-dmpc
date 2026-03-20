@@ -10,8 +10,60 @@ Classes:
     VectorEnv: Vectorized environment wrapper for parallel training
 """
 
-import gymnasium as gym
-from gymnasium import spaces
+try:
+    import gymnasium as gym  # type: ignore
+    from gymnasium import spaces  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    # Minimal fallback so non-training workflows (e.g. evaluation scripts)
+    # can run without installing gym/gymnasium.
+    import numpy as _np
+    from dataclasses import dataclass as _dataclass
+
+    class _Space:
+        def sample(self):
+            raise NotImplementedError
+
+    class _Box(_Space):
+        def __init__(self, low, high, shape, dtype=_np.float32):
+            self.low = low
+            self.high = high
+            self.shape = tuple(shape)
+            self.dtype = dtype
+
+        def sample(self):
+            low = self.low
+            high = self.high
+
+            # Handle infinite bounds by falling back to a normal-ish sample.
+            low_finite = _np.isfinite(low).all() if hasattr(low, "shape") else _np.isfinite(low)
+            high_finite = _np.isfinite(high).all() if hasattr(high, "shape") else _np.isfinite(high)
+
+            rng = _np.random.default_rng()
+            if low_finite and high_finite:
+                return rng.uniform(low, high, size=self.shape).astype(self.dtype)
+            return rng.standard_normal(size=self.shape).astype(self.dtype)
+
+    class _Dict(_Space):
+        def __init__(self, spaces_map):
+            self.spaces = dict(spaces_map)
+
+    class _GymEnv:
+        metadata: dict = {}
+
+        def reset(self, seed=None, options=None):
+            raise NotImplementedError
+
+        def step(self, action):
+            raise NotImplementedError
+
+    class _GymModule:
+        Env = _GymEnv
+
+    gym = _GymModule()  # type: ignore
+
+    class spaces:  # type: ignore
+        Box = _Box
+        Dict = _Dict
 import numpy as np
 from typing import Dict, Tuple, Optional, List, Any
 from dataclasses import dataclass
@@ -125,6 +177,27 @@ class ISRGridEnv(gym.Env):
         self.coverage_map = np.zeros(self.grid_cells)  # 1D array of grid cells
         self.detected_targets = set()
         self.mission_reward_history = []
+
+        # Dashboard/evaluation-friendly derived metrics
+        self._energy_usage_last: float = 0.0
+        self._prev_avg_battery_energy: float = 0.0
+        self._targets_tracked_last: int = 0
+
+        # Optional module-signals wiring (does not affect physics/actions).
+        self._last_module_signals: Dict[str, Any] = {}
+        self._module_signals_enabled: bool = False
+        self._task_allocator_mod = None
+        self._threat_assessor_mod = None
+        try:
+            from isr_rl_dmpc.modules.task_allocator import TaskAllocator
+            from isr_rl_dmpc.modules.threat_assessor import ThreatAssessor
+
+            self._task_allocator_mod = TaskAllocator(num_drones=self.num_drones)
+            self._threat_assessor_mod = ThreatAssessor()
+            self._module_signals_enabled = True
+        except (ImportError, ModuleNotFoundError):
+            # Optional: keep environment usable without ML modules.
+            self._module_signals_enabled = False
         
         # Define observation space
         # Dict space with 4 sub-spaces
@@ -187,6 +260,13 @@ class ISRGridEnv(gym.Env):
         self.coverage_map = np.zeros(self.grid_cells)
         self.detected_targets = set()
         self.mission_reward_history = []
+
+        # Reset derived metrics baseline
+        self._energy_usage_last = 0.0
+        self._prev_avg_battery_energy = 0.0
+        self._targets_tracked_last = 0
+
+        self._last_module_signals = {}
         
         # Reset reward shaper state
         if self.reward_shaper is not None:
@@ -216,6 +296,15 @@ class ISRGridEnv(gym.Env):
                     TargetType.NEUTRAL
                 ])
                 self.simulator.add_target(target_pos, target_type)
+
+            # Baseline battery energy for energy usage (Joules)
+            sim_stats = self.simulator.get_statistics()
+            self._prev_avg_battery_energy = float(sim_stats["avg_battery_energy"])
+
+            # At reset time targets are newly added but not yet detected
+            self._targets_tracked_last = int(
+                sum(1 for t in self.simulator.targets[: self.simulator.num_targets] if t.is_detected)
+            )
         
         # Get initial observation
         obs = self._get_observation()
@@ -240,9 +329,25 @@ class ISRGridEnv(gym.Env):
         # Step simulator
         if self.simulator is not None:
             self.simulator.step(action)
+
+            # Update derived metrics for dashboard/evaluation
+            sim_stats = self.simulator.get_statistics()
+            current_avg_battery = float(sim_stats["avg_battery_energy"])
+            self._energy_usage_last = float(self._prev_avg_battery_energy - current_avg_battery)
+            self._prev_avg_battery_energy = current_avg_battery
+            self._targets_tracked_last = int(
+                sum(
+                    1
+                    for t in self.simulator.targets[: self.simulator.num_targets]
+                    if t.is_detected
+                )
+            )
         
         # Update coverage map (deterministic based on drone positions)
         self._update_coverage()
+
+        # Optional module signals (allocation/threat/etc.) for dashboard/evaluation.
+        self._update_module_signals()
         
         # Compute reward
         reward = self._compute_reward(action)
@@ -334,6 +439,162 @@ class ISRGridEnv(gym.Env):
                         if 0 <= nx < grid_x and 0 <= ny < grid_y:
                             cell_idx = ny * grid_x + nx
                             self.coverage_map[cell_idx] = 1.0
+
+    def _update_module_signals(self) -> None:
+        """
+        Compute lightweight module-derived signals for dashboards/evaluation.
+
+        This is intentionally incremental: signals are produced where the
+        corresponding modules are importable, but no module output is fed back
+        into physics/control yet.
+        """
+        if not self._module_signals_enabled or self.simulator is None:
+            return
+
+        try:
+            drone_states = self.simulator.get_drone_states()
+            target_states = self.simulator.get_target_states()
+        except Exception:
+            return
+
+        # Collect detected targets (skip padded zero rows).
+        detected_idxs: List[int] = []
+        for i in range(self.max_targets):
+            if i >= target_states.shape[0]:
+                break
+            pos = target_states[i, :3]
+            if not np.any(pos != 0.0):
+                continue
+            if target_states[i, 10] > 0.5:
+                detected_idxs.append(i)
+
+        if not detected_idxs:
+            self._last_module_signals = {
+                "targets_detected": 0,
+                "task_allocation": {},
+                "threat_assessment": {},
+            }
+            return
+
+        # --- Task allocation signals (TaskAllocator) ---
+        try:
+            from isr_rl_dmpc.modules.task_allocator import (
+                DroneCapability,
+                ISRTask,
+                TaskType,
+            )
+            from isr_rl_dmpc.gym_env.simulator import TargetType
+        except Exception:
+            return
+
+        drone_positions = drone_states[:, :3]
+        battery_norm = drone_states[:, 13]  # already normalized [0,1] by simulator
+
+        drones: Dict[int, DroneCapability] = {}
+        for i in range(self.num_drones):
+            drones[i] = DroneCapability(
+                drone_id=i,
+                position=drone_positions[i].astype(np.float32),
+                fuel_remaining=float(battery_norm[i] * 100.0),
+                sensors=["radar", "optical", "rf", "acoustic"],
+                current_load=0.0,
+                max_speed=float(self.simulator.drone_config.max_linear_velocity),
+                endurance=1e9,
+                communication_range=500.0,
+            )
+
+        tasks: List[ISRTask] = []
+        for tid in detected_idxs:
+            tpos = target_states[tid, :3].astype(np.float32)
+            type_id = int(round(float(target_states[tid, 8])))
+            is_hostile = type_id == int(TargetType.HOSTILE.value)
+
+            task_type = TaskType.TRACK if is_hostile else TaskType.CLASSIFY
+            priority = 1.0 if is_hostile else 0.4
+
+            tasks.append(
+                ISRTask(
+                    task_id=int(tid),
+                    task_type=task_type,
+                    target_position=tpos,
+                    priority=float(priority),
+                    required_sensors=["radar", "optical"],
+                    estimated_duration=0.0,
+                )
+            )
+
+        allocations = self._task_allocator_mod.allocate_tasks(tasks=tasks, drones=drones)
+        allocation_metrics = self._task_allocator_mod.get_allocation_metrics()
+
+        allocation_quality_norm = 0.0
+        avg_cost = float(allocation_metrics.get("average_cost", 0.0)) if allocation_metrics else 0.0
+        allocation_quality_norm = float(1.0 / (1.0 + avg_cost))
+
+        # --- Threat assessment signals (ThreatAssessor) ---
+        threat_scores: List[float] = []
+        threat_per_target: List[Dict[str, Any]] = []
+
+        own_position = np.mean(drone_positions, axis=0)
+        current_time = float(self.step_count)
+
+        for tid in detected_idxs:
+            tpos = target_states[tid, :3].astype(float)
+            vel = target_states[tid, 3:6].astype(float)
+            rf_confidence = float(target_states[tid, 9])
+            type_id = int(round(float(target_states[tid, 8])))
+
+            if type_id == int(TargetType.HOSTILE.value):
+                classification = "hostile"
+                rf_strength = -35.0
+                modulation = "psk"
+            elif type_id == int(TargetType.FRIENDLY.value):
+                classification = "friendly"
+                rf_strength = -95.0
+                modulation = "am"
+            else:
+                classification = "unknown"
+                rf_strength = -70.0
+                modulation = "am"
+
+            assessment = self._threat_assessor_mod.assess_target(
+                target_data={
+                    "target_id": int(tid),
+                    "position": tpos,
+                    "velocity": vel,
+                    "rf_strength": rf_strength,
+                    "modulation": modulation,
+                    "classification": classification,
+                    "classification_confidence": rf_confidence,
+                },
+                own_position=own_position,
+                current_time=current_time,
+            )
+
+            threat_scores.append(float(assessment.threat_score))
+            threat_per_target.append(
+                {
+                    "target_id": int(tid),
+                    "threat_level": str(assessment.threat_level.value),
+                    "threat_score": float(assessment.threat_score),
+                    "confidence": float(assessment.confidence),
+                }
+            )
+
+        avg_threat_score = float(np.mean(threat_scores)) if threat_scores else 0.0
+
+        self._last_module_signals = {
+            "targets_detected": int(len(detected_idxs)),
+            "task_allocation": {
+                "average_cost": float(allocation_metrics.get("average_cost", 0.0)) if allocation_metrics else 0.0,
+                "allocation_quality_norm": allocation_quality_norm,
+                "assignment_coverage_norm": float(len(allocations) / max(len(tasks), 1)),
+            },
+            "threat_assessment": {
+                "avg_threat_score": avg_threat_score,
+                "max_threat_score": float(np.max(threat_scores)) if threat_scores else 0.0,
+                "per_target": threat_per_target,
+            },
+        }
 
     def _compute_reward(self, action: np.ndarray) -> float:
         """
@@ -444,7 +705,13 @@ class ISRGridEnv(gym.Env):
             'collisions': stats['collision_count'],
             'geofence_violations': stats['geofence_violations'],
             'avg_battery': stats['avg_battery_energy'],
-            'wind': stats['current_wind']
+            # Energy used since previous step (Joules). Positive = battery decreased.
+            'energy_usage': self._energy_usage_last,
+            'wind': stats['current_wind'],
+            # Number of targets that are currently detected (per simulator truth).
+            'targets_tracked': self._targets_tracked_last,
+            # Incremental module-derived signals (does not affect physics).
+            'module_signals': self._last_module_signals
         }
 
     def _render_human(self) -> None:

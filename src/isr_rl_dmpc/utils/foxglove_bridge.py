@@ -29,6 +29,8 @@ Foxglove Studio Connection:
     ws://localhost:8765
 """
 
+from __future__ import annotations
+
 import base64
 import json
 import logging
@@ -38,7 +40,10 @@ from typing import Dict, List, Optional, Any
 
 import numpy as np
 
-import foxglove
+try:
+    import foxglove  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    foxglove = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -315,12 +320,16 @@ class FoxgloveBridge:
         self.port = port
         self.server_name = server_name
 
-        self._server: Optional[foxglove.WebSocketServer] = None
-        self._channels: Dict[str, foxglove.Channel] = {}
+        self._server: Optional[Any] = None
+        self._channels: Dict[str, Any] = {}
         self._started = False
 
     def start(self) -> None:
         """Start the WebSocket server and register channels."""
+        if foxglove is None:
+            raise ModuleNotFoundError(
+                "foxglove-sdk is not installed. Install `foxglove-sdk` to use FoxgloveBridge."
+            )
         self._server = foxglove.start_server(
             name=self.server_name,
             host=self.host,

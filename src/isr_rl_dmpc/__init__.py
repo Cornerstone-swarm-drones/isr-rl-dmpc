@@ -1,45 +1,95 @@
 from .core import (
-    DroneState, TargetState, MissionState, StateManager, 
-    DroneStateEstimator, TargetStateEstimator, SensorType,
-    RadarMeasurement, OpticalMeasurement, RFMeasurement,
-    AcousticMeasurement, TargetTrackingEKF,
+    DroneState,
+    TargetState,
+    MissionState,
+    StateManager,
+    DroneStateEstimator,
+    TargetStateEstimator,
+    SensorType,
+    RadarMeasurement,
+    OpticalMeasurement,
+    RFMeasurement,
+    AcousticMeasurement,
+    TargetTrackingEKF,
 )
 from .config import Config, load_config, create_default_config_yaml
 from .utils import *
-from .modules import (
-    GridCell, GridDecomposer, WaypointGenerator, MissionPlanner,
-)
-from .modules import (
-    FormationType, FormationConfig, ConsensusState, 
-    FormationGeometry, ConsensusController, FormationController,
-)
-from .modules import SensorFusionManager
-from .modules import (
-    TargetClassification, FeatureType, ClassificationFeature, 
-    TargetSignature, FeatureExtractor, BayesianClassifier,
-    ClassificationEngine, 
-)
-from .modules import (
-    ThreatLevel, ThreatAssessment, ThreatParameters, ThreatAssessor,
-)
-from .modules import (
-    TaskType, TaskStatus, ISRTask, DroneCapability, 
-    HungarianAssignment, TaskAllocator, 
-)
-from .modules import (
-    DMPCConfig, CostWeightNetwork, DynamicsResidualNetwork, ValueNetworkMPC, 
-    MPCSolver, DMPC,
-)
-from .modules import(
-    DroneParameters, GainAdaptationNetwork, GeometricController, AttitudeController,
-)
-from .modules import (
-    Transition, ValueNetwork, PolicyNetwork, ExperienceBuffer, LearningModule,
-)
-from .agents import DMPCAgent, ActorCriticTrainer, TrainingConfig
-from .agents import PrioritizedReplayBuffer, TrajectoryBuffer
-from .models import CriticNetwork, RFClassifier, RFFingerprint
-from .models import ModelRegistry, load_checkpoint, save_checkpoint
+
+# NOTE:
+# `isr_rl_dmpc` is sometimes imported for non-ML functionality (e.g. the Gym
+# environment + evaluation scripts). Many ML/visualization submodules depend on
+# heavy optional dependencies like `torch` and `mcap`.
+#
+# To keep those workflows usable without installing the full ML stack, we guard
+# module/agent/model imports. If you need ML training/inference, install `torch`
+# and ensure the optional deps are present.
+try:  # pragma: no cover
+    from .modules import (
+        GridCell,
+        GridDecomposer,
+        WaypointGenerator,
+        MissionPlanner,
+    )
+    from .modules import (
+        FormationType,
+        FormationConfig,
+        ConsensusState,
+        FormationGeometry,
+        ConsensusController,
+        FormationController,
+    )
+    from .modules import SensorFusionManager
+    from .modules import (
+        TargetClassification,
+        FeatureType,
+        ClassificationFeature,
+        TargetSignature,
+        FeatureExtractor,
+        BayesianClassifier,
+        ClassificationEngine,
+    )
+    from .modules import (
+        ThreatLevel,
+        ThreatAssessment,
+        ThreatParameters,
+        ThreatAssessor,
+    )
+    from .modules import (
+        TaskType,
+        TaskStatus,
+        ISRTask,
+        DroneCapability,
+        HungarianAssignment,
+        TaskAllocator,
+    )
+    from .modules import (
+        DMPCConfig,
+        CostWeightNetwork,
+        DynamicsResidualNetwork,
+        ValueNetworkMPC,
+        MPCSolver,
+        DMPC,
+    )
+    from .modules import (
+        DroneParameters,
+        GainAdaptationNetwork,
+        GeometricController,
+        AttitudeController,
+    )
+    from .modules import (
+        Transition,
+        ValueNetwork,
+        PolicyNetwork,
+        ExperienceBuffer,
+        LearningModule,
+    )
+    from .agents import DMPCAgent, ActorCriticTrainer, TrainingConfig
+    from .agents import PrioritizedReplayBuffer, TrajectoryBuffer
+    from .models import CriticNetwork, RFClassifier, RFFingerprint
+    from .models import ModelRegistry, load_checkpoint, save_checkpoint
+except ModuleNotFoundError:
+    # Keep package importable for environment/evaluation code.
+    pass
 
 __all__ = [
     # Core

@@ -18,16 +18,48 @@ from .task_allocator import (
     TaskType, TaskStatus, ISRTask, DroneCapability, 
     HungarianAssignment, TaskAllocator, 
 )
-from .dmpc_controller import (
-    DMPCConfig, CostWeightNetwork, DynamicsResidualNetwork, ValueNetworkMPC, 
-    MPCSolver, DMPC,
-)
-from .attitude_controller import(
-    DroneParameters, GainAdaptationNetwork, GeometricController, AttitudeController,
-)
-from .learning_module import (
-    Transition, ValueNetwork, PolicyNetwork, ExperienceBuffer, LearningModule,
-)
+
+# Optional ML/optimization modules (depend on torch/cvxpy).
+try:  # pragma: no cover
+    from .dmpc_controller import (
+        DMPCConfig,
+        CostWeightNetwork,
+        DynamicsResidualNetwork,
+        ValueNetworkMPC,
+        MPCSolver,
+        DMPC,
+    )
+    from .attitude_controller import (
+        DroneParameters,
+        GainAdaptationNetwork,
+        GeometricController,
+        AttitudeController,
+    )
+    from .learning_module import (
+        Transition,
+        ValueNetwork,
+        PolicyNetwork,
+        ExperienceBuffer,
+        LearningModule,
+    )
+except (ModuleNotFoundError, ImportError):  # pragma: no cover
+    DMPCConfig = None  # type: ignore[assignment]
+    CostWeightNetwork = None  # type: ignore[assignment]
+    DynamicsResidualNetwork = None  # type: ignore[assignment]
+    ValueNetworkMPC = None  # type: ignore[assignment]
+    MPCSolver = None  # type: ignore[assignment]
+    DMPC = None  # type: ignore[assignment]
+
+    DroneParameters = None  # type: ignore[assignment]
+    GainAdaptationNetwork = None  # type: ignore[assignment]
+    GeometricController = None  # type: ignore[assignment]
+    AttitudeController = None  # type: ignore[assignment]
+
+    Transition = None  # type: ignore[assignment]
+    ValueNetwork = None  # type: ignore[assignment]
+    PolicyNetwork = None  # type: ignore[assignment]
+    ExperienceBuffer = None  # type: ignore[assignment]
+    LearningModule = None  # type: ignore[assignment]
 
 
 __all__ = [

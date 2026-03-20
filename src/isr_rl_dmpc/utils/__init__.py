@@ -40,7 +40,13 @@ from .visualization import (
 )
 
 from .foxglove_bridge import FoxgloveBridge, extract_targets_from_obs
-from .mcap_logger import MCAPRecorder
+
+# MCAP is optional because it requires the external `mcap` dependency.
+# Most of the project (gym env + training + evaluation) should work without it.
+try:
+    from .mcap_logger import MCAPRecorder
+except ModuleNotFoundError:  # pragma: no cover
+    MCAPRecorder = None  # type: ignore[assignment]
 
 
 __all__ = [
