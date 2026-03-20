@@ -1,0 +1,2 @@
+# Core dependencies - see requirements/base.txt for details
+-r requirements/base.txt

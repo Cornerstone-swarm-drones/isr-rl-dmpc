@@ -1,0 +1,38 @@
+# Foxglove Studio Integration Configuration
+# Used by the FoxgloveBridge and MCAPRecorder utilities
+
+foxglove:
+  # WebSocket server settings for live visualization
+  websocket:
+    host: "0.0.0.0"
+    port: 8765
+    server_name: "ISR-RL-DMPC Simulation"
+
+  # MCAP recording settings for offline playback
+  recording:
+    enabled: true
+    output_dir: "data/recordings"
+    filename_prefix: "isr_mission"
+    compress: true
+
+  # Visualization settings
+  visualization:
+    # Drone marker appearance
+    drone_marker_size: [2.0, 2.0, 0.5]  # [x, y, z] meters
+    drone_label_font_size: 10.0
+
+    # Target marker appearance
+    target_marker_size: [3.0, 3.0, 3.0]  # sphere diameter in meters
+    target_label_font_size: 12.0
+
+    # Classification colors (RGBA, 0-1)
+    color_hostile: [1.0, 0.0, 0.0, 0.8]
+    color_friendly: [0.0, 1.0, 0.0, 0.8]
+    color_unknown: [1.0, 1.0, 0.0, 0.8]
+
+  # Channel topics
+  topics:
+    scene: "/swarm/scene"
+    metrics: "/swarm/metrics"
+    coverage: "/mission/coverage"
+    mission_info: "/mission/info"
