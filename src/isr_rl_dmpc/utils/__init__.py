@@ -1,11 +1,11 @@
-"""ISR-RL-DMPC Utils Module - Initialization."""
+"""ISR-DMPC Utils Module."""
 
 from .conversions import (
-    UnitConversions, 
-    AttitudeConversions, 
-    PositionProjections, 
-    BearingDistance, 
-    TimeConversions
+    UnitConversions,
+    AttitudeConversions,
+    PositionProjections,
+    BearingDistance,
+    TimeConversions,
 )
 
 from .logging_utils import (
@@ -22,12 +22,12 @@ from .logging_utils import (
     setup_logger,
 )
 
-from .math_utils import  (
+from .math_utils import (
     QuaternionOps,
     MatrixOps,
     CoordinateTransform,
     GeometryOps,
-    NumericalOps
+    NumericalOps,
 )
 
 from .visualization import (
@@ -39,22 +39,13 @@ from .visualization import (
     StatisticsVisualizer,
 )
 
-from .foxglove_bridge import FoxgloveBridge, extract_targets_from_obs
-
-# MCAP is optional because it requires the external `mcap` dependency.
-# Most of the project (gym env + training + evaluation) should work without it.
-try:
-    from .mcap_logger import MCAPRecorder
-except ModuleNotFoundError:  # pragma: no cover
-    MCAPRecorder = None  # type: ignore[assignment]
-
 
 __all__ = [
     # conversions
-    "UnitConversions", 
-    "AttitudeConversions", 
-    "PositionProjections", 
-    "BearingDistance", 
+    "UnitConversions",
+    "AttitudeConversions",
+    "PositionProjections",
+    "BearingDistance",
     "TimeConversions",
     # logging
     "ColoredFormatter",
@@ -74,15 +65,11 @@ __all__ = [
     "CoordinateTransform",
     "GeometryOps",
     "NumericalOps",
-    # Viz
-    'TrajectoryVisualizer',
+    # visualization
+    "TrajectoryVisualizer",
     "MissionVisualizer",
     "LearningVisualizer",
     "FormationVisualizer",
     "EnergyVisualizer",
     "StatisticsVisualizer",
-    # Foxglove
-    "FoxgloveBridge",
-    "extract_targets_from_obs",
-    "MCAPRecorder",
 ]
