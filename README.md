@@ -81,6 +81,8 @@ ros2 launch isr_dmpc_sim swarm_simulation.launch.py \
     n_drones:=6 n_targets:=3 horizon:=20 dt:=0.02
 
 # Live hardware flight (PX4 via MAVROS, drone 0):
+# WARNING: arm_on_start:=true arms the vehicle 5 s after launch.
+# Ensure the drone is in a safe, flight-ready state before using this flag.
 ros2 launch isr_dmpc_sim swarm_simulation.launch.py \
     use_sim:=false drone_id:=0 arm_on_start:=true
 ```

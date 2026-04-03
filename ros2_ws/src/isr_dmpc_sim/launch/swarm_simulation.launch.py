@@ -33,6 +33,9 @@ Examples
   ros2 launch isr_dmpc_sim swarm_simulation.launch.py n_drones:=6 n_targets:=3
 
   # Live hardware flight (drone 0, PX4 via MAVROS)
+  # WARNING: arm_on_start:=true will arm the vehicle and switch to OFFBOARD mode
+  # 5 seconds after launch.  Ensure the drone is in a safe, flight-ready state
+  # on a clear launch pad before using this flag.
   ros2 launch isr_dmpc_sim swarm_simulation.launch.py \\
       use_sim:=false drone_id:=0 arm_on_start:=true
 """

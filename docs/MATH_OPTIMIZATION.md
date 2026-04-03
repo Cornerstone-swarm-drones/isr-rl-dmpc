@@ -449,7 +449,7 @@ boilerplate to assemble the sparse matrices.
 | Platform | CVXPY+OSQP (current) | OSQP direct | Target for 50 Hz |
 |---|---|---|---|
 | x86-64 laptop | ~4 ms | ~0.8 ms | < 20 ms ✓ |
-| Raspberry Pi 4 | ~18 ms | ~4 ms | < 20 ms ✓ (barely) |
+| Raspberry Pi 4 | ~18 ms | ~4 ms | < 20 ms ⚠ (marginal — reduce horizon to 12) |
 | NVIDIA Jetson Nano | ~9 ms | ~2 ms | < 20 ms ✓ |
 
 For Raspberry Pi 4 with CVXPY, reduce the horizon to 12 or call OSQP directly.

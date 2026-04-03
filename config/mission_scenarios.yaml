@@ -17,7 +17,7 @@ area_surveillance:
   num_drones: 4
   num_targets: 0
   coverage_goal: 0.95          # fraction of area cells visited
-  max_duration: 1200.0         # s  (20 min — within battery endurance)
+  max_duration: 1000.0         # s  (≈17 min — leaves ~5 min battery reserve for RTH)
   formation_type: "grid"
   revisit_interval: 120.0      # s  (each cell revisited every 2 min)
   priority_zones: []
@@ -67,7 +67,7 @@ search_and_track:
   num_drones: 4
   num_targets: 3
   coverage_goal: 0.90
-  max_duration: 1200.0         # s  (20 min)
+  max_duration: 1000.0         # s  (≈17 min — leaves ~5 min reserve for RTH)
   formation_type: "line"
   search_pattern: "expanding_square"
   track_handoff_range: 80.0    # m  (optical sensor range / √2)

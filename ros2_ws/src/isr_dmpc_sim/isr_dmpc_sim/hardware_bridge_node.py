@@ -56,7 +56,7 @@ drone_id  (int,   default 0)     — which drone index this bridge manages
 n_drones  (int,   default 4)     — total swarm size (for hw_poses array)
 state_dim (int,   default 11)    — DMPC state vector dimension
 accel_max (float, default 8.0)   — clip commanded acceleration [m/s²]
-arm_on_start (bool, default False) — automatically arm + switch OFFBOARD on start
+arm_on_start (bool, default False) — auto-arm + OFFBOARD 5 s after start (hardware only)
 """
 
 from __future__ import annotations
@@ -315,8 +315,9 @@ class HardwareBridgeNode(Node):
         """
         Attempt to switch to OFFBOARD mode and arm the vehicle.
 
-        Called once, ``arm_on_start`` seconds after node startup.  Requires
-        that the MAVROS set_mode and arming services are available.
+        Called once, 5 seconds after node startup (see the 5.0 s timer in
+        ``__init__``).  Requires that the MAVROS set_mode and arming services
+        are available.
         """
         if self._set_mode_cli is None or self._arming_cli is None:
             self.get_logger().warn(
