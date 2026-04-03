@@ -1,11 +1,11 @@
-from .dmpc_agent import DMPCAgent
-from .actor_critic import ActorCriticTrainer, TrainingConfig
-from .experience_buffer import PrioritizedReplayBuffer, TrajectoryBuffer
+"""
+ISR-RL-DMPC Agents module.
 
-__all__ = [
-    "DMPCAgent",
-    "ActorCriticTrainer",
-    "TrainingConfig",
-    "PrioritizedReplayBuffer",
-    "TrajectoryBuffer",
-]
+Only the pure DMPC agent is available.  The former RL-based
+ActorCriticTrainer, ExperienceBuffer, and PrioritizedReplayBuffer
+have been removed.
+"""
+
+from .dmpc_agent import DMPCAgent
+
+__all__ = ["DMPCAgent"]

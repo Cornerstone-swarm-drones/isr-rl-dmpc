@@ -1,116 +1,100 @@
 """
-Module 7 - DMPC Controller: CVXPY Solver + PyTorch Learning Layers
-Combines convex optimization safety with neural network adaptivity
+Module 7 - DMPC Controller: Pure CVXPY/OSQP Convex Optimisation
+
+Implements a purely optimisation-based Distributed Model Predictive
+Controller (DMPC) for swarm drone ISR missions.  All learning layers
+(neural network cost-weight adaptation, residual dynamics networks,
+and terminal value networks) have been removed.  The terminal cost
+matrix P is instead computed analytically by solving the discrete-time
+algebraic Riccati equation (DARE) via :func:`scipy.linalg.solve_discrete_are`.
+
+Mathematical problem solved at each time step:
+
+  min   Σ_{k=0}^{N-1} [||e_k||²_Q + ||u_k||²_R] + ||e_N||²_P
+  s.t.  x_{k+1} = A x_k + B u_k          (linearised dynamics)
+        ||u_k||₂ ≤ u_max                   (control saturation)
+        ||p_k − p_j||₂ ≥ r_min   ∀j∈𝒩    (collision avoidance)
+        x_0 = x(t)                         (initial condition)
+
+where e_k = x_k − x_ref_k is the tracking error.
 """
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
 from dataclasses import dataclass, field
 from typing import Tuple, List, Optional, Dict
 import numpy as np
 import cvxpy as cp
-from scipy.linalg import block_diag
+from scipy.linalg import solve_discrete_are
 
 
 @dataclass
 class DMPCConfig:
-    """Configuration for Hybrid DMPC"""
+    """Configuration for pure DMPC."""
+
     horizon: int = 20
     dt: float = 0.02
     state_dim: int = 11  # [p(3), v(3), a(3), yaw_angle, yaw_rate]
     control_dim: int = 3  # [ax, ay, az]
     n_neighbors: int = 4
-    
-    # Base cost matrices (learned scales applied on top)
+
+    # Cost matrices
     Q_base: np.ndarray = field(default_factory=lambda: np.eye(11) * 1.0)
     R_base: np.ndarray = field(default_factory=lambda: np.eye(3) * 0.1)
-    P_base: np.ndarray = field(default_factory=lambda: np.eye(11) * 10.0)
-    
+    # P_base: will be computed from DARE if not overridden (set to None to auto-compute)
+    P_base: Optional[np.ndarray] = None
+
     # Safety & constraints
     accel_max: float = 10.0
     collision_radius: float = 5.0
-    
+
     # CVXPY solver settings
-    solver_timeout: float = 0.01  # 10ms solver time budget
-    
-    device: str = "cpu"
+    solver_timeout: float = 0.01  # 10 ms solver time budget
+
+    def __post_init__(self) -> None:
+        if self.P_base is None:
+            # Compute LQR terminal cost via DARE
+            self.P_base = compute_lqr_terminal_cost(
+                self.state_dim, self.control_dim, self.Q_base, self.R_base, self.dt
+            )
 
 
-class CostWeightNetwork(nn.Module):
-    """PyTorch: Learns adaptive cost weights based on state"""
-    
-    def __init__(self, state_dim: int, hidden_dim: int = 64):
-        super().__init__()
-        self.network = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 3)  # Q_scale, R_scale, P_scale
-        )
-    
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: State vector [batch, state_dim]
-        
-        Returns:
-            scales: [batch, 3] positive scales for Q, R, P
-        """
-        scales = self.network(x)
-        return torch.nn.functional.softplus(scales) + 0.5  # Ensure positive
+def compute_lqr_terminal_cost(
+    state_dim: int,
+    control_dim: int,
+    Q: np.ndarray,
+    R: np.ndarray,
+    dt: float,
+) -> np.ndarray:
+    """
+    Compute the LQR terminal cost matrix P by solving the DARE.
 
+    The discrete-time system uses the same integrator structure as
+    :class:`MPCSolver` (positions ← velocities ← accelerations).
 
-class DynamicsResidualNetwork(nn.Module):
-    """PyTorch: Learns residual dynamics for improved prediction"""
-    
-    def __init__(self, state_dim: int, control_dim: int, hidden_dim: int = 128):
-        """
-        Models: x_{k+1} = A*x_k + B*u_k + NN_residual(x_k, u_k)
-        """
-        super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(state_dim + control_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU()
-        )
-        
-        # Residual dynamics (learned deviation from linear model)
-        self.residual_head = nn.Linear(hidden_dim, state_dim)
-    
-    def forward(self, x: torch.Tensor, u: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: State [batch, state_dim]
-            u: Control [batch, control_dim]
-        
-        Returns:
-            residual: [batch, state_dim] learned correction term
-        """
-        xu = torch.cat([x, u], dim=-1)
-        features = self.encoder(xu)
-        residual = self.residual_head(features)
-        return residual
+    Args:
+        state_dim:   Number of state variables.
+        control_dim: Number of control inputs.
+        Q:           State-tracking cost matrix (state_dim × state_dim).
+        R:           Input cost matrix (control_dim × control_dim).
+        dt:          Discretisation time step in seconds.
 
-
-class ValueNetworkMPC(nn.Module):
-    """PyTorch: Terminal value function for MPC prediction"""
-    
-    def __init__(self, state_dim: int, hidden_dim: int = 64):
-        super().__init__()
-        self.network = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
-        )
-    
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Terminal cost function"""
-        return self.network(x).squeeze(-1)
+    Returns:
+        P: Positive-definite terminal cost matrix (state_dim × state_dim).
+    """
+    A = np.eye(state_dim)
+    if state_dim >= 9:
+        A[0:3, 3:6] = dt * np.eye(3)  # dp/dv
+        A[3:6, 6:9] = dt * np.eye(3)  # dv/da
+    B = np.zeros((state_dim, control_dim))
+    if state_dim >= 9:
+        B[6:9, 0:3] = dt * np.eye(3)  # da/du
+    try:
+        P = solve_discrete_are(A, B, Q, R)
+        # Symmetrise to eliminate floating-point asymmetry
+        P = (P + P.T) / 2.0
+    except Exception:
+        # Fall back to a scaled identity if DARE fails
+        P = np.eye(state_dim) * 10.0
+    return P
 
 
 class MPCSolver:
@@ -259,220 +243,121 @@ class MPCSolver:
             }
 
 
-class DMPC(nn.Module):
+class DMPC:
     """
-    DMPC combining:
-    - CVXPY/OSQP for constraint-guaranteed convex optimization
-    - PyTorch for learning adaptive parameters
+    Pure DMPC controller using CVXPY/OSQP.
+
+    All decisions are made through convex optimisation — no neural
+    networks or learning layers.  The terminal cost matrix P is
+    computed once from the DARE and kept fixed throughout operation.
+
+    Usage::
+
+        config = DMPCConfig()
+        controller = DMPC(config)
+        u_opt, info = controller(x0, x_ref)
+        # info keys: 'status', 'solve_time', 'objective', 'x_trajectory'
     """
-    
-    def __init__(self, config: DMPCConfig):
-        super().__init__()
+
+    def __init__(self, config: DMPCConfig) -> None:
         self.config = config
-        self.device = torch.device(config.device)
-        
-        # CVXPY solver (classical convex optimization)
+
+        # CVXPY/OSQP solver
         self.cvxpy_solver = MPCSolver(config)
-        
-        # PyTorch learning modules
-        self.cost_weight_network = CostWeightNetwork(config.state_dim).to(self.device)
-        self.dynamics_residual = DynamicsResidualNetwork(config.state_dim, config.control_dim).to(self.device)
-        self.terminal_value = ValueNetworkMPC(config.state_dim).to(self.device)
-        
-        # Optimizers for learning modules
-        self.learning_optimizer = optim.Adam(
-            list(self.cost_weight_network.parameters()) +
-            list(self.dynamics_residual.parameters()) +
-            list(self.terminal_value.parameters()),
-            lr=1e-3
-        )
-        
-        # Base matrices (numpy, updated via scales)
-        self.Q_base = config.Q_base
-        self.R_base = config.R_base
-        self.P_base = config.P_base
-    
-    def _get_linearized_dynamics(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+
+        # Fixed cost matrices (no NN scaling)
+        self.Q = config.Q_base.copy()
+        self.R = config.R_base.copy()
+        self.P = config.P_base.copy()
+
+    def _get_linearized_dynamics(self) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Get linearized dynamics A, B matrices
-        
-        For simplified model: x_{k+1} = x_k + v*dt + 0.5*a*dt²
-        Returns Jacobians A = I + diag(...), B = diag(...)
+        Return the constant linearised dynamics matrices A and B.
+
+        State layout: x = [p(3), v(3), a(3), yaw, yaw_rate]
         """
         A = np.eye(self.config.state_dim)
-        # Partial derivatives w.r.t. position, velocity, acceleration
         A[0:3, 3:6] = self.config.dt * np.eye(3)  # dp/dv
         A[3:6, 6:9] = self.config.dt * np.eye(3)  # dv/da
-        
+
         B = np.zeros((self.config.state_dim, self.config.control_dim))
         B[6:9, 0:3] = self.config.dt * np.eye(3)  # da/du
-        
+
         return A, B
-    
-    def forward(self, x: np.ndarray, x_ref: np.ndarray,
-                neighbor_states: List[np.ndarray] = None) -> Tuple[np.ndarray, Dict]:
+
+    def __call__(
+        self,
+        x: np.ndarray,
+        x_ref: np.ndarray,
+        neighbor_states: Optional[List[np.ndarray]] = None,
+    ) -> Tuple[np.ndarray, Dict]:
         """
-        Solve hybrid MPC: CVXPY solver + PyTorch adaptation
-        
+        Compute the optimal control sequence for the current state.
+
         Args:
-            x: Current state [11]
-            x_ref: Reference trajectory [20, 11]
-            neighbor_states: List of neighbor states for collision avoidance
-        
+            x:               Current state vector of shape ``(state_dim,)``.
+            x_ref:           Reference trajectory of shape
+                             ``(horizon, state_dim)`` or
+                             ``(horizon+1, state_dim)``.
+            neighbor_states: List of neighbour state vectors used for
+                             collision avoidance.  Only the first 3
+                             components (position) are used.
+
         Returns:
-            u_opt: Optimal control [20, 3]
-            info: Solver information
+            u_opt: Optimal control sequence ``(horizon, control_dim)``.
+            info:  Dictionary with keys ``status``, ``solve_time``,
+                   ``objective``, and optionally ``x_trajectory``.
         """
-        # Convert to torch for learning networks
-        x_torch = torch.from_numpy(x.astype(np.float32)).to(self.device)
-        x_ref_torch = torch.from_numpy(x_ref.astype(np.float32)).to(self.device)
-        
-        # Step 1: Get base dynamics (linearized)
-        A, B = self._get_linearized_dynamics(x)
-        
-        # Step 2: PyTorch - Compute adaptive cost weights
-        with torch.no_grad():
-            weight_scales = self.cost_weight_network(x_torch.unsqueeze(0)).squeeze(0)
-            Q_scale, R_scale, P_scale = weight_scales[0].item(), weight_scales[1].item(), weight_scales[2].item()
-        
-        Q = self.Q_base * Q_scale
-        R = self.R_base * R_scale
-        P = self.P_base * P_scale
-        
-        # Step 3: PyTorch - Compute residual dynamics correction
-        u_ref = np.zeros((self.config.horizon, self.config.control_dim))
-        residual_correction = np.zeros((self.config.state_dim, self.config.horizon))
-        
-        with torch.no_grad():
-            for k in range(self.config.horizon):
-                x_k_torch = torch.from_numpy(x.astype(np.float32)).to(self.device)
-                u_k_torch = torch.from_numpy(u_ref[k].astype(np.float32)).to(self.device)
-                
-                residual_k = self.dynamics_residual(
-                    x_k_torch.unsqueeze(0),
-                    u_k_torch.unsqueeze(0)
-                ).squeeze(0)
-                
-                residual_correction[:, k] = residual_k.cpu().numpy()
-        
-        # Step 4: CVXPY - Solve convex QP
-        neighbor_positions = None
+        A, B = self._get_linearized_dynamics()
+
+        neighbor_positions: Optional[List[np.ndarray]] = None
         if neighbor_states is not None:
-            neighbor_positions = [state[:3] for state in neighbor_states]
-        
-        u_opt, solve_info = self.cvxpy_solver.solve(
-            x0=x, x_ref=x_ref, A=A, B=B, Q=Q, R=R, P=P,
-            neighbor_positions=neighbor_positions
+            neighbor_positions = [s[:3] for s in neighbor_states]
+
+        return self.cvxpy_solver.solve(
+            x0=x,
+            x_ref=x_ref,
+            A=A,
+            B=B,
+            Q=self.Q,
+            R=self.R,
+            P=self.P,
+            neighbor_positions=neighbor_positions,
         )
-        
-        return u_opt, {
-            **solve_info,
-            'weight_scales': (Q_scale, R_scale, P_scale),
-            'residual_correction': residual_correction
-        }
-    
-    def learn_from_trajectory(self, states: torch.Tensor, actions: torch.Tensor,
-                             next_states: torch.Tensor, rewards: torch.Tensor,
-                             batch_size: int = 32, epochs: int = 10):
-        """
-        Learn correction models from collected experience
-        
-        Args:
-            states: [N, state_dim]
-            actions: [N, control_dim]
-            next_states: [N, state_dim]
-            rewards: [N]
-        """
-        states = states.to(self.device)
-        actions = actions.to(self.device)
-        next_states = next_states.to(self.device)
-        rewards = rewards.to(self.device)
-        
-        for epoch in range(epochs):
-            epoch_loss = 0
-            
-            # Mini-batch training
-            for i in range(0, len(states), batch_size):
-                batch_end = min(i + batch_size, len(states))
-                batch_states = states[i:batch_end]
-                batch_actions = actions[i:batch_end]
-                batch_next = next_states[i:batch_end]
-                batch_rewards = rewards[i:batch_end]
-                
-                # Residual dynamics loss
-                A, B = self._get_linearized_dynamics(batch_states[0].cpu().numpy())
-                A_torch = torch.from_numpy(A).to(self.device).float()
-                B_torch = torch.from_numpy(B).to(self.device).float()
-                
-                x_next_linear = batch_states @ A_torch.T + batch_actions @ B_torch.T
-                residual_pred = self.dynamics_residual(batch_states, batch_actions)
-                x_next_pred = x_next_linear + residual_pred
-                
-                residual_loss = ((x_next_pred - batch_next) ** 2).mean()
-                
-                # Value function loss
-                terminal_value_pred = self.terminal_value(batch_next).squeeze(-1)
-                value_target = batch_rewards + 0.99 * terminal_value_pred.detach()
-                value_loss = ((self.terminal_value(batch_states).squeeze(-1) - value_target) ** 2).mean()
-                
-                # Total loss
-                total_loss = residual_loss + 0.1 * value_loss
-                
-                self.learning_optimizer.zero_grad()
-                total_loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.parameters(), 1.0)
-                self.learning_optimizer.step()
-                
-                epoch_loss += total_loss.item()
-            
-            if (epoch + 1) % 5 == 0:
-                print(f"Epoch {epoch+1}/{epochs}, Loss: {epoch_loss/max(1, len(states)//batch_size):.6f}")
-    
-    def save_checkpoint(self, path: str):
-        """Save learned modules"""
-        torch.save({
-            'cost_weight': self.cost_weight_network.state_dict(),
-            'dynamics_residual': self.dynamics_residual.state_dict(),
-            'terminal_value': self.terminal_value.state_dict(),
-            'optimizer': self.learning_optimizer.state_dict(),
-        }, path)
-        print(f"Saved checkpoint to {path}")
-    
-    def load_checkpoint(self, path: str):
-        """Load learned modules"""
-        checkpoint = torch.load(path, map_location=self.device)
-        self.cost_weight_network.load_state_dict(checkpoint['cost_weight'])
-        self.dynamics_residual.load_state_dict(checkpoint['dynamics_residual'])
-        self.terminal_value.load_state_dict(checkpoint['terminal_value'])
-        self.learning_optimizer.load_state_dict(checkpoint['optimizer'])
-        print(f"Loaded checkpoint from {path}")
+
+    def save_config(self, path: str) -> None:
+        """Persist cost matrices and configuration to a NumPy archive."""
+        np.savez(
+            path,
+            Q=self.Q,
+            R=self.R,
+            P=self.P,
+            horizon=np.array(self.config.horizon),
+            dt=np.array(self.config.dt),
+            accel_max=np.array(self.config.accel_max),
+            collision_radius=np.array(self.config.collision_radius),
+        )
+        print(f"DMPC config saved to {path}")
+
+    def load_config(self, path: str) -> None:
+        """Restore cost matrices from a NumPy archive."""
+        data = np.load(path)
+        self.Q = data["Q"]
+        self.R = data["R"]
+        self.P = data["P"]
+        print(f"DMPC config loaded from {path}")
 
 
-# Usage example
 if __name__ == "__main__":
-    config = DMPCConfig(device="cpu")
-    hybrid_mpc = DMPC(config)
-    
-    # Example: solve MPC problem
+    config = DMPCConfig()
+    controller = DMPC(config)
+
     x0 = np.random.randn(11).astype(np.float32)
-    x_ref = np.random.randn(20, 11).astype(np.float32)
-    
-    u_opt, info = hybrid_mpc(x0, x_ref)
-    
-    print(f"✓ Hybrid DMPC solve successful")
-    print(f"  Status: {info['status']}")
-    print(f"  Solve time: {info['solve_time']:.6f}s")
-    print(f"  Control shape: {u_opt.shape}")
-    print(f"  Cost scales: Q={info['weight_scales'][0]:.3f}, R={info['weight_scales'][1]:.3f}, P={info['weight_scales'][2]:.3f}")
-    
-    # Example: collect experience and train learning modules
-    states = torch.randn(100, 11)
-    actions = torch.randn(100, 3)
-    next_states = torch.randn(100, 11)
-    rewards = torch.randn(100)
-    
-    print("\nTraining learning modules...")
-    hybrid_mpc.learn_from_trajectory(states, actions, next_states, rewards, epochs=5)
-    
-    # Save checkpoint
-    hybrid_mpc.save_checkpoint("hybrid_mpc_checkpoint.pt")
+    x_ref = np.random.randn(21, 11).astype(np.float32)
+
+    u_opt, info = controller(x0, x_ref)
+
+    print("✓ Pure DMPC solve successful")
+    print(f"  Status:       {info['status']}")
+    print(f"  Solve time:   {info['solve_time']:.6f}s")
+    print(f"  Control shape:{u_opt.shape}")

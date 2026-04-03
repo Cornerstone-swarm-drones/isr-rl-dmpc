@@ -1,0 +1,49 @@
+# ISR-DMPC Configuration — Pure DMPC Controller Parameters
+#
+# This file configures the Distributed Model Predictive Controller (DMPC)
+# used in swarm drone ISR missions.  All reinforcement-learning / neural-
+# network parameters have been removed; the controller relies solely on
+# convex optimisation (CVXPY / OSQP).
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MPC Solver
+# ─────────────────────────────────────────────────────────────────────────────
+dmpc:
+  prediction_horizon: 20       # N — number of look-ahead steps
+  dt: 0.02                     # Discretisation time step [s]  (50 Hz)
+  accel_max: 10.0              # Maximum acceleration norm [m/s²]
+  collision_radius: 5.0        # Minimum inter-drone separation [m]
+  solver_timeout: 0.01         # OSQP time limit per solve [s]
+
+  # OSQP convergence tolerances
+  osqp_max_iter: 3000
+  osqp_eps_abs: 1.0e-3
+  osqp_eps_rel: 1.0e-3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cost matrices
+# Default values; override at runtime via DMPCConfig keyword arguments.
+# ─────────────────────────────────────────────────────────────────────────────
+cost:
+  # Diagonal of Q (state tracking, state_dim = 11)
+  Q_diag: 1.0                  # Scalar applied to identity
+  # Diagonal of R (control effort, control_dim = 3)
+  R_diag: 0.1
+  # P is computed automatically from the DARE; no manual override needed.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Attitude Controller
+# ─────────────────────────────────────────────────────────────────────────────
+attitude:
+  Kp_attitude: 4.5
+  Kd_attitude: 1.5
+  Kp_position: 2.0
+  Kd_position: 1.5
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stability Analysis
+# ─────────────────────────────────────────────────────────────────────────────
+stability:
+  # State subspace for analysis (translational: [p, v, a] = 9 states)
+  analysis_state_dim: 9
+  cbf_alpha: 0.3               # CBF class-K parameter α ∈ (0, 1]
