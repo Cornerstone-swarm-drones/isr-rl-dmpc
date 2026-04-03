@@ -23,8 +23,8 @@ n_drones    (int, default 4)  — number of drones in the swarm
 n_targets   (int, default 2)  — number of targets to track
 dt          (float, default 0.02) — physics / DMPC time step [s]
 horizon     (int, default 20) — DMPC prediction horizon
-accel_max   (float, default 10.0) — maximum acceleration [m/s²]
-collision_radius (float, default 5.0) — minimum inter-drone separation [m]
+accel_max   (float, default 8.0) — maximum acceleration [m/s²]
+collision_radius (float, default 3.0) — minimum inter-drone separation [m]
 seed        (int, default 42) — random seed for reproducibility
 """
 
@@ -104,8 +104,8 @@ class SwarmDMPCSimNode(Node):
         self.declare_parameter("n_targets", 2)
         self.declare_parameter("dt", 0.02)
         self.declare_parameter("horizon", 20)
-        self.declare_parameter("accel_max", 10.0)
-        self.declare_parameter("collision_radius", 5.0)
+        self.declare_parameter("accel_max", 8.0)
+        self.declare_parameter("collision_radius", 3.0)
         self.declare_parameter("seed", 42)
 
         self._n_drones: int = self.get_parameter("n_drones").value

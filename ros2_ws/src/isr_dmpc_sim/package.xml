@@ -24,6 +24,11 @@
   <depend>tf2_geometry_msgs</depend>
   <depend>rviz2</depend>
 
+  <!-- Optional: real-hardware MAVLink bridge via MAVROS.
+       Install with: sudo apt install ros-humble-mavros ros-humble-mavros-extras
+       Only required when use_sim:=false is passed to the launch file.       -->
+  <exec_depend condition="$ROS_VERSION == 2">mavros_msgs</exec_depend>
+
   <!-- Test dependencies -->
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
