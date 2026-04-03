@@ -28,6 +28,7 @@ References
 
 from __future__ import annotations
 
+import math
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -600,7 +601,6 @@ class DMPCStabilityAnalyzer:
         #     horizon_ok = True when ρ^{2N} ≤ 1 (always True when ρ < 1
         #     given a sufficient finite horizon).
         rho = float(np.max(np.abs(eigvals(A_cl))))
-        import math
         if rho < 1.0:
             # minimum N so that ρ^{2N} V_max ≤ c where V_max = λ_max(P)·c
             # (worst-case unit-normalised error times c-scaling)
@@ -612,7 +612,6 @@ class DMPCStabilityAnalyzer:
         # Terminal ellipsoid volume ∝ c^{n/2} / sqrt(det P)
         det_P = float(np.linalg.det(self.P))
         if det_P > 0:
-            import math
             vol = (c ** (n / 2.0)) / math.sqrt(det_P)
         else:
             vol = 0.0

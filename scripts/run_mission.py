@@ -66,13 +66,23 @@ def run_episode(
     while not done and steps < max_steps:
         # Flatten observation to get first drone's state
         flat_obs = agent.flatten_obs(obs)
+        if len(flat_obs) < 11:
+            logger.warning(
+                "Observation length %d < 11; padding with zeros.", len(flat_obs)
+            )
         state = flat_obs[:11] if len(flat_obs) >= 11 else np.pad(flat_obs, (0, 11 - len(flat_obs)))
         x_ref = build_reference_from_obs(obs, horizon=agent.dmpc.config.horizon)
 
         motor_cmds, info = agent.act(state, x_ref)
 
-        # Step environment with first-drone action (simplified)
-        action = motor_cmds if env.action_space.contains(motor_cmds) else env.action_space.sample()
+        # Step environment with first-drone action
+        if not env.action_space.contains(motor_cmds):
+            logger.warning(
+                "DMPC motor commands are outside the action space; "
+                "check DMPCAgent output shape and dtype.  "
+                "motor_cmds=%s", motor_cmds
+            )
+        action = motor_cmds
         obs, reward, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
 

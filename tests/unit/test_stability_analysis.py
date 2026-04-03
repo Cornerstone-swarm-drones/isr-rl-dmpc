@@ -20,7 +20,11 @@ from isr_rl_dmpc.analysis import (
 
 @pytest.fixture
 def analyzer():
-    # 9-state controllable translational subsystem: [p(3), v(3), a(3)]
+    # Use the 9-state translational controllable subsystem [p(3), v(3), a(3)].
+    # Yaw and yaw-rate (state indices 9-10 in the 11-state vector) are NOT
+    # driven by the translational acceleration inputs [ax, ay, az] and are
+    # therefore excluded from this analysis — they are stabilised independently
+    # by the geometric SO(3) attitude controller.
     return DMPCStabilityAnalyzer(
         state_dim=9,
         control_dim=3,
