@@ -60,6 +60,34 @@ from builtin_interfaces.msg import Time
 
 
 # ---------------------------------------------------------------------------
+# Visualisation constants
+# ---------------------------------------------------------------------------
+
+# Drone body dimensions (metres)
+_DRONE_BODY_RADIUS: float = 0.8
+_DRONE_BODY_HEIGHT: float = 0.3
+
+# Propeller disc (transparent flat cylinder above the body)
+_DISC_RADIUS: float = 1.6
+_DISC_HEIGHT: float = 0.05
+_DISC_Z_OFFSET: float = 0.2
+_DISC_ALPHA: float = 0.3  # translucency so the body remains visible underneath
+
+# Trajectory line width
+_TRAJ_LINE_WIDTH: float = 0.15
+_TRAJ_ALPHA: float = 0.6
+
+# Text label z-offset above the body
+_LABEL_Z_OFFSET: float = 1.2
+_LABEL_SCALE: float = 1.0
+
+# Target sphere diameter and label offset
+_TARGET_SPHERE_DIAM: float = 2.0
+_TARGET_LABEL_Z_OFFSET: float = 2.5
+_TARGET_LABEL_SCALE: float = 1.2
+
+
+# ---------------------------------------------------------------------------
 # Colour helpers
 # ---------------------------------------------------------------------------
 
@@ -207,7 +235,7 @@ class RVizBridgeNode(Node):
             body.type = Marker.CYLINDER
             body.action = Marker.ADD
             body.pose = pose
-            body.scale = Vector3(x=0.8, y=0.8, z=0.3)
+            body.scale = Vector3(x=_DRONE_BODY_RADIUS, y=_DRONE_BODY_RADIUS, z=_DRONE_BODY_HEIGHT)
             body.color = color
             body.lifetime = Duration(seconds=0).to_msg()  # persistent
             marker_array.markers.append(body)
@@ -221,11 +249,11 @@ class RVizBridgeNode(Node):
             disc.action = Marker.ADD
             disc.pose.position.x = pose.position.x
             disc.pose.position.y = pose.position.y
-            disc.pose.position.z = pose.position.z + 0.2
+            disc.pose.position.z = pose.position.z + _DISC_Z_OFFSET
             disc.pose.orientation = pose.orientation
-            disc.scale = Vector3(x=1.6, y=1.6, z=0.05)
+            disc.scale = Vector3(x=_DISC_RADIUS, y=_DISC_RADIUS, z=_DISC_HEIGHT)
             disc_color = _drone_color(i)
-            disc_color.a = 0.3
+            disc_color.a = _DISC_ALPHA
             disc.color = disc_color
             disc.lifetime = body.lifetime
             marker_array.markers.append(disc)
@@ -239,9 +267,9 @@ class RVizBridgeNode(Node):
                 traj.id = i
                 traj.type = Marker.LINE_STRIP
                 traj.action = Marker.ADD
-                traj.scale.x = 0.15  # line width
+                traj.scale.x = _TRAJ_LINE_WIDTH
                 line_color = _drone_color(i)
-                line_color.a = 0.6
+                line_color.a = _TRAJ_ALPHA
                 traj.color = line_color
                 traj.points = list(self._drone_trajectories[i])
                 traj.lifetime = body.lifetime
@@ -257,9 +285,9 @@ class RVizBridgeNode(Node):
             label.action = Marker.ADD
             label.pose.position.x = pose.position.x
             label.pose.position.y = pose.position.y
-            label.pose.position.z = pose.position.z + 1.2
+            label.pose.position.z = pose.position.z + _LABEL_Z_OFFSET
             label.pose.orientation.w = 1.0
-            label.scale.z = 1.0
+            label.scale.z = _LABEL_SCALE
             label.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
             label.text = f"D{i}"
             label.lifetime = body.lifetime
@@ -284,7 +312,7 @@ class RVizBridgeNode(Node):
             sphere.type = Marker.SPHERE
             sphere.action = Marker.ADD
             sphere.pose = pose
-            sphere.scale = Vector3(x=2.0, y=2.0, z=2.0)
+            sphere.scale = Vector3(x=_TARGET_SPHERE_DIAM, y=_TARGET_SPHERE_DIAM, z=_TARGET_SPHERE_DIAM)
             sphere.color = ColorRGBA(r=1.0, g=0.2, b=0.1, a=0.85)
             sphere.lifetime = Duration(seconds=0).to_msg()
             marker_array.markers.append(sphere)
@@ -298,9 +326,9 @@ class RVizBridgeNode(Node):
             lbl.action = Marker.ADD
             lbl.pose.position.x = pose.position.x
             lbl.pose.position.y = pose.position.y
-            lbl.pose.position.z = pose.position.z + 2.5
+            lbl.pose.position.z = pose.position.z + _TARGET_LABEL_Z_OFFSET
             lbl.pose.orientation.w = 1.0
-            lbl.scale.z = 1.2
+            lbl.scale.z = _TARGET_LABEL_SCALE
             lbl.color = ColorRGBA(r=1.0, g=0.9, b=0.2, a=1.0)
             lbl.text = f"T{j}"
             lbl.lifetime = sphere.lifetime

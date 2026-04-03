@@ -205,12 +205,14 @@ class SwarmDMPCSimNode(Node):
         state[0:3] = drone.position
         state[3:6] = drone.velocity
         state[6:9] = drone.acceleration if hasattr(drone, "acceleration") else np.zeros(3)
-        # Derive yaw from quaternion [w, x, y, z]
-        q = drone.q
+        # Derive yaw from ZYX Euler convention.
+        # DronePhysics stores quaternion as q = [w, x, y, z].
+        # Yaw (rotation about world Z) = atan2(2(wz + xy), 1 - 2(y² + z²)).
+        q = drone.q  # [w, x, y, z]
         yaw = math.atan2(2.0 * (q[0] * q[3] + q[1] * q[2]),
                          1.0 - 2.0 * (q[2] ** 2 + q[3] ** 2))
         state[9] = yaw
-        state[10] = drone.angular_velocity[2] if hasattr(drone, "angular_velocity") else 0.0
+        state[10] = drone.angular_velocity[2]  # yaw rate (ω_z in body/world frame)
         return state
 
     def _build_reference(self, drone_id: int) -> np.ndarray:
@@ -244,13 +246,11 @@ class SwarmDMPCSimNode(Node):
             solve_times.append(float(info.get("solve_time", 0.0)))
 
             # Apply the commanded acceleration to the physics engine.
-            # The attitude controller inside DMPCAgent converts the DMPC
-            # acceleration to motor thrusts; here we directly set the drone
-            # acceleration for simplicity (the simulator uses it in RK4).
+            # DronePhysics.acceleration (always present) is consumed by the RK4
+            # integrator in drone.step(); injecting the DMPC output here feeds
+            # the desired acceleration into the next physics substep.
             dmpc_u = info.get("u0", np.zeros(3))
-            drone = self._sim.drones[i]
-            if hasattr(drone, "acceleration"):
-                drone.acceleration = np.asarray(dmpc_u, dtype=float)
+            self._sim.drones[i].acceleration = np.asarray(dmpc_u, dtype=float)
 
         # ── Step physics ───────────────────────────────────────────────────
         wind = self._sim.wind_model.update(self._dt)
