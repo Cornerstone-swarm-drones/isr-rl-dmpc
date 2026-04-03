@@ -1,18 +1,23 @@
 """
-Pretrained Models - Checkpoint Management and Model Registry
+Checkpoint Utilities — Generic file-based persistence helpers.
 
-Provides utilities for saving, loading, and cataloguing trained model
-checkpoints used across the ISR-RL-DMPC system (value networks, policy
-networks, RF classifiers, etc.).
+Provides a lightweight :class:`ModelRegistry` for organising named
+configuration or parameter archives on disk, plus standalone
+:func:`save_checkpoint` / :func:`load_checkpoint` helpers used by the
+DMPC controller.
+
+All neural-network-specific logic (PyTorch state-dict handling, etc.)
+has been removed.  Archives are now plain NumPy ``.npz`` or JSON files.
 """
 
-import torch
-import torch.nn as nn
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Type
-import logging
-from dataclasses import dataclass, field, asdict
+from __future__ import annotations
+
 import json
+import logging
+import numpy as np
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -20,26 +25,26 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ModelMetadata:
     """
-    Metadata associated with a saved model checkpoint.
+    Metadata associated with a saved configuration checkpoint.
 
     Attributes:
-        name: Human-readable model name
-        version: Semantic version string
-        state_dim: Dimension of the state space the model was trained on
-        action_dim: Dimension of the action space (0 for state-value models)
-        training_steps: Total training steps completed
-        metrics: Dictionary of evaluation metrics (e.g. loss, reward)
+        name:           Human-readable model/config name.
+        version:        Semantic version string.
+        state_dim:      Dimension of the state space.
+        control_dim:    Dimension of the control/action space.
+        training_steps: Reserved field (always 0 for pure DMPC configs).
+        metrics:        Dictionary of evaluation metrics.
     """
 
     name: str = ""
     version: str = "0.1.0"
     state_dim: int = 0
-    action_dim: int = 0
+    control_dim: int = 0
     training_steps: int = 0
     metrics: Dict = field(default_factory=dict)
 
     def to_dict(self) -> Dict:
-        """Convert to JSON-serializable dictionary."""
+        """Convert to JSON-serialisable dictionary."""
         return asdict(self)
 
     @classmethod
@@ -50,201 +55,140 @@ class ModelMetadata:
 
 class ModelRegistry:
     """
-    Registry for managing saved model checkpoints on disk.
-
-    Stores each model as a directory containing a checkpoint file and a
-    JSON metadata sidecar under the configured registry root.
+    Registry for managing saved configuration checkpoints on disk.
 
     Directory layout::
 
         registry_dir/
-        ├── model_a/
-        │   ├── checkpoint.pt
+        ├── config_a/
+        │   ├── checkpoint.npz
         │   └── metadata.json
-        └── model_b/
-            ├── checkpoint.pt
+        └── config_b/
+            ├── checkpoint.npz
             └── metadata.json
     """
 
-    _CHECKPOINT_FILE = "checkpoint.pt"
+    _CHECKPOINT_FILE = "checkpoint.npz"
     _METADATA_FILE = "metadata.json"
 
-    def __init__(self, registry_dir: Path):
-        """
-        Initialize model registry.
-
-        Args:
-            registry_dir: Root directory for storing model checkpoints
-        """
+    def __init__(self, registry_dir: Path) -> None:
         self.registry_dir = Path(registry_dir)
         self.registry_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"ModelRegistry initialized at {self.registry_dir}")
+        logger.info("ModelRegistry initialised at %s", self.registry_dir)
 
-    def register(self, name: str, model: nn.Module,
-                 metadata: Optional[ModelMetadata] = None) -> Path:
+    def register(
+        self,
+        name: str,
+        data: Dict[str, Any],
+        metadata: Optional[ModelMetadata] = None,
+    ) -> Path:
         """
-        Save a model and its metadata to the registry.
+        Save a NumPy data dictionary and optional metadata to the registry.
 
         Args:
-            name: Unique model name (used as directory name)
-            model: PyTorch model to save
-            metadata: Optional metadata; a default is created if not provided
+            name:     Unique configuration name (used as directory name).
+            data:     Dictionary mapping string keys to NumPy-serialisable
+                      values (arrays, scalars, strings).
+            metadata: Optional :class:`ModelMetadata` instance.
 
         Returns:
-            Path to the saved checkpoint directory
+            Path to the saved checkpoint directory.
         """
         model_dir = self.registry_dir / name
         model_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save checkpoint
         ckpt_path = model_dir / self._CHECKPOINT_FILE
-        torch.save(model.state_dict(), ckpt_path)
+        np.savez(ckpt_path, **{k: np.asarray(v) for k, v in data.items()})
 
-        # Save metadata
         if metadata is None:
             metadata = ModelMetadata(name=name)
         meta_path = model_dir / self._METADATA_FILE
         with open(meta_path, "w") as f:
             json.dump(metadata.to_dict(), f, indent=2)
 
-        logger.info(f"Registered model '{name}' at {model_dir}")
+        logger.info("Registered config '%s' at %s", name, model_dir)
         return model_dir
 
-    def load(self, name: str,
-             model_class: Optional[Type[nn.Module]] = None,
-             **model_kwargs) -> Tuple[Optional[nn.Module], ModelMetadata]:
+    def load(self, name: str) -> tuple[Dict[str, Any], ModelMetadata]:
         """
-        Load a model and its metadata from the registry.
-
-        If *model_class* and *model_kwargs* are provided, an instance is
-        created and the saved state dict is loaded into it. Otherwise only
-        the raw state dict is returned via the metadata's metrics field.
+        Load a configuration and its metadata from the registry.
 
         Args:
-            name: Model name (directory name in registry)
-            model_class: Optional class to instantiate
-            **model_kwargs: Keyword arguments forwarded to model_class()
+            name: Configuration name (directory name in registry).
 
         Returns:
-            Tuple of (model_instance_or_None, metadata)
+            Tuple of ``(data_dict, metadata)``.
         """
         model_dir = self.registry_dir / name
         if not model_dir.exists():
-            raise FileNotFoundError(f"Model '{name}' not found in registry")
+            raise FileNotFoundError(f"Config '{name}' not found in registry")
 
         metadata = self.get_metadata(name)
-
-        model = None
         ckpt_path = model_dir / self._CHECKPOINT_FILE
-        if model_class is not None:
-            model = model_class(**model_kwargs)
-            state_dict = torch.load(ckpt_path, map_location="cpu", weights_only=True)
-            model.load_state_dict(state_dict)
-            logger.info(f"Loaded model '{name}' ({model_class.__name__})")
-        else:
-            logger.info(f"Loaded metadata for '{name}' (no model_class provided)")
-
-        return model, metadata
+        raw = np.load(ckpt_path)
+        data = {k: raw[k] for k in raw.files}
+        logger.info("Loaded config '%s'", name)
+        return data, metadata
 
     def list_models(self) -> List[str]:
-        """
-        List all registered model names.
-
-        Returns:
-            Sorted list of model names present in the registry
-        """
+        """Return sorted list of registered configuration names."""
         return sorted(
-            d.name for d in self.registry_dir.iterdir()
+            d.name
+            for d in self.registry_dir.iterdir()
             if d.is_dir() and (d / self._CHECKPOINT_FILE).exists()
         )
 
     def get_metadata(self, name: str) -> ModelMetadata:
-        """
-        Retrieve metadata for a registered model.
-
-        Args:
-            name: Model name
-
-        Returns:
-            ModelMetadata instance
-
-        Raises:
-            FileNotFoundError: If model or metadata file does not exist
-        """
+        """Retrieve metadata for a registered configuration."""
         meta_path = self.registry_dir / name / self._METADATA_FILE
         if not meta_path.exists():
             raise FileNotFoundError(
-                f"Metadata for model '{name}' not found at {meta_path}"
+                f"Metadata for '{name}' not found at {meta_path}"
             )
-        with open(meta_path, "r") as f:
+        with open(meta_path) as f:
             data = json.load(f)
         return ModelMetadata.from_dict(data)
 
 
 # ---------------------------------------------------------------------------
-# Standalone helper functions
+# Standalone helpers
 # ---------------------------------------------------------------------------
 
-def save_checkpoint(path: str, model: nn.Module,
-                    optimizer: Optional[torch.optim.Optimizer] = None,
-                    epoch: int = 0,
-                    metadata: Optional[Dict] = None) -> None:
+def save_checkpoint(path: str, data: Dict[str, Any], metadata: Optional[Dict] = None) -> None:
     """
-    Save a training checkpoint to disk.
+    Save a NumPy data dictionary to a ``.npz`` checkpoint file.
 
     Args:
-        path: File path for the checkpoint (e.g. ``checkpoints/step_1000.pt``)
-        model: PyTorch model whose state dict to save
-        optimizer: Optional optimizer whose state dict to save
-        epoch: Current training epoch / step counter
-        metadata: Optional dictionary of extra information
+        path:     Output file path (the ``.npz`` extension is added if absent).
+        data:     Dictionary of NumPy-serialisable values to persist.
+        metadata: Optional dictionary of scalar metadata values.
     """
-    ckpt: Dict = {
-        "model_state_dict": model.state_dict(),
-        "epoch": epoch,
-    }
-    if optimizer is not None:
-        ckpt["optimizer_state_dict"] = optimizer.state_dict()
-    if metadata is not None:
-        ckpt["metadata"] = metadata
-
     out_path = Path(path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(ckpt, out_path)
-    logger.info(f"Checkpoint saved to {out_path} (epoch={epoch})")
+    payload = {k: np.asarray(v) for k, v in data.items()}
+    if metadata:
+        # Store metadata as a JSON string in a dedicated array entry
+        payload["_metadata_json"] = np.array(json.dumps(metadata))
+    np.savez(out_path, **payload)
+    logger.info("Checkpoint saved to %s", out_path)
 
 
-def load_checkpoint(path: str,
-                    model: Optional[nn.Module] = None,
-                    optimizer: Optional[torch.optim.Optimizer] = None) -> Dict:
+def load_checkpoint(path: str) -> Dict[str, Any]:
     """
-    Load a training checkpoint from disk.
-
-    If *model* or *optimizer* are provided their state dicts are restored
-    in-place from the checkpoint.
+    Load a NumPy ``.npz`` checkpoint file.
 
     Args:
-        path: File path of the checkpoint
-        model: Optional model to restore weights into
-        optimizer: Optional optimizer to restore state into
+        path: File path of the checkpoint.
 
     Returns:
-        Full checkpoint dictionary (contains at least ``model_state_dict``
-        and ``epoch``).
+        Dictionary of arrays/values loaded from the archive.
     """
     ckpt_path = Path(path)
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint not found at {ckpt_path}")
-
-    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
-
-    if model is not None and "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"])
-        logger.info(f"Restored model weights from {ckpt_path}")
-
-    if optimizer is not None and "optimizer_state_dict" in ckpt:
-        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-        logger.info(f"Restored optimizer state from {ckpt_path}")
-
-    logger.info(f"Checkpoint loaded from {ckpt_path} (epoch={ckpt.get('epoch', 'N/A')})")
-    return ckpt
+    raw = np.load(ckpt_path, allow_pickle=False)
+    result: Dict[str, Any] = {k: raw[k] for k in raw.files}
+    if "_metadata_json" in result:
+        result["_metadata"] = json.loads(str(result.pop("_metadata_json")))
+    logger.info("Checkpoint loaded from %s", ckpt_path)
+    return result

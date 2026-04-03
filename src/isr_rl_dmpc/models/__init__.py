@@ -1,13 +1,14 @@
-"""ISR-RL-DMPC Models Module - ML/DL model architectures."""
+"""
+ISR-RL-DMPC Models Module.
 
-from .value_network import CriticNetwork
-from .rf_classifier import RFClassifier, RFFingerprint
+Neural-network model classes (CriticNetwork, RFClassifier) have been
+removed.  This module now exports only checkpoint utilities used to
+persist DMPC configuration data.
+"""
+
 from .pretrained_models import ModelRegistry, load_checkpoint, save_checkpoint
 
 __all__ = [
-    "CriticNetwork",
-    "RFClassifier",
-    "RFFingerprint",
     "ModelRegistry",
     "load_checkpoint",
     "save_checkpoint",
