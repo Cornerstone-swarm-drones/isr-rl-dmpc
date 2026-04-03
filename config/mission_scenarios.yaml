@@ -1,45 +1,83 @@
-# ISR-RL-DMPC Pre-Defined Mission Scenarios
+# ISR-RL-DMPC Mission Scenarios
+#
+# Three pre-defined real-world ISR applications.  All parameters are
+# sized for the hector_quadrotor reconnaissance variant (1.477 kg,
+# max_velocity 15 m/s, endurance ~22 min at 50 % throttle).
+#
+# Altitude AGL is kept below 120 m for regulatory compliance (BVLOS
+# waivers aside).  Communication ranges assume 900 MHz or 2.4 GHz
+# mesh radios with ~300 m reliable range in open terrain.
 
 area_surveillance:
-  description: "Persistent coverage of a designated area with uniform sensor sweep"
-  area_size: [500.0, 500.0] # m
+  description: >
+    Persistent wide-area coverage with uniform optical / RF sensor sweep.
+    Typical application: border monitoring, critical infrastructure
+    inspection, or search-and-rescue grid search.
+  area_size: [400.0, 400.0]    # m  (fits within ~22 min endurance at 10 m/s)
   num_drones: 4
   num_targets: 0
-  coverage_goal: 0.95
-  max_duration: 1800.0 # s
+  coverage_goal: 0.95          # fraction of area cells visited
+  max_duration: 1000.0         # s  (≈17 min — leaves ~5 min battery reserve for RTH)
   formation_type: "grid"
-  revisit_interval: 60.0 # s
+  revisit_interval: 120.0      # s  (each cell revisited every 2 min)
   priority_zones: []
-  communication_range: 150.0 # m
-  min_altitude: 20.0 # m
-  max_altitude: 80.0 # m
+  communication_range: 250.0   # m  (900 MHz mesh)
+  min_altitude: 30.0           # m  AGL  (clear of obstacles, FAA Class G)
+  max_altitude: 100.0          # m  AGL
+  drone_type: "reconnaissance"
+  sensor: "optical"
+  notes: >
+    Expand to 800×800 m by adding 4 more drones (8 total).  Ensure BVLOS
+    waiver or maintain visual line of sight from one ground operator.
 
 threat_response:
-  description: "Rapid detection and tracking of hostile targets entering the area"
-  area_size: [300.0, 300.0] # m
-  num_drones: 6
-  num_targets: 3
-  coverage_goal: 0.80
-  max_duration: 600.0 # s
+  description: >
+    Rapid detection and cooperative tracking of hostile / unknown aerial or
+    ground targets that enter the defended area.
+    Typical application: airbase perimeter, forward operating base, or VIP
+    event security.
+  area_size: [250.0, 250.0]    # m  (tight perimeter, fast response required)
+  num_drones: 4
+  num_targets: 2
+  coverage_goal: 0.85
+  max_duration: 600.0          # s  (10 min alert window)
   formation_type: "wedge"
   threat_level: "high"
-  response_time: 10.0 # s
-  intercept_radius: 50.0 # m
-  communication_range: 200.0 # m
-  min_altitude: 15.0 # m
-  max_altitude: 60.0 # m
+  response_time: 8.0           # s  (time-to-intercept from alert)
+  intercept_radius: 30.0       # m  (classification / ID distance)
+  communication_range: 200.0   # m
+  min_altitude: 20.0           # m  AGL
+  max_altitude: 80.0           # m  AGL
+  drone_type: "reconnaissance"
+  sensor: "optical"
+  dmpc_override:
+    accel_max: 8.0             # m/s²  (standard reconnaissance)
+    collision_radius: 3.0      # m
+  notes: >
+    Switch to "interceptor" drone_type for active neutralisation scenarios.
+    Increase accel_max to 12.0 m/s² in drone_specs.yaml interceptor.dmpc.
 
 search_and_track:
-  description: "Locate and maintain continuous tracking of mobile targets"
-  area_size: [800.0, 800.0] # m
-  num_drones: 5
-  num_targets: 4
+  description: >
+    Locate and maintain continuous cooperative tracking of mobile targets
+    across a large search area using sensor hand-off between drones.
+    Typical application: maritime patrol, wildlife poaching interdiction,
+    or disaster-survivor search.
+  area_size: [600.0, 600.0]    # m
+  num_drones: 4
+  num_targets: 3
   coverage_goal: 0.90
-  max_duration: 1200.0 # s
+  max_duration: 1000.0         # s  (≈17 min — leaves ~5 min reserve for RTH)
   formation_type: "line"
   search_pattern: "expanding_square"
-  track_handoff_range: 100.0 # m
-  target_velocity_estimate: 5.0 # m/s
-  communication_range: 180.0 # m
-  min_altitude: 25.0 # m
-  max_altitude: 100.0 # m
+  track_handoff_range: 80.0    # m  (optical sensor range / √2)
+  target_velocity_estimate: 3.0 # m/s  (walking-speed ground target)
+  communication_range: 250.0   # m
+  min_altitude: 40.0           # m  AGL  (wide-angle camera footprint)
+  max_altitude: 100.0          # m  AGL
+  drone_type: "reconnaissance"
+  sensor: "optical"
+  notes: >
+    For maritime targets (boats, ~10 m/s) increase target_velocity_estimate
+    to 10.0 m/s and use radar sensor.  Reduce min_altitude to 25 m for
+    better optical resolution.

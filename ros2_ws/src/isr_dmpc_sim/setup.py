@@ -13,6 +13,8 @@ setup(
         (f"share/{package_name}", ["package.xml"]),
         (os.path.join("share", package_name, "launch"), glob("launch/*.py")),
         (os.path.join("share", package_name, "config"), glob("config/*")),
+        (os.path.join("share", package_name, "meshes"), glob("meshes/*")),
+        (os.path.join("share", package_name, "urdf"), glob("urdf/*")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
@@ -24,6 +26,7 @@ setup(
         "console_scripts": [
             "swarm_dmpc_sim_node = isr_dmpc_sim.swarm_dmpc_sim_node:main",
             "rviz_bridge_node = isr_dmpc_sim.rviz_bridge_node:main",
+            "hardware_bridge_node = isr_dmpc_sim.hardware_bridge_node:main",
         ],
     },
 )

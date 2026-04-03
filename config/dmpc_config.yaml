@@ -4,6 +4,9 @@
 # used in swarm drone ISR missions.  All reinforcement-learning / neural-
 # network parameters have been removed; the controller relies solely on
 # convex optimisation (CVXPY / OSQP).
+#
+# Physical reference: hector_quadrotor airframe (1.477 kg, arm 0.215 m).
+# See config/drone_specs.yaml for the full drone specification.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MPC Solver
@@ -11,9 +14,13 @@
 dmpc:
   prediction_horizon: 20       # N — number of look-ahead steps
   dt: 0.02                     # Discretisation time step [s]  (50 Hz)
-  accel_max: 10.0              # Maximum acceleration norm [m/s²]
-  collision_radius: 5.0        # Minimum inter-drone separation [m]
-  solver_timeout: 0.01         # OSQP time limit per solve [s]
+  accel_max: 8.0               # Maximum acceleration norm [m/s²]
+                               # (conservative for real hardware; matches
+                               #  drone_specs.yaml reconnaissance.dmpc.accel_max)
+  collision_radius: 3.0        # Minimum inter-drone separation [m]
+                               # (~5× hector_quadrotor rotor span of 0.55 m)
+  solver_timeout: 0.015        # OSQP time limit per solve [s]
+                               # (raised from 0.01 s for hardware margin)
 
   # OSQP convergence tolerances
   osqp_max_iter: 3000
@@ -28,17 +35,30 @@ cost:
   # Diagonal of Q (state tracking, state_dim = 11)
   Q_diag: 1.0                  # Scalar applied to identity
   # Diagonal of R (control effort, control_dim = 3)
-  R_diag: 0.1
+  # Slightly increased to reduce aggressive manoeuvres on hardware.
+  R_diag: 0.15
   # P is computed automatically from the DARE; no manual override needed.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Attitude Controller
+# Gains tuned for hector_quadrotor inertia (Ixx=Iyy=0.01152, Izz=0.02180 kg·m²)
 # ─────────────────────────────────────────────────────────────────────────────
 attitude:
   Kp_attitude: 4.5
   Kd_attitude: 1.5
   Kp_position: 2.0
   Kd_position: 1.5
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Hardware safety limits
+# Applied by hardware_bridge_node when use_sim:=false
+# ─────────────────────────────────────────────────────────────────────────────
+hardware:
+  accel_clip: 8.0              # Hard clip on setpoint acceleration [m/s²]
+  watchdog_timeout: 0.5        # Seconds before hover-hold engages [s]
+  min_altitude: 1.5            # Minimum safe flight altitude [m AGL]
+  max_altitude: 120.0          # Maximum legal altitude (many countries) [m AGL]
+  geofence_radius: 600.0       # Default geofence radius from launch site [m]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stability Analysis

@@ -22,11 +22,19 @@ Simulation and visualisation run in **ROS2 + RViz2** — no third-party simulato
 - **Gymnasium-Compatible Environment** — `ISRGridEnv` with Dict observation spaces and
   multi-objective rewards for offline algorithm validation.
 - **6-DOF Physics Simulation** — Rigid-body dynamics with wind, battery depletion, and
-  collision detection.
+  collision detection, tuned for the hector_quadrotor airframe (1.477 kg).
+- **Open-Source Drone Model** — Uses the [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor)
+  COLLADA mesh and self-contained URDF (`urdf/drone.urdf`) for both RViz2 visualisation
+  and hardware deployment.  Replaces primitive cylinder shapes with a realistic 3-D model.
 - **ROS2 / RViz2 Simulation** — A ready-to-launch ROS2 Python package
   (`ros2_ws/src/isr_dmpc_sim`) publishes drone poses, target positions, DMPC metrics,
   per-drone trajectory paths, and interactive TF frames, all rendered live in RViz2.
+- **Hardware Transfer Ready** — `hardware_bridge_node` translates DMPC acceleration
+  commands to MAVROS `setpoint_accel` topics (PX4 / ArduPilot).  Switch from
+  simulation to live hardware with a single launch argument (`use_sim:=false`).
 - **Stability Analysis** — Lyapunov, eigenvalue, ISS, CBF, and recursive feasibility tools.
+- **Math / Control Optimisation Guide** — See [`docs/MATH_OPTIMIZATION.md`](docs/MATH_OPTIMIZATION.md)
+  for a comprehensive guide to improving DMPC performance on real hardware.
 
 ## Quick Start
 
@@ -71,10 +79,16 @@ ros2 launch isr_dmpc_sim swarm_simulation.launch.py
 # Optional overrides:
 ros2 launch isr_dmpc_sim swarm_simulation.launch.py \
     n_drones:=6 n_targets:=3 horizon:=20 dt:=0.02
+
+# Live hardware flight (PX4 via MAVROS, drone 0):
+# WARNING: arm_on_start:=true arms the vehicle 5 s after launch.
+# Ensure the drone is in a safe, flight-ready state before using this flag.
+ros2 launch isr_dmpc_sim swarm_simulation.launch.py \
+    use_sim:=false drone_id:=0 arm_on_start:=true
 ```
 
 RViz2 opens automatically with a pre-configured layout showing:
-- 3D drone bodies (cylinders) and trajectory ribbons
+- 3D hector_quadrotor mesh models (open-source COLLADA, TU Darmstadt) and trajectory ribbons
 - Target spheres colour-coded by threat level
 - TF frames for every drone
 - Live DMPC solve-time and tracking-error overlays
@@ -88,23 +102,36 @@ isr-rl-dmpc/
 │   ├── analysis/              # Stability analysis tools
 │   ├── core/                  # Data structures (DroneState, TargetState, MissionState)
 │   ├── gym_env/               # Gymnasium environment + 6-DOF physics simulator
-│   ├── models/                # Checkpoint utilities
+│   ├── models/
+│   │   └── meshes/hector_quadrotor/  # Open-source drone mesh source files
 │   ├── modules/               # 6 ISR modules + DMPC + attitude controller + analytics
 │   └── utils/                 # Math, logging, visualization, unit conversions
 ├── ros2_ws/                   # ROS2 workspace
 │   └── src/isr_dmpc_sim/      # ROS2 Python package
 │       ├── isr_dmpc_sim/
-│       │   ├── swarm_dmpc_sim_node.py  # Physics sim + DMPC loop (50 Hz)
-│       │   └── rviz_bridge_node.py     # Marker / TF / Path publisher (~15 Hz)
+│       │   ├── swarm_dmpc_sim_node.py   # Physics sim + DMPC loop (50 Hz)
+│       │   ├── rviz_bridge_node.py      # Mesh marker / TF / Path publisher (~15 Hz)
+│       │   └── hardware_bridge_node.py  # MAVROS hardware bridge (PX4/ArduPilot)
+│       ├── meshes/
+│       │   ├── quadrotor_base.dae       # hector_quadrotor COLLADA mesh (RViz2)
+│       │   ├── quadrotor_base.stl       # STL for collision geometry
+│       │   └── LICENSE.txt
+│       ├── urdf/
+│       │   └── drone.urdf               # Self-contained URDF (hardware deployment)
 │       ├── launch/
 │       │   └── swarm_simulation.launch.py
 │       └── config/
 │           └── simulation.rviz
 ├── scripts/                   # Standalone mission and evaluation scripts
 ├── config/                    # YAML configuration files
+│   ├── drone_specs.yaml       # hector_quadrotor-aligned physical parameters
+│   ├── dmpc_config.yaml       # Hardware-appropriate DMPC tuning
+│   └── mission_scenarios.yaml # Real-world ISR applications
 ├── tests/                     # Unit and integration tests
 ├── notebooks/                 # Jupyter tutorials
-└── docs/                      # Documentation
+└── docs/
+    ├── MATH_OPTIMIZATION.md   # Guide to optimising DMPC math & control
+    └── ...                    # Other documentation
 ```
 
 ## Documentation
@@ -114,6 +141,7 @@ isr-rl-dmpc/
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design patterns |
 | [MODULE_SPECS.md](docs/MODULE_SPECS.md) | Detailed module specifications |
 | [STABILITY_ANALYSIS.md](docs/STABILITY_ANALYSIS.md) | DMPC stability analysis |
+| [MATH_OPTIMIZATION.md](docs/MATH_OPTIMIZATION.md) | Guide to optimising DMPC math & control |
 | [PHASE_GUIDE.md](docs/PHASE_GUIDE.md) | Project phase descriptions |
 | [GYM_DESIGN.md](docs/GYM_DESIGN.md) | Gymnasium environment design |
 | [API_REFERENCE.md](docs/API_REFERENCE.md) | API documentation |
@@ -128,20 +156,22 @@ isr-rl-dmpc/
 | Terminal Cost | Discrete Algebraic Riccati Equation (SciPy DARE) |
 | Task Allocation | Hungarian Algorithm (SciPy) |
 | Scientific Computing | NumPy, SciPy, scikit-learn |
-| Physics Simulation | 6-DOF rigid-body (custom, no Gazebo) |
+| Physics Simulation | 6-DOF rigid-body (hector_quadrotor airframe, no Gazebo) |
+| Drone Model | [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor) COLLADA mesh + self-contained URDF |
 | ROS2 Simulation | rclpy, geometry_msgs, visualization_msgs, tf2, nav_msgs |
+| Hardware Interface | MAVROS (PX4 / ArduPilot) via `hardware_bridge_node` |
 | Visualisation | RViz2, Matplotlib |
 | Configuration | YAML with dataclass validation |
 
 ## Mission Scenarios
 
-Three pre-defined scenarios are available in `config/mission_scenarios.yaml`:
+Three pre-defined real-world ISR scenarios are available in `config/mission_scenarios.yaml`:
 
 | Scenario | Area | Drones | Targets | Formation | Duration |
 |---|---|---|---|---|---|
-| Area Surveillance | 500×500 m | 4 | 0 | Grid | 30 min |
-| Threat Response | 300×300 m | 6 | 3 | Wedge | 10 min |
-| Search & Track | 800×800 m | 5 | 4 | Line | 20 min |
+| Area Surveillance | 400×400 m | 4 | 0 | Grid | 20 min |
+| Threat Response | 250×250 m | 4 | 2 | Wedge | 10 min |
+| Search & Track | 600×600 m | 4 | 3 | Line | 20 min |
 
 ## License
 

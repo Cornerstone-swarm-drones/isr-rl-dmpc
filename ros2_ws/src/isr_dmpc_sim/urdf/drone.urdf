@@ -1,0 +1,135 @@
+<?xml version="1.0"?>
+<!--
+  drone.urdf — Self-contained URDF for the ISR-DMPC swarm drone.
+
+  Model source : hector_quadrotor (TU Darmstadt)
+                 https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor
+  Mesh licence : BSD (see meshes/LICENSE.txt)
+
+  Physical parameters are tuned for the hector_quadrotor airframe used in
+  the ISR-DMPC simulation and match the values in config/drone_specs.yaml
+  (reconnaissance variant).
+
+  Coordinate convention
+  ---------------------
+  - base_link  : body-fixed frame, origin at CoM, +Z up (NED → ENU converted).
+  - camera_link: forward-facing camera, 15° downward tilt (typical ISR gimbal).
+  - imu_link   : co-located with base_link for inertial sensing.
+  - GPS_link   : co-located with base_link, +Z up.
+
+  Usage with robot_state_publisher (hardware / HIL)
+  -------------------------------------------------
+    ros2 run robot_state_publisher robot_state_publisher \
+        --ros-args -p robot_description:="$(cat urdf/drone.urdf)"
+-->
+<robot name="isr_dmpc_drone">
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       BASE LINK  (CoM / body frame)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="base_link">
+
+    <inertial>
+      <!-- hector_quadrotor airframe: 1.477 kg -->
+      <mass value="1.477"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.01152" ixy="0.0" ixz="0.0"
+               iyy="0.01152" iyz="0.0"
+               izz="0.02180"/>
+    </inertial>
+
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://isr_dmpc_sim/meshes/quadrotor_base.dae"/>
+      </geometry>
+    </visual>
+
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <!-- Use STL for collision (lighter than COLLADA) -->
+        <mesh filename="package://isr_dmpc_sim/meshes/quadrotor_base.stl"/>
+      </geometry>
+    </collision>
+
+  </link>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       CAMERA LINK  (forward ISR camera, 15° downward tilt)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="camera_link"/>
+    <!-- Offset: 0.10 m forward, 0.0 lateral, -0.02 m below CoM -->
+    <origin xyz="0.10 0.0 -0.02" rpy="0 0.2618 0"/>
+  </joint>
+
+  <link name="camera_link">
+    <inertial>
+      <mass value="0.025"/>
+      <origin xyz="0 0 0"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.04 0.04 0.03"/>
+      </geometry>
+      <material name="camera_grey">
+        <color rgba="0.3 0.3 0.3 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.04 0.04 0.03"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       IMU LINK  (co-located with base_link)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="imu_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="imu_link">
+    <inertial>
+      <mass value="0.001"/>
+      <origin xyz="0 0 0"/>
+      <inertia ixx="1e-7" ixy="0" ixz="0" iyy="1e-7" iyz="0" izz="1e-7"/>
+    </inertial>
+  </link>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       GPS LINK
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <joint name="gps_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="gps_link"/>
+    <!-- GPS puck mounted on top of the body -->
+    <origin xyz="0 0 0.06" rpy="0 0 0"/>
+  </joint>
+
+  <link name="gps_link">
+    <inertial>
+      <mass value="0.010"/>
+      <origin xyz="0 0 0"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.015" length="0.008"/>
+      </geometry>
+      <material name="gps_white">
+        <color rgba="0.95 0.95 0.95 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+</robot>

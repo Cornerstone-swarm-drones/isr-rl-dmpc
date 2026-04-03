@@ -39,8 +39,7 @@ Visualization Manager:
       Enabled: true
       Name: DroneMarkers
       Namespaces:
-        drone_body: true
-        drone_disc: true
+        drone_mesh: true
         drone_trajectory: true
         drone_label: true
       Topic:

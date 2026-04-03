@@ -4,10 +4,16 @@ rviz_bridge_node.py — ROS2 node: RViz2 visualisation bridge.
 Subscribes to drone and target state topics published by
 ``swarm_dmpc_sim_node`` and converts them into RViz2-renderable messages:
 
-- ``visualization_msgs/MarkerArray`` for drone bodies (cylinders), trajectory
-  history (LINE_STRIP), and target spheres.
+- ``visualization_msgs/MarkerArray`` for drone bodies (MESH_RESOURCE using the
+  hector_quadrotor .dae model), trajectory history (LINE_STRIP), and target
+  spheres.
 - ``tf2_ros`` TF frames for each drone (``drone_<i>`` in the ``world`` frame).
 - ``nav_msgs/Path`` per-drone trajectory paths for the Path display.
+
+Drone visual: the open-source hector_quadrotor mesh
+(``package://isr_dmpc_sim/meshes/quadrotor_base.dae``) replaces the
+primitive cylinder/disc representation.  The mesh is shipped with the
+``isr_dmpc_sim`` package under ``share/isr_dmpc_sim/meshes/``.
 
 Update rate: ~15 Hz (configurable via ``viz_rate`` parameter) — sub-sampled
 relative to the 50 Hz simulation to avoid overloading RViz2.
@@ -63,22 +69,19 @@ from builtin_interfaces.msg import Time
 # Visualisation constants
 # ---------------------------------------------------------------------------
 
-# Drone body dimensions (metres)
-_DRONE_BODY_RADIUS: float = 0.8
-_DRONE_BODY_HEIGHT: float = 0.3
-
-# Propeller disc (transparent flat cylinder above the body)
-_DISC_RADIUS: float = 1.6
-_DISC_HEIGHT: float = 0.05
-_DISC_Z_OFFSET: float = 0.2
-_DISC_ALPHA: float = 0.3  # translucency so the body remains visible underneath
+# Drone mesh resource URI — served from the installed ROS2 package share dir.
+# The hector_quadrotor .dae model has a rotor span of ~0.55 m at 1 : 1 scale.
+# A scale of 2.0 gives a ~1.1 m diameter visual that is clearly visible at the
+# 30 m inter-drone spacing used in the default simulation.
+_DRONE_MESH_URI: str = "package://isr_dmpc_sim/meshes/quadrotor_base.dae"
+_DRONE_MESH_SCALE: float = 2.0  # uniform scale applied to the mesh (metres)
 
 # Trajectory line width
 _TRAJ_LINE_WIDTH: float = 0.15
 _TRAJ_ALPHA: float = 0.6
 
 # Text label z-offset above the body
-_LABEL_Z_OFFSET: float = 1.2
+_LABEL_Z_OFFSET: float = 1.5
 _LABEL_SCALE: float = 1.0
 
 # Target sphere diameter and label offset
@@ -217,46 +220,36 @@ class RVizBridgeNode(Node):
     # ------------------------------------------------------------------
 
     def _publish_drone_markers(self, stamp: Time) -> None:
-        """Publish cylinder (body) + LINE_STRIP (trajectory) per drone."""
+        """Publish hector_quadrotor mesh + LINE_STRIP trajectory per drone."""
         marker_array = MarkerArray()
 
         for i, pose in enumerate(self._drone_poses.poses[: self._n_drones]):
             color = _drone_color(i)
-            ns_body = "drone_body"
-            ns_traj = "drone_trajectory"
+            ns_mesh  = "drone_mesh"
+            ns_traj  = "drone_trajectory"
             ns_label = "drone_label"
 
-            # ── Body: cylinder ──────────────────────────────────────────
-            body = Marker()
-            body.header.stamp = stamp
-            body.header.frame_id = "world"
-            body.ns = ns_body
-            body.id = i
-            body.type = Marker.CYLINDER
-            body.action = Marker.ADD
-            body.pose = pose
-            body.scale = Vector3(x=_DRONE_BODY_RADIUS, y=_DRONE_BODY_RADIUS, z=_DRONE_BODY_HEIGHT)
-            body.color = color
-            body.lifetime = Duration(seconds=0).to_msg()  # persistent
-            marker_array.markers.append(body)
-
-            # ── Propeller disc (flat cylinder above body) ───────────────
-            disc = Marker()
-            disc.header = body.header
-            disc.ns = "drone_disc"
-            disc.id = i
-            disc.type = Marker.CYLINDER
-            disc.action = Marker.ADD
-            disc.pose.position.x = pose.position.x
-            disc.pose.position.y = pose.position.y
-            disc.pose.position.z = pose.position.z + _DISC_Z_OFFSET
-            disc.pose.orientation = pose.orientation
-            disc.scale = Vector3(x=_DISC_RADIUS, y=_DISC_RADIUS, z=_DISC_HEIGHT)
-            disc_color = _drone_color(i)
-            disc_color.a = _DISC_ALPHA
-            disc.color = disc_color
-            disc.lifetime = body.lifetime
-            marker_array.markers.append(disc)
+            # ── Body: MESH_RESOURCE (hector_quadrotor .dae) ─────────────
+            mesh = Marker()
+            mesh.header.stamp = stamp
+            mesh.header.frame_id = "world"
+            mesh.ns = ns_mesh
+            mesh.id = i
+            mesh.type = Marker.MESH_RESOURCE
+            mesh.action = Marker.ADD
+            mesh.pose = pose
+            mesh.scale = Vector3(
+                x=_DRONE_MESH_SCALE,
+                y=_DRONE_MESH_SCALE,
+                z=_DRONE_MESH_SCALE,
+            )
+            # Use per-drone colour tint; mesh_use_embedded_materials=True
+            # preserves the .dae material colours when set to True.
+            mesh.color = color
+            mesh.mesh_resource = _DRONE_MESH_URI
+            mesh.mesh_use_embedded_materials = True
+            mesh.lifetime = Duration(seconds=0).to_msg()  # persistent
+            marker_array.markers.append(mesh)
 
             # ── Trajectory: LINE_STRIP ───────────────────────────────────
             if len(self._drone_trajectories[i]) > 1:
@@ -272,7 +265,7 @@ class RVizBridgeNode(Node):
                 line_color.a = _TRAJ_ALPHA
                 traj.color = line_color
                 traj.points = list(self._drone_trajectories[i])
-                traj.lifetime = body.lifetime
+                traj.lifetime = mesh.lifetime
                 marker_array.markers.append(traj)
 
             # ── Text label ───────────────────────────────────────────────
@@ -290,7 +283,7 @@ class RVizBridgeNode(Node):
             label.scale.z = _LABEL_SCALE
             label.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
             label.text = f"D{i}"
-            label.lifetime = body.lifetime
+            label.lifetime = mesh.lifetime
             marker_array.markers.append(label)
 
         self._pub_drone_markers.publish(marker_array)
