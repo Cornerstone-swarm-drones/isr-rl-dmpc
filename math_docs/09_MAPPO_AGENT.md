@@ -355,5 +355,5 @@ for episode in range(num_episodes):
 3. J. Schulman, P. Moritz, S. Levine, M. Jordan, and P. Abbeel, "High-Dimensional
    Continuous Control Using Generalised Advantage Estimation,"
    *ICLR*, 2016.
-4. L. Lowe et al., "Multi-Agent Actor-Critic for Mixed Cooperative-Competitive
+4. R. Lowe et al., "Multi-Agent Actor-Critic for Mixed Cooperative-Competitive
    Environments," *NeurIPS*, 2017.

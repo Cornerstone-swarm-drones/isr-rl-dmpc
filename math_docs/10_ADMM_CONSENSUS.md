@@ -289,8 +289,8 @@ contribution of the missing drone over subsequent iterations.
 |-----------|--------|-------|--------|
 | ADMM penalty | $\rho$ | 1.0 | `ADMMConsensus.rho` |
 | Max iterations | $K$ | 10 | `ADMMConsensus.max_iter` |
-| Primal tolerance | $\varepsilon_{\text{prim}}$ | 1 × 10⁻³ | `ADMMConsensus.eps_abs` |
-| Dual tolerance | $\varepsilon_{\text{dual}}$ | 1 × 10⁻³ | `ADMMConsensus.eps_rel` |
+| Absolute tolerance | $\varepsilon_{\text{abs}}$ | 1 × 10⁻³ | `ADMMConsensus.eps_abs` |
+| Relative tolerance | $\varepsilon_{\text{rel}}$ | 1 × 10⁻³ | `ADMMConsensus.eps_rel` |
 | Consensus variable dim | $d$ | 3 (position) | `ADMMConsensus.var_dim` |
 
 ---
