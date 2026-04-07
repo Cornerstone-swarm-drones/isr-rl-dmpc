@@ -65,7 +65,7 @@ where:
 Default inertia (`DroneParameters.__post_init__`):
 
 $$
-J = \operatorname{diag}(0.0083,\; 0.0083,\; 0.0166)\;\text{kg·m}^2
+J = \mathrm{diag}(0.0083,\; 0.0083,\; 0.0166)\;\text{kg·m}^2
 $$
 
 ---
@@ -120,11 +120,11 @@ R_e = R_d^\top R \quad \text{(relative rotation: } R_d\text{-frame to }R\text{-f
 $$
 
 $$
-\mathbf{e}_R = \tfrac{1}{2}\operatorname{vex}(R_e - R_e^\top) \in \mathbb{R}^3
+\mathbf{e}_R = \tfrac{1}{2}\mathrm{vex}(R_e - R_e^\top) \in \mathbb{R}^3
   \quad \text{(attitude error vector)}
 $$
 
-where $\operatorname{vex}(\cdot)$ extracts the axial vector from a skew-symmetric matrix.
+where $\mathrm{vex}(\cdot)$ extracts the axial vector from a skew-symmetric matrix.
 
 In code:
 

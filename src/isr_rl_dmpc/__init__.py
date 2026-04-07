@@ -32,8 +32,9 @@ try:  # pragma: no cover
         DMPCConfig, MPCSolver, DMPC, compute_lqr_terminal_cost,
         DroneParameters, GeometricController, AttitudeController,
         StepRecord, DMPCAnalytics,
+        ADMMConfig, ADMMConsensus,
     )
-    from .agents import DMPCAgent
+    from .agents import DMPCAgent, MAPPOAgent
     from .models import ModelRegistry, load_checkpoint, save_checkpoint
 except (ModuleNotFoundError, ImportError):
     # Keep package importable for environment/evaluation code.
@@ -77,8 +78,12 @@ __all__ = [
     # 9 DMPC Analytics
     "StepRecord", "DMPCAnalytics",
 
+    # 10 ADMM Consensus
+    "ADMMConfig", "ADMMConsensus",
+
     # Agents
     "DMPCAgent",
+    "MAPPOAgent",
 
     # Models / persistence
     "ModelRegistry", "load_checkpoint", "save_checkpoint",

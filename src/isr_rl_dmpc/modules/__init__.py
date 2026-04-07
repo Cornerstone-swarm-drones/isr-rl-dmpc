@@ -36,6 +36,10 @@ try:  # pragma: no cover
         StepRecord,
         DMPCAnalytics,
     )
+    from .admm_consensus import (
+        ADMMConfig,
+        ADMMConsensus,
+    )
 except (ModuleNotFoundError, ImportError):  # pragma: no cover
     DMPCConfig = None  # type: ignore[assignment]
     MPCSolver = None  # type: ignore[assignment]
@@ -48,6 +52,9 @@ except (ModuleNotFoundError, ImportError):  # pragma: no cover
 
     StepRecord = None  # type: ignore[assignment]
     DMPCAnalytics = None  # type: ignore[assignment]
+
+    ADMMConfig = None  # type: ignore[assignment]
+    ADMMConsensus = None  # type: ignore[assignment]
 
 
 __all__ = [

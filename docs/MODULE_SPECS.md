@@ -309,7 +309,7 @@ drones with fixed LQR-tuned gains.
 
 $$\boldsymbol{\tau} = -K_{p,\text{att}}\,\mathbf{e}_R - K_{d,\text{att}}\,\mathbf{e}_\omega + \boldsymbol{\omega} \times (J\boldsymbol{\omega})$$
 
-where $\mathbf{e}_R = \frac{1}{2}\operatorname{vex}(R_d^\top R - R^\top R_d)$, $K_{p,\text{att}} = 4.5$, $K_{d,\text{att}} = 1.5$.
+where $\mathbf{e}_R = \frac{1}{2}\mathrm{vex}(R_d^\top R - R^\top R_d)$, $K_{p,\text{att}} = 4.5$, $K_{d,\text{att}} = 1.5$.
 
 See [math_docs/07_GEOMETRIC_ATTITUDE_CONTROL.md](../math_docs/07_GEOMETRIC_ATTITUDE_CONTROL.md).
 

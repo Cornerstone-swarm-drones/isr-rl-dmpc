@@ -47,8 +47,8 @@ $$
 where the **MAPPO agent** outputs per-drone scale vectors each step:
 
 $$
-Q_{\text{eff}} = Q \odot \operatorname{diag}(\mathbf{q}_s), \qquad
-R_{\text{eff}} = R \odot \operatorname{diag}(\mathbf{r}_s), \qquad
+Q_{\text{eff}} = Q \odot \mathrm{diag}(\mathbf{q}_s), \qquad
+R_{\text{eff}} = R \odot \mathrm{diag}(\mathbf{r}_s), \qquad
 \mathbf{q}_s, \mathbf{r}_s \in [0.1,\;10.0]
 $$
 
