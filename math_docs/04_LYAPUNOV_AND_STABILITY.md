@@ -80,7 +80,7 @@ $$
 **Condition 1 — Positive Definiteness:**
 
 $$
-V(\boldsymbol{e}) > 0 \quad \forall\, \boldsymbol{e} \ne \boldsymbol{0}; \qquad V(\boldsymbol{0}) = 0
+V(\boldsymbol{e}) > 0 \quad \forall\, \boldsymbol{e} \ne \boldsymbol{0}, \qquad V(\boldsymbol{0}) = 0
 $$
 
 This holds since $P \succ 0$.
@@ -155,7 +155,7 @@ All eigenvalues satisfy $|\lambda_i| < 1$; the spectral radius $\rho \approx 0.9
 The tracking error norm satisfies the bound:
 
 $$
-\|\boldsymbol{e}[k]\| \le C\,\rho^k\,\|\boldsymbol{e}[0]\|
+\lVert\boldsymbol{e}[k]\rVert \le C\,\rho^k\,\lVert\boldsymbol{e}[0]\rVert
 $$
 
 For $\rho \approx 0.983$, errors halve every:
@@ -180,7 +180,7 @@ is **Input-to-State Stable (ISS)** if there exist class-$\mathcal{KL}$ function
 $\beta$ and class-$\mathcal{K}$ function $\gamma$ such that:
 
 $$
-\|\boldsymbol{e}[t]\| \le \beta(\|\boldsymbol{e}[0]\|,\, t) + \gamma\!\left(\sup_{0 \le s \le t} \|\boldsymbol{w}[s]\|\right)
+\lVert\boldsymbol{e}[t]\rVert \le \beta(\lVert\boldsymbol{e}[0]\rVert,\, t) + \gamma\!\left(\sup_{0 \le s \le t} \lVert\boldsymbol{w}[s]\rVert\right)
 $$
 
 ### ISS Gain Bound
@@ -189,7 +189,7 @@ For the quadratic Lyapunov function $V(\boldsymbol{e}) = \boldsymbol{e}^\top P\,
 
 $$
 \gamma_{\text{iss}} = \sqrt{\frac{\lambda_{\max}(P)}{\lambda_{\min}(P)}}
-  \cdot \frac{\|A_{\text{cl}}\|_2}{1 - \rho}
+  \cdot \frac{\lVertA_{\text{cl}}\rVert_2}{1 - \rho}
 $$
 
 A finite ISS gain exists because $\rho < 1$ (Schur stability confirmed above).
@@ -199,7 +199,7 @@ A finite ISS gain exists because $\rho < 1$ (Schur stability confirmed above).
 For steady-state tracking error below bound $\varepsilon$:
 
 $$
-\|\boldsymbol{w}\|_{\max} = \varepsilon \cdot
+\lVert\boldsymbol{w}\rVert_{\max} = \varepsilon \cdot
   \frac{\lambda_{\min}(Q + K^\top R K)}{\lambda_{\max}(P)}
 $$
 
@@ -224,7 +224,7 @@ $$
 For drones $i$ and $j$, define the safety function:
 
 $$
-h_{ij}(\boldsymbol{x}) = \|\boldsymbol{p}_i - \boldsymbol{p}_j\|^2 - r_{\min}^2
+h_{ij}(\boldsymbol{x}) = \lVert\boldsymbol{p}_i - \boldsymbol{p}_j\rVert^2 - r_{\min}^2
 $$
 
 The **safe set** is $\mathcal{C} = \{\boldsymbol{x} : h_{ij}(\boldsymbol{x}) \ge 0\;\forall\,(i,j)\}$.
@@ -252,7 +252,7 @@ Linearising $h_{ij}$ around the current position yields an affine constraint
 in the control $\boldsymbol{u}$:
 
 Let $\boldsymbol{\delta} = \boldsymbol{p}_i - \boldsymbol{p}_j$,
-$h = \|\boldsymbol{\delta}\|^2 - r_{\min}^2$.
+$h = \lVert\boldsymbol{\delta}\rVert^2 - r_{\min}^2$.
 
 $$
 \text{Linearised CBF:} \quad
@@ -276,7 +276,7 @@ the safe set.
 > **Important:** This forward-invariance result applies only when the CBF
 > inequality is imposed as an affine constraint on the **control input** $\boldsymbol{u}$.
 > It does not follow from imposing a state constraint
-> $\|\boldsymbol{p}_k - \boldsymbol{p}_j\| \ge r_{\min}$ at sampled prediction times, which
+> $\lVert\boldsymbol{p}_k - \boldsymbol{p}_j\rVert \ge r_{\min}$ at sampled prediction times, which
 > constrains predicted positions but does not directly regulate the control
 > input and does not address what happens when the QP is infeasible.  The
 > linearised CBF formulation above is the primary mechanism that provides the
@@ -353,7 +353,7 @@ treated as fixed obstacles.  This introduces a coupling error due to the
 one-step communication delay $\tau$:
 
 $$
-\|\boldsymbol{p}_j(t) - \hat{\boldsymbol{p}}_j(t)\| \le v_{\max} \cdot \tau
+\lVert\boldsymbol{p}_j(t) - \hat{\boldsymbol{p}}_j(t)\rVert \le v_{\max} \cdot \tau
 $$
 
 For $v_{\max} = 20\;\text{m/s}$ and $\tau = 0.02\;\text{s}$ (50 Hz ROS2 loop), the

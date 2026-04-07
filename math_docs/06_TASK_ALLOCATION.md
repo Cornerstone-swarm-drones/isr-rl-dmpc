@@ -48,7 +48,7 @@ $$
 ### Distance Cost
 
 $$
-d_{ij} = \|\tau_i.\boldsymbol{p} - d_j.\boldsymbol{p}\|, \qquad
+d_{ij} = \lVert\tau_i.\boldsymbol{p} - d_j.\boldsymbol{p}\rVert, \qquad
 c_{\text{dist}} = d_{ij} / 1000 \quad \text{(normalised to } {\approx}\,[0,2] \text{ for 1 km range)}
 $$
 

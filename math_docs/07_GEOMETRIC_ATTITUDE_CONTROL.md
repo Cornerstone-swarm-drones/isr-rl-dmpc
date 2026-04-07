@@ -65,7 +65,7 @@ where:
 Default inertia (`DroneParameters.__post_init__`):
 
 $$
-J = \mathrm{diag}(0.0083,\; 0.0083,\; 0.0166)\;\text{kg·m}^2
+J = \operatorname{diag}(0.0083,\; 0.0083,\; 0.0166)\;\text{kg·m}^2
 $$
 
 ---
@@ -97,7 +97,7 @@ $$
 = \frac{1}{2} \begin{bmatrix} 0 & -\omega_x & -\omega_y & -\omega_z \\ \omega_x & 0 & \omega_z & -\omega_y \\ \omega_y & -\omega_z & 0 & \omega_x \\ \omega_z & \omega_y & -\omega_x & 0 \end{bmatrix} \boldsymbol{q}
 $$
 
-The quaternion must always satisfy the unit-norm constraint $\|\boldsymbol{q}\| = 1$.
+The quaternion must always satisfy the unit-norm constraint $\lVert\boldsymbol{q}\rVert = 1$.
 
 ---
 
@@ -118,11 +118,11 @@ R_e = R_d^\top R \quad \text{(relative rotation: } R_d\text{-frame to }R\text{-f
 $$
 
 $$
-\boldsymbol{e}_R = \tfrac{1}{2}\mathrm{vex}(R_e - R_e^\top) \in \mathbb{R}^3
+\boldsymbol{e}_R = \tfrac{1}{2}\operatorname{vex}(R_e - R_e^\top) \in \mathbb{R}^3
   \quad \text{(attitude error vector)}
 $$
 
-where $\mathrm{vex}(\cdot)$ extracts the axial vector from a skew-symmetric matrix.
+where $\operatorname{vex}(\cdot)$ extracts the axial vector from a skew-symmetric matrix.
 
 In code:
 
@@ -169,7 +169,7 @@ $$
 The desired body z-axis (thrust direction) is:
 
 $$
-\boldsymbol{b}_{3,\text{des}} = \boldsymbol{f}_{\text{des}} / \|\boldsymbol{f}_{\text{des}}\|
+\boldsymbol{b}_{3,\text{des}} = \boldsymbol{f}_{\text{des}} / \lVert\boldsymbol{f}_{\text{des}}\rVert
 $$
 
 This is combined with a desired yaw angle $\psi_{\text{des}}$ to form the full desired

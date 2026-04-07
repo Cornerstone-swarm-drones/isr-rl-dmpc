@@ -91,14 +91,14 @@ in which cells are visited.  Higher priority → visited earlier in the mission.
 The priority decreases exponentially with distance from the area centre:
 
 $$
-\boldsymbol{c}_{\text{area}} = \mathrm{mean}(\mathcal{B}), \qquad
-d_c = \|\boldsymbol{c} - \boldsymbol{c}_{\text{area}}\|, \qquad
-s = \|\max(\mathcal{B}) - \min(\mathcal{B})\|
+\boldsymbol{c}_{\text{area}} = \operatorname{mean}(\mathcal{B}), \qquad
+d_c = \lVert\boldsymbol{c} - \boldsymbol{c}_{\text{area}}\rVert, \qquad
+s = \lVert\max(\mathcal{B}) - \min(\mathcal{B})\rVert
 $$
 
 $$
 \pi_c = \exp\!\left(-\frac{d_c}{s / 10}\right), \qquad
-\pi_c \leftarrow \mathrm{clip}(\pi_c,\; 0.1,\; 1.0)
+\pi_c \leftarrow \operatorname{clip}(\pi_c,\; 0.1,\; 1.0)
 $$
 
 **Rationale:** ISR missions typically originate from a headquarters position
@@ -116,7 +116,7 @@ applied in priority-sorted order:
 1. For each cell $c$ (in priority order):
 
 $$
-j^* = \arg\min_{j=1,\ldots,n} \|\boldsymbol{c}_{\text{center}} - \boldsymbol{p}_j[:2]\|, \qquad
+j^* = \arg\min_{j=1,\ldots,n} \lVert\boldsymbol{c}_{\text{center}} - \boldsymbol{p}_j[:2]\rVert, \qquad
 \text{Assign } c \to \text{drone } j^*
 $$
 
@@ -148,7 +148,7 @@ A **greedy tour** starting from the drone's current position:
 > $\text{remaining} = \{c_1, \ldots, c_k\}$, $\;\text{path} = []$, $\;\text{current} = \boldsymbol{p}_{\text{start}}$
 >
 > While $\text{remaining} \ne \emptyset$:
-> $c^* = \arg\min_{c \in \text{remaining}} \|c.\text{center} - \text{current}\|$
+> $c^* = \arg\min_{c \in \text{remaining}} \lVertc.\text{center} - \text{current}\rVert$
 > append $c^*$ to path, set $\text{current} = c^*.\text{center}$, remove $c^*$ from remaining.
 
 This is the classic **nearest-neighbour heuristic** for the Travelling Salesman
@@ -173,8 +173,8 @@ Cells are sorted by distance from the centroid of all assigned cells,
 from nearest to farthest:
 
 $$
-\boldsymbol{\mu} = \mathrm{mean}\bigl(\{c.\text{center}\}\bigr), \qquad
-\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c:\;\|c.\text{center} - \boldsymbol{\mu}\|\bigr)
+\boldsymbol{\mu} = \operatorname{mean}\bigl(\{c.\text{center}\}\bigr), \qquad
+\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c:\;\lVertc.\text{center} - \boldsymbol{\mu}\rVert\bigr)
 $$
 
 This visits the highest-priority (central) cells first and spirals outward —
@@ -188,7 +188,7 @@ Given a waypoint sequence $W = [\boldsymbol{w}_0, \boldsymbol{w}_1, \ldots, \bol
 per waypoint and drone cruise speed $v$:
 
 $$
-L = \sum_{i=0}^{k-2} \|\boldsymbol{w}_{i+1} - \boldsymbol{w}_i\|
+L = \sum_{i=0}^{k-2} \lVert\boldsymbol{w}_{i+1} - \boldsymbol{w}_i\rVert
   \quad \text{(total path length)}
 $$
 
