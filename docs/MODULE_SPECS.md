@@ -1,6 +1,6 @@
 # Module Specifications
 
-Detailed specifications for each of the 9 core modules in the ISR-RL-DMPC system.
+Detailed specifications for each of the 9 core modules in the ISR-DMPC system.
 
 ## Table of Contents
 
@@ -12,7 +12,7 @@ Detailed specifications for each of the 9 core modules in the ISR-RL-DMPC system
 - [Module 6: Task Allocator](#module-6-task-allocator)
 - [Module 7: DMPC Controller](#module-7-dmpc-controller)
 - [Module 8: Attitude Controller](#module-8-attitude-controller)
-- [Module 9: Learning Module](#module-9-learning-module)
+- [Module 9: DMPC Analytics](#module-9-dmpc-analytics)
 
 ---
 
@@ -197,43 +197,43 @@ Where `C[i,j]` is the cost of assigning drone `i` to task `j` (typically Euclide
 
 ### Purpose
 
-Implements Distributed Model Predictive Control with CVXPY-based convex optimization and PyTorch-learned cost weight adaptation.
+Implements pure Distributed Model Predictive Control using CVXPY/OSQP convex optimisation with a DARE-computed LQR terminal cost.
 
 ### Key Classes
 
 | Class | Description |
 |---|---|
-| `DMPC` | Main DMPC controller integrating solver and learning |
-| `MPCSolver` | CVXPY-based convex optimization solver |
-| `CostWeightNetwork` | PyTorch network that learns adaptive Q, R, P cost matrix scales |
-| `DynamicsResidualNetwork` | Neural network for learning unmodeled dynamics |
+| `DMPC` | Main DMPC controller: builds and solves the QP |
+| `MPCSolver` | CVXPY/OSQP interface for the constrained QP |
+| `DMPCConfig` | Dataclass holding all DMPC parameters |
 
 ### Configuration
 
 | Parameter | Source | Default | Description |
 |---|---|---|---|
-| `prediction_horizon` | `default_config.yaml` | `10` | MPC prediction horizon (steps) |
-| `control_horizon` | `default_config.yaml` | `5` | MPC control horizon (steps) |
-| `constraint_tightening` | `default_config.yaml` | `0.95` | Constraint relaxation factor |
-| `solver_max_iterations` | `default_config.yaml` | `100` | Maximum solver iterations |
-| `solver_tolerance` | `default_config.yaml` | `0.0001` | Solver convergence tolerance |
+| `prediction_horizon` | `dmpc_config.yaml` | `20` | MPC prediction horizon (steps) |
+| `accel_max` | `dmpc_config.yaml` | `10.0 m/s²` | Maximum control acceleration |
+| `collision_radius` | `dmpc_config.yaml` | `5.0 m` | Minimum safe separation |
+| `solver_timeout` | `dmpc_config.yaml` | `10 ms` | OSQP time budget per solve |
 
-### Hybrid Architecture
+### Control Architecture
 
 ```
-State → CostWeightNetwork → (Q_scale, R_scale, P_scale)
-                                     │
-                                     ▼
-           Q = Q_scale × Q_base,  R = R_scale × R_base,  P = P_scale × P_base
-                                     │
-                                     ▼
-                            MPCSolver (CVXPY)
-                                     │
-                                     ▼
-                          Optimal control input u*
+State x(t) → DMPC QP (CVXPY/OSQP)
+              ├── Cost:        Σ ‖e_k‖²_Q + ‖u_k‖²_R  +  ‖e_N‖²_P
+              ├── Dynamics:    x_{k+1} = A x_k + B u_k
+              ├── Saturation:  ‖u_k‖ ≤ u_max
+              └── Collision:   ‖p_k − p_j‖ ≥ r_min
+                       │
+                       ▼
+              Optimal acceleration u*(t)
 ```
 
-The CostWeightNetwork learns to adapt the DMPC cost matrices based on the current state, while the CVXPY solver guarantees constraint satisfaction.
+Terminal cost matrix **P** is pre-computed offline from the
+Discrete Algebraic Riccati Equation (DARE) using
+`compute_lqr_terminal_cost()`.  See
+[math_docs/03_DMPC_FORMULATION.md](../math_docs/03_DMPC_FORMULATION.md)
+for the full derivation.
 
 ---
 
@@ -243,74 +243,71 @@ The CostWeightNetwork learns to adapt the DMPC cost matrices based on the curren
 
 ### Purpose
 
-Implements geometric attitude control for individual drones with gain adaptation for agile maneuvers.
+Implements geometric attitude control on the SO(3) manifold for individual
+drones with fixed LQR-tuned gains.
 
 ### Key Classes
 
 | Class | Description |
 |---|---|
 | `AttitudeController` | High-level attitude control interface |
-| `GeometricController` | SE(3) geometric controller for attitude tracking |
+| `GeometricController` | SO(3) geometric controller for attitude tracking |
+| `DroneParameters` | Physical parameters and fixed control gains |
 
 ### Control Law
 
 The geometric controller computes torques to track desired attitudes on SO(3):
 
 ```
-τ = -k_R × e_R - k_ω × e_ω + ω × (J × ω)
+τ = −Kp_att · e_R − Kd_att · e_ω + ω × (J ω)
 ```
 
 Where:
-- `e_R` — Rotation error on SO(3)
+- `e_R` — Attitude error vector on SO(3) (½ vec(R_dᵀR − RᵀR_d))
 - `e_ω` — Angular velocity error
-- `k_R, k_ω` — Proportional and derivative gains
+- `Kp_att = 4.5`, `Kd_att = 1.5` — Fixed proportional and derivative gains
 - `J` — Inertia matrix
+
+See [math_docs/07_GEOMETRIC_ATTITUDE_CONTROL.md](../math_docs/07_GEOMETRIC_ATTITUDE_CONTROL.md)
+for the full derivation.
 
 ---
 
-## Module 9: Learning Module
+## Module 9: DMPC Analytics
 
 **File:** `src/isr_rl_dmpc/modules/learning_module.py`
 
 ### Purpose
 
-Implements the RL learning pipeline with value and policy networks for optimizing DMPC cost function parameters.
+Lightweight analytics collector for the pure DMPC controller.  Records
+per-step statistics, computes performance metrics, and provides parameter
+sensitivity estimates.  No neural networks or online learning are involved.
 
 ### Key Classes
 
 | Class | Description |
 |---|---|
-| `LearningModule` | Orchestrates value and policy network training |
-| `ValueNetwork` | Critic network: V(s) ≈ E[Σ γ^k r_k \| s] |
-| `PolicyNetwork` | Actor network: π(a\|s) with Gaussian output |
-| `ExperienceBuffer` | Replay buffer with priority-based sampling |
+| `DMPCAnalytics` | Accumulates step records and computes metrics |
+| `StepRecord` | Single DMPC step record (state, control, solve time, error) |
 
-### Mathematical Framework
+### Tracked Metrics
 
 ```
-State:   s ∈ ℝ^d    (augmented system state)
-Action:  a ∈ ℝ^m    (DMPC parameters θ = [Q, R, P, slack])
-Reward:  r ∈ ℝ       (multi-objective scalar)
+Per-step:
+  - tracking_error  = ‖x − x_ref‖
+  - solve_time      = wall-clock OSQP solve duration (s)
+  - objective       = QP objective value at solution
 
-Value function:    V(s) ≈ E[Σ_k γ^k r_k | s]
-TD error:          δ_k = r_k + γ V(s_{k+1}) - V(s_k)
-Policy gradient:   ∇J(θ) = E[∇_θ log π(a|s) × δ_k]
+Aggregate:
+  - RMSE tracking error
+  - Mean / max solve time
+  - Solver success rate
+  - Parameter sensitivity via finite-difference Jacobians
 ```
 
-### Network Architecture
+### Persistence
 
-**Value Network:**
-```
-Input(state_dim) → Linear(256) → ReLU → LayerNorm →
-Linear(256) → ReLU → LayerNorm →
-Linear(128) → ReLU → Linear(1)
-```
-
-**Policy Network:**
-```
-Input(state_dim) → Linear(256) → ReLU →
-Linear(256) → ReLU →
-Linear(128) → ReLU →
-├── Linear(action_dim) → Tanh   [mean]
-└── Linear(action_dim)          [log_std]
+```python
+analytics.save("logs/mission_analytics.npz")
+analytics = DMPCAnalytics.load("logs/mission_analytics.npz")
 ```

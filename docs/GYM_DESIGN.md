@@ -1,6 +1,6 @@
-# Gym Environment Design
+# Gymnasium Environment Design
 
-This document describes the design of the ISR-RL-DMPC Gymnasium environment, including observation and action spaces, reward structure, and simulation details.
+This document describes the design of the ISR-DMPC Gymnasium environment, including observation and action spaces, reward structure, and simulation details.
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@ This document describes the design of the ISR-RL-DMPC Gymnasium environment, inc
 
 ## Overview
 
-The `ISRGridEnv` class implements a Gymnasium-compatible environment for training RL agents to control multi-drone swarms in ISR missions. It wraps a 6-DOF physics simulator and provides a structured observation-action interface for RL algorithms.
+The `ISRGridEnv` class implements a Gymnasium-compatible environment for evaluating multi-drone DMPC controllers in ISR missions. It wraps a 6-DOF physics simulator and provides a structured observation-action interface compatible with standard RL algorithm libraries for offline algorithm validation.
 
 **File:** `src/isr_rl_dmpc/gym_env/isr_env.py`
 
@@ -141,7 +141,7 @@ PWM values of 0.5 correspond approximately to hover thrust.
 
 ## Reward Structure
 
-The reward is a scalar value computed by the `RewardShaper` class, combining 5 weighted components:
+The reward is a scalar value computed by the `RewardShaper` class, combining 4 weighted components:
 
 ### Components
 
@@ -151,17 +151,16 @@ The reward is a scalar value computed by the `RewardShaper` class, combining 5 w
 | Energy (`r_eng`) | `w_energy = 0.5` | (-∞, 0] | Penalty for energy consumption |
 | Safety (`r_safe`) | `w_safety = 10.0` | (-∞, 0] | Penalty for collisions and geofence violations |
 | Threat (`r_threat`) | `w_threat = 2.0` | [0, ∞) | Reward for successful threat engagement |
-| Learning (`r_learn`) | `w_learning = 0.1` | ℝ | TD-error gradient signal |
 
 ### Reward Formula
 
 ```
-r_total = w_cov × r_cov + w_eng × r_eng + w_safe × r_safe + w_threat × r_threat + w_learn × r_learn
+r_total = w_cov × r_cov + w_eng × r_eng + w_safe × r_safe + w_threat × r_threat
 ```
 
 ### Configurable Weights
 
-Reward weights can also be set via `config/default_config.yaml`:
+Reward weights can be set via `config/default_config.yaml`:
 
 ```yaml
 learning:
@@ -171,8 +170,6 @@ learning:
   weight_target_engagement: 20.0
   weight_formation: 2.0
 ```
-
-See [TRAINING.md](TRAINING.md) for guidance on tuning these weights.
 
 ## Episode Dynamics
 
@@ -321,59 +318,46 @@ search_and_track:
 
 ## Usage Examples
 
-### Basic Training Loop
+### Basic DMPC Mission Loop
 
 ```python
 from isr_rl_dmpc.gym_env import ISRGridEnv
 from isr_rl_dmpc.agents import DMPCAgent
 import numpy as np
 
-env = ISRGridEnv(num_drones=10, max_targets=5)
+env = ISRGridEnv(num_drones=4, max_targets=2)
 obs, info = env.reset()
 
-state_dim = DMPCAgent.flatten_obs(obs).shape[0]
-action_dim = int(np.prod(env.action_space.shape))
+agent = DMPCAgent()
 
-agent = DMPCAgent(state_dim=state_dim, action_dim=action_dim)
-
-for episode in range(100):
+for episode in range(10):
     obs, info = env.reset()
     done = False
     total_reward = 0
 
     while not done:
-        action = agent.act(obs, training=True)
-        action_env = np.clip(action.reshape(env.action_space.shape), 0, 1)
-        next_obs, reward, terminated, truncated, info = env.step(action_env)
+        action = agent.act(obs)
+        next_obs, reward, terminated, truncated, info = env.step(action)
         done = terminated or truncated
-
-        agent.remember(obs, action, reward, next_obs, done)
-        if agent.ready_to_train():
-            agent.train_on_batch()
-
         obs = next_obs
         total_reward += reward
 
     print(f"Episode {episode}: reward={total_reward:.2f}, coverage={info['coverage']:.2%}")
 ```
 
-### Evaluating a Trained Agent
+### Evaluating the DMPC Agent
 
 ```python
-agent.load("data/training_logs/<timestamp>/final_model.pt")
-
 obs, info = env.reset()
 done = False
 
 while not done:
-    action = agent.act(obs, training=False, deterministic=True)
-    action_env = np.clip(action.reshape(env.action_space.shape), 0, 1)
-    obs, reward, terminated, truncated, info = env.step(action_env)
+    action = agent.act(obs)
+    obs, reward, terminated, truncated, info = env.step(action)
     done = terminated or truncated
 
-    env.render()  # Render in human mode
-
 print(f"Final coverage: {info['coverage']:.2%}")
+print(f"Collisions: {info['collisions']}")
 ```
 
 ### Rendering
@@ -384,7 +368,7 @@ env = ISRGridEnv(render_mode='human')
 env.reset()
 env.step(action)
 env.render()
-# Output: Step:    1 | Drones: 10/10 | Coverage: 25.00% | Collisions:   0 | Battery: 4990 J
+# Output: Step:    1 | Drones: 4/4 | Coverage: 25.00% | Collisions:   0 | Battery: 4990 J
 
 # RGB array (for video recording)
 env = ISRGridEnv(render_mode='rgb_array')
