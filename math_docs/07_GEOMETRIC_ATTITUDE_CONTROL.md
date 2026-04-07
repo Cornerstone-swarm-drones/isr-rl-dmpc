@@ -80,9 +80,7 @@ $\mathbf{q} = [q_w, q_x, q_y, q_z]^\top$ (scalar-first convention).
 Using Rodriguez' formula:
 
 $$
-R = (q_w^2 - \mathbf{q}_v^\top \mathbf{q}_v)\,I_3
-  + 2\,\mathbf{q}_v\,\mathbf{q}_v^\top
-  + 2\,q_w\,[\mathbf{q}_v]_\times
+R = (q_w^2 - \mathbf{q}_v^\top \mathbf{q}_v)\,I_3 + 2\,\mathbf{q}_v\,\mathbf{q}_v^\top + 2\,q_w\,[\mathbf{q}_v]_\times
 $$
 
 where $\mathbf{q}_v = [q_x, q_y, q_z]^\top$ and $[\mathbf{q}_v]_\times$ is the skew-symmetric
@@ -184,8 +182,7 @@ rotation matrix $R_d$ (via the Gram-Schmidt process on $\mathbf{b}_{1,\text{des}
 ### Torque Command (Geometric PD)
 
 $$
-\boldsymbol{\tau} = -K_{p,\text{att}}\,\mathbf{e}_R - K_{d,\text{att}}\,\mathbf{e}_\omega
-  + \boldsymbol{\omega} \times (J\,\boldsymbol{\omega})
+\boldsymbol{\tau} = -K_{p,\text{att}}\,\mathbf{e}_R - K_{d,\text{att}}\,\mathbf{e}_\omega + \boldsymbol{\omega} \times (J\,\boldsymbol{\omega})
 $$
 
 The feed-forward gyroscopic term $\boldsymbol{\omega} \times (J\,\boldsymbol{\omega})$ compensates

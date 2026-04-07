@@ -61,9 +61,7 @@ therefore analysed separately.
 At each step $t$ the DMPC solves:
 
 $$
-\min_{\mathbf{x},\mathbf{u}} \;
-\sum_{k=0}^{N-1} \bigl[\|\mathbf{e}_k\|^2_Q + \|\mathbf{u}_k\|^2_R\bigr]
-+ \|\mathbf{e}_N\|^2_P
+\min_{\mathbf{x},\mathbf{u}} \; \sum_{k=0}^{N-1} \bigl[\|\mathbf{e}_k\|^2_Q + \|\mathbf{u}_k\|^2_R\bigr] + \|\mathbf{e}_N\|^2_P
 $$
 
 $$
