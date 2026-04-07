@@ -319,9 +319,9 @@ of the formation error to zero.
 
 | Scenario | Drones | Horizon $N$ | Coverage Rate | Stability |
 |---|---|---|---|---|
-| Area Surveillance | 4 | 20 | ≥ 90% in 30 min | Asymptotically stable |
+| Area Surveillance | 4 | 20 | ≥ 90 % in 30 min | Asymptotically stable |
 | Threat Response | 6 | 20 | N/A (threat-centric) | ISS w.r.t. target motion |
-| Search & Track | 5 | 20 | ≥ 85% in 20 min | ISS w.r.t. target motion |
+| Search & Track | 5 | 20 | ≥ 85 % in 20 min | ISS w.r.t. target motion |
 
 ### 8.2 Real-Time Constraint
 

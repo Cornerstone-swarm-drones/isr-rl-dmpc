@@ -30,7 +30,7 @@ Given:
 - A sensor coverage radius $\rho_s$ (metres)
 
 **Goal:** Generate a waypoint sequence for each drone such that:
-1. Every point in $\mathcal{B}$ is visited by at least one drone (≥ 95% coverage).
+1. Every point in $\mathcal{B}$ is visited by at least one drone (≥ 95 % coverage).
 2. The total path length and mission duration are minimised.
 3. Higher-priority areas are covered first.
 
@@ -160,7 +160,7 @@ gives tours within 20–25% of the optimum.
 Cells are sorted by $y$-coordinate first, then $x$ within each $y$-band:
 
 $$
-\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c.\;(c.\text{center}[1],\; c.\text{center}[0])\bigr)
+\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c:\;(c.\text{center}[1],\; c.\text{center}[0])\bigr)
 $$
 
 The resulting path resembles a **lawnmower** (boustrophedon) pattern: the drone
@@ -174,7 +174,7 @@ from nearest to farthest:
 
 $$
 \boldsymbol{\mu} = \mathrm{mean}\bigl(\{c.\text{center}\}\bigr), \qquad
-\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c.\;\|c.\text{center} - \boldsymbol{\mu}\|\bigr)
+\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c:\;\|c.\text{center} - \boldsymbol{\mu}\|\bigr)
 $$
 
 This visits the highest-priority (central) cells first and spirals outward —
