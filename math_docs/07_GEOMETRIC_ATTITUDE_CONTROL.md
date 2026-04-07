@@ -257,7 +257,7 @@ PWM_i = Ω_i / Ω_max ∈ [0, 1]
 ## 8  Default Gain Parameters
 
 | Parameter | Symbol | Default | Units |
-|-----------|--------|---------|-------|
+| :--- | :--- | :--- | :--- |
 | Attitude proportional gain | Kp_att | 4.5 | — |
 | Attitude derivative gain | Kd_att | 1.5 | — |
 | Position proportional gain | Kp_pos | 2.0 | — |

@@ -100,7 +100,7 @@ cost $P$ remains valid regardless of the MAPPO output.
 ## 3  Decision Variables
 
 | Variable | Shape | Description |
-|----------|-------|-------------|
+| :--- | :--- | :--- |
 | `x_var` | $(11,\; N{+}1)$ | Predicted state trajectory |
 | `u_var` | $(3,\; N)$ | Predicted control sequence |
 
@@ -256,7 +256,7 @@ where $\mathbf{y} = [\mathrm{vec}(\mathtt{x\_var});\; \mathrm{vec}(\mathtt{u\_va
 is the stacked decision variable vector.
 
 | Problem size (default, 1 drone, $N{=}20$) | Value |
-|-------------------------------------------|-------|
+| :--- | :--- |
 | Decision variables | $11 \times 21 + 3 \times 20 = 291$ |
 | Equality constraints (dynamics) | $11 \times 20 = 220$ |
 | Inequality constraints (saturation) | 20 |
@@ -286,7 +286,7 @@ ADMM iterates three steps per DMPC solve cycle:
 **x-update** (local QP solve per drone, parallelisable):
 
 $$
-\mathbf{z}_i^{k+1} \leftarrow \arg\min_{\mathbf{z}_i} \Bigl[ J_i(\mathbf{z}_i) + \boldsymbol{\mu}_i^{k\top}(\mathbf{z}_i - \mathbf{v}^k) + \tfrac{\rho}{2}\|\mathbf{z}_i - \mathbf{v}^k\|^2 \Bigr]
+\mathbf{z}_i^{k+1} \leftarrow \arg\min_{\mathbf{z}_i} \Bigl[ J_i(\mathbf{z}_i) + (\boldsymbol{\mu}_i^k)^\top(\mathbf{z}_i - \mathbf{v}^k) + \tfrac{\rho}{2}\|\mathbf{z}_i - \mathbf{v}^k\|^2 \Bigr]
 $$
 
 **v-update** (global average, closed form):
@@ -317,7 +317,7 @@ problem.solve(
 ```
 
 | Setting | Value | Rationale |
-|---------|-------|-----------|
+| :--- | :--- | :--- |
 | `max_iter` | 3000 | Sufficient for well-conditioned swarm QPs |
 | `eps_abs` | 1e-3 | Adequate accuracy for metre-scale control |
 | `eps_rel` | 1e-3 | Same as absolute tolerance |
@@ -365,7 +365,7 @@ achieve a strictly feasible point within the time budget.  See
 ## 12  Default Parameter Values
 
 | Parameter | Symbol | Value | Source |
-|-----------|--------|-------|--------|
+| :--- | :--- | :--- | :--- |
 | Prediction horizon | $N$ | 20 | `DMPCConfig.horizon` |
 | Time step | $\Delta t$ | 0.02 s | `DMPCConfig.dt` |
 | State dimension | $n$ | 11 | `DMPCConfig.state_dim` |

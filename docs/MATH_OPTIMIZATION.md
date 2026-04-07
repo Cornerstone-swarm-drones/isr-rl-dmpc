@@ -57,7 +57,7 @@ $$
 **Known improvement opportunities:**
 
 | Issue | Impact |
-|---|---|
+| :--- | :--- |
 | Constant $A$, $B$ matrices | Ignores drag, inertia coupling, and yaw dynamics |
 | Soft collision constraints (0.9× safety margin) | Can be violated when neighbours are near |
 | No warm-start between OSQP steps | OSQP restarts cold each time step (5–10× slower) |
@@ -117,7 +117,7 @@ joint_obs = mean([obs_i for all i])   # (40,) input → lighter critic
 The ADMM penalty $\rho$ (default 1.0) controls the speed/accuracy trade-off:
 
 | $\rho$ | Effect |
-|--------|--------|
+| :--- | :--- |
 | < 0.1 | Slow primal convergence, few iterations needed |
 | 1.0 | Balanced (default) |
 | > 10 | Fast primal convergence but dual residual spikes |
@@ -418,7 +418,7 @@ On real hardware the DMPC needs accurate position and velocity.  Recommended
 estimation stack:
 
 | Sensor | ROS2 topic | Frequency |
-|---|---|---|
+| :--- | :--- | :--- |
 | IMU (MPU-6050 or ICM-42688P) | `/imu/data` | 400 Hz |
 | GPS RTK (u-blox F9P) | `/mavros/global_position/local` | 10 Hz |
 | Optical Flow (PX4Flow) | `/mavros/optical_flow/velocity` | 30 Hz |
@@ -506,7 +506,7 @@ boilerplate to assemble the sparse matrices.
 ### 10.4  Solver Timing Budget Summary
 
 | Platform | CVXPY+OSQP (current) | OSQP direct | Target for 50 Hz |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | x86-64 laptop | ~4 ms | ~0.8 ms | < 20 ms ✓ |
 | Raspberry Pi 4 | ~18 ms | ~4 ms | < 20 ms ⚠ (marginal — reduce horizon to 12) |
 | NVIDIA Jetson Nano | ~9 ms | ~2 ms | < 20 ms ✓ |

@@ -74,20 +74,20 @@ The architecture follows a layered design:
 ### MARL Layer
 
 | Component | File | Purpose |
-|---|---|---|
+| :--- | :--- | :--- |
 | `MAPPOAgent` | `agents/mappo_agent.py` | SB3 PPO; shared actor + centralised critic; outputs Q/R scales |
 | `MARLDMPCEnv` | `gym_env/marl_env.py` | 40-D obs, 14-D action MARL Gymnasium environment |
 
 ### Consensus Layer
 
 | Component | File | Purpose |
-|---|---|---|
+| :--- | :--- | :--- |
 | `ADMMConsensus` | `modules/admm_consensus.py` | ADMM z/v/dual updates; enforces inter-drone trajectory agreement |
 
 ### Control Layer
 
 | Component | File | Purpose |
-|---|---|---|
+| :--- | :--- | :--- |
 | `DMPC` | `modules/dmpc_controller.py` | CVXPY/OSQP MPC with MARL-adaptive cost and DARE terminal cost |
 | `AttitudeController` | `modules/attitude_controller.py` | Geometric SO(3) PD control (fixed gains) |
 | `FormationController` | `modules/formation_controller.py` | Consensus-based formation keeping |
@@ -96,7 +96,7 @@ The architecture follows a layered design:
 ### Perception & Decision Layers
 
 | Component | File | Purpose |
-|---|---|---|
+| :--- | :--- | :--- |
 | `SensorFusionManager` | `modules/sensor_fusion.py` | EKF-based multi-sensor fusion |
 | `MissionPlanner` | `modules/mission_planner.py` | Grid decomposition and waypoint generation |
 | `ClassificationEngine` | `modules/classification_engine.py` | Bayesian target classification |
@@ -107,7 +107,7 @@ The architecture follows a layered design:
 ## Module System
 
 | # | Module | Input | Output |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | 1 | Mission Planner | Area polygon, num drones | Waypoint sequences |
 | 2 | Formation Controller | Waypoints, neighbour states | Formation velocity commands |
 | 3 | Sensor Fusion | Raw sensor readings | Filtered drone/target states |
@@ -146,7 +146,7 @@ print(config.dmpc.admm_rho)            # 1.0
 Key config files:
 
 | File | Purpose |
-|---|---|
+| :--- | :--- |
 | `config/dmpc_config.yaml` | MPC horizon, base cost matrices, ADMM rho, solver timeout |
 | `config/mappo_config.yaml` | PPO lr, clip, epochs, hidden dims, action bounds |
 | `config/drone_specs.yaml` | Physical parameters, sensor specs (hector_quadrotor) |
@@ -155,7 +155,7 @@ Key config files:
 ## Design Patterns
 
 | Pattern | Implementation | Rationale |
-|---|---|---|
+| :--- | :--- | :--- |
 | **CTDE (MARL)** | Centralised critic, decentralised actors (MAPPO) | Reduces variance; enables distributed execution |
 | **Adaptive Cost** | MAPPO outputs Q/R scales; `Q_eff = Q ⊙ diag(q_s)` | Preserves QP convexity while enabling online adaptation |
 | **ADMM Consensus** | ADMMConsensus wraps per-drone DMPC solves | Provable convergence to globally consistent solution |
@@ -166,7 +166,7 @@ Key config files:
 ## Technology Stack
 
 | Component | Technology |
-|---|---|
+| :--- | :--- |
 | MARL Training | [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) PPO (MAPPO) |
 | Consensus | ADMM (custom `ADMMConsensus` module) |
 | Convex Optimisation | [CVXPY](https://www.cvxpy.org/) + [OSQP](https://osqp.org/) |

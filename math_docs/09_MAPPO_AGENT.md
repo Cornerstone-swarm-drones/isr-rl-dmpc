@@ -79,7 +79,7 @@ $$
 $$
 
 | Indices | Component | Dim | Description |
-|---------|-----------|-----|-------------|
+| :--- | :--- | :--- | :--- |
 | 0–10 | Own DMPC state | 11 | $[\mathbf{p}, \mathbf{v}, \mathbf{a}, \psi, \dot\psi]$ |
 | 11–13 | Reference position | 3 | Current waypoint $\mathbf{p}^{\text{ref}}$ |
 | 14–16 | Reference velocity | 3 | $\mathbf{v}^{\text{ref}}$ |
@@ -89,7 +89,7 @@ $$
 | 29 | Battery level | 1 | Normalised $[0, 1]$ |
 | 30 | Health | 1 | Structural health $[0, 1]$ |
 | 31–33 | Last applied control | 3 | Previous $\mathbf{u}^{(i)}$ |
-| 34–36 | ADMM residual | 3 | Primal residual $\|\mathbf{z}_i - \mathbf{v}\|$ per axis |
+| 34–36 | ADMM residual | 3 | Primal residual $\lVert\mathbf{z}_i - \mathbf{v}\rVert$ per axis |
 | 37 | DMPC solve time | 1 | Normalised last QP solve time |
 | 38 | Collision margin | 1 | Min neighbour distance minus $r_{\min}$ (normalised) |
 | 39 | Mission progress | 1 | $t / T_{\max}$ |
@@ -167,7 +167,7 @@ Penalises unnecessarily large control commands.
 ### Default Weights
 
 | Weight | Value |
-|--------|-------|
+| :--- | :--- |
 | $w_{\text{track}}$ | 5.0 |
 | $w_{\text{form}}$ | 2.0 |
 | $w_{\text{safe}}$ | 10.0 |
@@ -211,7 +211,7 @@ formation keeping).
 **Network architecture:**
 
 | Network | Input | Hidden layers | Output |
-|---------|-------|---------------|--------|
+| :--- | :--- | :--- | :--- |
 | Actor $\pi_\theta$ | 40-D local obs | 256 → 256 | 28-D ($\boldsymbol{\mu}_a, \log\boldsymbol{\sigma}_a$) |
 | Critic $V_\phi$ | $N \times 40$-D joint obs | 256 → 256 | 1-D value |
 
@@ -233,7 +233,7 @@ $$
 $$
 
 | Parameter | Value | Effect |
-|-----------|-------|--------|
+| :--- | :--- | :--- |
 | $\gamma$ | 0.99 | Discount factor |
 | $\lambda$ | 0.95 | GAE smoothing (bias–variance trade-off) |
 
@@ -324,7 +324,7 @@ for episode in range(num_episodes):
 ## 12  Hyperparameters
 
 | Parameter | Value | Description |
-|-----------|-------|-------------|
+| :--- | :--- | :--- |
 | `n_steps` | 2048 | Steps per rollout buffer |
 | `batch_size` | 256 | Mini-batch size for PPO update |
 | `n_epochs` | 10 | PPO update epochs per rollout |

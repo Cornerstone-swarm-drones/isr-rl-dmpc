@@ -29,7 +29,7 @@ Decomposes the mission area into a grid, generates waypoints for coverage, and p
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `GridCell` | Represents a single cell in the mission grid with coverage state |
 | `GridDecomposer` | Decomposes the mission area into a grid of cells |
 | `WaypointGenerator` | Generates waypoint sequences for coverage path planning |
@@ -38,7 +38,7 @@ Decomposes the mission area into a grid, generates waypoints for coverage, and p
 ### Parameters
 
 | Parameter | Source | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `grid_cell_size` | `default_config.yaml` | `10.0 m` | Size of each grid cell |
 | `coverage_radius` | `default_config.yaml` | `5.0 m` | Sensor coverage radius per drone |
 | `coverage_goal` | `default_config.yaml` | `0.95` | Target coverage ratio (0–1) |
@@ -64,7 +64,7 @@ Maintains swarm formation geometry using consensus-based distributed control. Su
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `FormationController` | High-level formation management |
 | `ConsensusController` | Distributed consensus algorithm for position agreement |
 | `FormationGeometry` | Defines formation shapes (grid, wedge, line) |
@@ -72,7 +72,7 @@ Maintains swarm formation geometry using consensus-based distributed control. Su
 ### Supported Formations
 
 | Formation | Use Case | Drones |
-|---|---|---|
+| :--- | :--- | :--- |
 | Grid | Area surveillance | 4+ |
 | Wedge | Threat response | 3+ |
 | Line | Search sweep | 2+ |
@@ -80,7 +80,7 @@ Maintains swarm formation geometry using consensus-based distributed control. Su
 ### Parameters
 
 | Parameter | Source | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `communication_radius` | `default_config.yaml` | `100.0 m` | Maximum inter-drone communication range |
 | `min_swarm_separation` | `default_config.yaml` | `2.0 m` | Minimum separation distance |
 | `max_swarm_spread` | `default_config.yaml` | `200.0 m` | Maximum spread distance |
@@ -98,13 +98,13 @@ Fuses data from four sensor types (radar, optical, RF, acoustic) into unified ta
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `SensorFusionManager` | Coordinates fusion across all sensor modalities |
 
 ### Sensor Specifications
 
 | Sensor | Range | Update Rate | Noise σ | FOV |
-|---|---|---|---|---|
+| :--- | :--- | :--- | :--- | :--- |
 | Radar | 200 m | 5 Hz | 2.0 m | 360° |
 | Optical | 150 m | 30 Hz | 0.5 m | 120° |
 | RF | 100 m | 10 Hz | 5.0 m | 360° |
@@ -125,7 +125,7 @@ Classifies detected targets as friendly, hostile, or neutral using Bayesian infe
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `ClassificationEngine` | Main classification pipeline |
 | `BayesianClassifier` | Bayesian posterior updating for classification |
 | `FeatureExtractor` | Extracts features from sensor data for classification |
@@ -133,7 +133,7 @@ Classifies detected targets as friendly, hostile, or neutral using Bayesian infe
 ### Target Types
 
 | Type | Confidence Range | Description |
-|---|---|---|
+| :--- | :--- | :--- |
 | Hostile | `[-1.0, -0.3]` | Threat requiring engagement |
 | Neutral | `(-0.3, 0.3)` | Unknown or non-threat entity |
 | Friendly | `[0.3, 1.0]` | Identified friendly asset |
@@ -151,7 +151,7 @@ Evaluates real-time threat levels for detected targets based on classification, 
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `ThreatAssessor` | Computes threat scores from target states and classifications |
 
 ### Threat Level Computation
@@ -175,7 +175,7 @@ Assigns drones to tasks (waypoints, targets, coverage zones) using the Hungarian
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `TaskAllocator` | High-level task assignment interface |
 | `HungarianAssignment` | Optimal assignment using the Hungarian algorithm |
 
@@ -204,13 +204,13 @@ local DMPC solutions of individual drones are globally consistent.
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `ADMMConsensus` | Main ADMM coordinator: z/v/dual updates |
 
 ### Configuration
 
 | Parameter | Source | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `rho` | `dmpc_config.yaml` | `1.0` | ADMM penalty parameter |
 | `max_iter` | `dmpc_config.yaml` | `10` | Max ADMM iterations per step |
 | `eps_abs` | `dmpc_config.yaml` | `1e-3` | Absolute primal/dual tolerance |
@@ -249,7 +249,7 @@ DARE-computed LQR terminal cost.
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `DMPC` | Main DMPC controller: builds and solves the QP |
 | `MPCSolver` | CVXPY/OSQP interface for the constrained QP |
 | `DMPCConfig` | Dataclass holding all DMPC parameters |
@@ -257,7 +257,7 @@ DARE-computed LQR terminal cost.
 ### Configuration
 
 | Parameter | Source | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `prediction_horizon` | `dmpc_config.yaml` | `20` | MPC prediction horizon (steps) |
 | `accel_max` | `dmpc_config.yaml` | `10.0 m/s²` | Maximum control acceleration |
 | `collision_radius` | `dmpc_config.yaml` | `5.0 m` | Minimum safe separation |
@@ -302,7 +302,7 @@ drones with fixed LQR-tuned gains.
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `AttitudeController` | High-level attitude control interface |
 | `GeometricController` | SO(3) geometric controller for attitude tracking |
 | `DroneParameters` | Physical parameters and fixed control gains |
@@ -331,7 +331,7 @@ per-step statistics, computes performance metrics, and logs to TensorBoard.
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `DMPCAnalytics` | Accumulates step records and computes metrics |
 | `StepRecord` | Single DMPC step record (state, control, solve time, ADMM residual) |
 
@@ -374,20 +374,20 @@ PPO with a centralised critic (CTDE).
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `MAPPOAgent` | Wraps SB3 PPO; exposes `act(obs)` → `(q_scale, r_scale)` per drone |
 
 ### Input / Output
 
 | | Shape | Description |
-|---|---|---|
+| :--- | :--- | :--- |
 | Input (per drone) | `(40,)` | Local observation (see GYM_DESIGN.md) |
 | Output (per drone) | `(14,)` | `[q_scale(11), r_scale(3)]` ∈ [0.1, 10.0] |
 
 ### Architecture
 
 | Network | Layers | Input → Output |
-|---|---|---|
+| :--- | :--- | :--- |
 | Actor $\pi_\theta$ | Linear(40→256) → ReLU → Linear(256→256) → ReLU → Linear(256→28) | 40-D obs → 14-D mean + 14-D log-std |
 | Critic $V_\phi$ | Linear(N×40→256) → ReLU → Linear(256→256) → ReLU → Linear(256→1) | joint obs → scalar value |
 

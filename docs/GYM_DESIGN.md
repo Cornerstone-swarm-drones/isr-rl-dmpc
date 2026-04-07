@@ -63,7 +63,7 @@ obs^(i) ∈ R^40
 ```
 
 | Indices | Component | Dim | Description |
-|---------|-----------|-----|-------------|
+| :--- | :--- | :--- | :--- |
 | 0–10 | Own DMPC state | 11 | [p(3), v(3), a(3), ψ, ψ̇] |
 | 11–13 | Reference position | 3 | Current waypoint p_ref |
 | 14–16 | Reference velocity | 3 | v_ref |
@@ -120,7 +120,7 @@ r^(i) = w_track * r_track + w_form * r_form + w_safe * r_safe + w_eff * r_eff
 ```
 
 | Component | Formula | Weight |
-|-----------|---------|--------|
+| :--- | :--- | :--- |
 | Tracking | `exp(-0.1 * ‖e_p‖²) − 1` | 5.0 |
 | Formation | `−mean(‖Δp_ij − d_ij‖)` over neighbours | 2.0 |
 | Safety | `sum(min(0, ‖p_i−p_j‖ − r_min))` | 10.0 |

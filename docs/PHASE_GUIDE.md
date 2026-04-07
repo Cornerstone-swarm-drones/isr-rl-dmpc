@@ -29,7 +29,7 @@ Each ISR mission progresses through three phases, each handled by a specific sub
 **Key Parameters:**
 
 | Parameter | Config | Default | Effect |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `grid_cell_size` | `default_config.yaml` | `10.0 m` | Smaller cells → finer coverage, more waypoints |
 | `coverage_radius` | `default_config.yaml` | `5.0 m` | Larger radius → fewer passes needed |
 | `coverage_goal` | `default_config.yaml` | `0.95` | Higher goal → longer mission duration |
@@ -60,7 +60,7 @@ Each ISR mission progresses through three phases, each handled by a specific sub
 **Key Parameters:**
 
 | Parameter | Config | Default | Effect |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `communication_radius` | `default_config.yaml` | `100.0 m` | Larger radius → more neighbors, better consensus |
 | `min_swarm_separation` | `default_config.yaml` | `2.0 m` | Safety distance between drones |
 | `formation_type` | `mission_scenarios.yaml` | per-scenario | Grid, wedge, or line |
@@ -87,7 +87,7 @@ Each ISR mission progresses through three phases, each handled by a specific sub
 **Key Parameters:**
 
 | Parameter | Config | Default | Effect |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `prediction_horizon` | `dmpc_config.yaml` | `20` | Longer horizon → better planning, slower solve |
 | `accel_max` | `dmpc_config.yaml` | `10.0 m/s²` | Control saturation bound |
 | `collision_radius` | `dmpc_config.yaml` | `5.0 m` | Minimum inter-drone separation |

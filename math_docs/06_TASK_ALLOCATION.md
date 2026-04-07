@@ -219,7 +219,7 @@ but runs in O(m n) time and handles real-time task surges.
 ## 7  Complexity Analysis
 
 | Variant | Time Complexity | Use Case |
-|---------|----------------|----------|
+| :--- | :--- | :--- |
 | Hungarian (square n×n) | O(n³) | m ≤ n (≤ drones) |
 | Greedy (m > n) | O(m n) | More tasks than drones |
 
