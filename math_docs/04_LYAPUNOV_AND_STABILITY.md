@@ -137,7 +137,7 @@ rho   = np.max(np.abs(eigs))   # spectral radius
 
 **Typical result** (default $Q = I_9$, $R = 0.1 I_3$, $\Delta t = 0.02\;\text{s}$):
 
-| Mode | $|\lambda_i|$ |
+| Mode | $\lvert\lambda_i\rvert$ |
 |------|----------------|
 | Position convergence | ≈ 0.942 |
 | Velocity convergence | ≈ 0.983 |

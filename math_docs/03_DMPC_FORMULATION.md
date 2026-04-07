@@ -286,7 +286,7 @@ ADMM iterates three steps per DMPC solve cycle:
 **x-update** (local QP solve per drone, parallelisable):
 
 $$
-\mathbf{z}_i^{k+1} \leftarrow \arg\min_{\mathbf{z}_i} \Bigl[ J_i(\mathbf{z}_i) + \boldsymbol{\mu}_i^{k\top}(\mathbf{z}_i - \mathbf{v}^k) + \tfrac{\rho}{2}\|\mathbf{z}_i - \mathbf{v}^k\|^2 \Bigr]
+\mathbf{z}_i^{k+1} \leftarrow \arg\min_{\mathbf{z}_i} \Bigl[ J_i(\mathbf{z}_i) + (\boldsymbol{\mu}_i^k)^\top(\mathbf{z}_i - \mathbf{v}^k) + \tfrac{\rho}{2}\|\mathbf{z}_i - \mathbf{v}^k\|^2 \Bigr]
 $$
 
 **v-update** (global average, closed form):

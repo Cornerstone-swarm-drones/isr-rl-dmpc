@@ -237,8 +237,8 @@ or the maximum mission duration is reached.
 
 | Operation | Complexity |
 |-----------|-----------|
-| Grid decomposition | $O(m_{\text{total}} \cdot |\mathcal{B}|)$ where $m_{\text{total}} = (x_{\text{range}}/r) \times (y_{\text{range}}/r)$ |
-| Point-in-polygon per cell | $O(|\mathcal{B}|)$ |
+| Grid decomposition | $O(m_{\text{total}} \cdot \lvert\mathcal{B}\rvert)$ where $m_{\text{total}} = (x_{\text{range}}/r) \times (y_{\text{range}}/r)$ |
+| Point-in-polygon per cell | $O(\lvert\mathcal{B}\rvert)$ |
 | Priority scoring | $O(m)$ |
 | Cell-to-drone assignment | $O(m \log m + mn)$ |
 | Nearest-neighbour tour | $O(k^2)$ per drone |

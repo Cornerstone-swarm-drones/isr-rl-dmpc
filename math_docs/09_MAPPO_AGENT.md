@@ -89,7 +89,7 @@ $$
 | 29 | Battery level | 1 | Normalised $[0, 1]$ |
 | 30 | Health | 1 | Structural health $[0, 1]$ |
 | 31–33 | Last applied control | 3 | Previous $\mathbf{u}^{(i)}$ |
-| 34–36 | ADMM residual | 3 | Primal residual $\|\mathbf{z}_i - \mathbf{v}\|$ per axis |
+| 34–36 | ADMM residual | 3 | Primal residual $\lVert\mathbf{z}_i - \mathbf{v}\rVert$ per axis |
 | 37 | DMPC solve time | 1 | Normalised last QP solve time |
 | 38 | Collision margin | 1 | Min neighbour distance minus $r_{\min}$ (normalised) |
 | 39 | Mission progress | 1 | $t / T_{\max}$ |

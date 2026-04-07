@@ -68,8 +68,8 @@ math_docs/                           src/isr_rl_dmpc/
 | $\Delta t$ | Discrete time step (0.02 s = 50 Hz) |
 | $\rho$ | Spectral radius or ADMM penalty parameter |
 | $\lambda$ | Eigenvalue |
-| $\|\cdot\|$ | Euclidean norm (unless subscripted) |
-| $\|\cdot\|_Q$ | Quadratic norm: $\|x\|_Q^2 = x^\top Q x$ |
+| $\lVert\cdot\rVert$ | Euclidean norm (unless subscripted) |
+| $\lVert\cdot\rVert_Q$ | Quadratic norm: $\lVert x\rVert_Q^2 = x^\top Q x$ |
 | $\mathbb{R}^n$ | $n$-dimensional real vector space |
 | $\mathrm{SO}(3)$ | Special orthogonal group in 3D |
 | $\mathcal{N}(i)$ | Neighbours of drone $i$ |
