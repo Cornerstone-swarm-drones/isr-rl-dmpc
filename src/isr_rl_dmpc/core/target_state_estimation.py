@@ -181,23 +181,28 @@ class TargetTrackingEKF:
         """
         return {
             SensorType.RADAR: {
-                'measurement_noise': np.diag([25.0, 1.0, 1e-4, 1e-4]),  # (4×4)
+                # σ_r²=25 m², σ_ṙ²=1 (m/s)², σ_α²=1e-4 rad², σ_el²=1e-4 rad²
+                'measurement_noise': np.diag([25.0, 1.0, 1e-4, 1e-4]),
                 'min_confidence': 0.5,
                 'max_range': 10000.0  # meters
             },
             SensorType.OPTICAL: {
-                'measurement_noise_2d': np.diag([4e-4, 4e-4]),            # (2×2)
-                'measurement_noise_3d': np.diag([4e-4, 4e-4, 25.0]),     # (3×3)
+                # σ_α²=4e-4 rad², σ_el²=4e-4 rad²
+                'measurement_noise_2d': np.diag([4e-4, 4e-4]),
+                # 3D adds range: σ_r²=25 m²
+                'measurement_noise_3d': np.diag([4e-4, 4e-4, 25.0]),
                 'min_confidence': 0.3,
                 'max_range': 5000.0
             },
             SensorType.RF_FINGERPRINT: {
-                'measurement_noise': np.eye(3) * 100.0,  # σ_RF² = 10² (3×3)
+                # σ_RF = 10 m → σ_RF² = 100 m²; scaled by 1/confidence in update
+                'measurement_noise': np.eye(3) * 100.0,
                 'min_confidence': 0.4,
                 'max_range': 1000.0
             },
             SensorType.ACOUSTIC_TDOA: {
-                'measurement_noise': np.eye(3) * 100.0,  # (3×3)
+                # σ_ac = 10 m → σ_ac² = 100 m²; scaled by 1/confidence in update
+                'measurement_noise': np.eye(3) * 100.0,
                 'min_confidence': 0.3,
                 'max_range': 2000.0
             }

@@ -231,6 +231,7 @@ class MPCSolver:
         # Constraint (affine in x_var[:3, k]):
         #   d_k @ x_var[:3, k]  ≥  dist_k * r_min + d_k @ p_j
         # where d_k = p_nom_k − p_j, dist_k = ‖d_k‖.
+        _MIN_SEPARATION = 1e-3  # degenerate-direction guard [m]
         collision_constraints: List = []
         r_min = self.config.collision_radius * 0.9  # 10 % safety margin
         if neighbor_positions:
@@ -240,7 +241,7 @@ class MPCSolver:
                 for p_j in neighbor_positions:
                     d = p_nom_k - p_j
                     dist = float(np.linalg.norm(d))
-                    if dist < 1e-3:
+                    if dist < _MIN_SEPARATION:
                         # Numerically degenerate — skip this step/neighbour pair
                         continue
                     rhs = float(dist * r_min + d @ p_j)
