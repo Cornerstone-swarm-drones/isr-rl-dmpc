@@ -1,6 +1,6 @@
 # Module Specifications
 
-Detailed specifications for each of the 9 core modules in the ISR-RL-DMPC system.
+Detailed specifications for each of the 10 core modules in the ISR-RL-DMPC system.
 
 ## Table of Contents
 
@@ -10,9 +10,11 @@ Detailed specifications for each of the 9 core modules in the ISR-RL-DMPC system
 - [Module 4: Classification Engine](#module-4-classification-engine)
 - [Module 5: Threat Assessor](#module-5-threat-assessor)
 - [Module 6: Task Allocator](#module-6-task-allocator)
-- [Module 7: DMPC Controller](#module-7-dmpc-controller)
-- [Module 8: Attitude Controller](#module-8-attitude-controller)
-- [Module 9: Learning Module](#module-9-learning-module)
+- [Module 7: ADMM Consensus](#module-7-admm-consensus)
+- [Module 8: DMPC Controller](#module-8-dmpc-controller)
+- [Module 9: Attitude Controller](#module-9-attitude-controller)
+- [Module 10: DMPC Analytics](#module-10-dmpc-analytics)
+- [MAPPO Agent](#mappo-agent)
 
 ---
 
@@ -27,7 +29,7 @@ Decomposes the mission area into a grid, generates waypoints for coverage, and p
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `GridCell` | Represents a single cell in the mission grid with coverage state |
 | `GridDecomposer` | Decomposes the mission area into a grid of cells |
 | `WaypointGenerator` | Generates waypoint sequences for coverage path planning |
@@ -36,7 +38,7 @@ Decomposes the mission area into a grid, generates waypoints for coverage, and p
 ### Parameters
 
 | Parameter | Source | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `grid_cell_size` | `default_config.yaml` | `10.0 m` | Size of each grid cell |
 | `coverage_radius` | `default_config.yaml` | `5.0 m` | Sensor coverage radius per drone |
 | `coverage_goal` | `default_config.yaml` | `0.95` | Target coverage ratio (0–1) |
@@ -62,7 +64,7 @@ Maintains swarm formation geometry using consensus-based distributed control. Su
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `FormationController` | High-level formation management |
 | `ConsensusController` | Distributed consensus algorithm for position agreement |
 | `FormationGeometry` | Defines formation shapes (grid, wedge, line) |
@@ -70,7 +72,7 @@ Maintains swarm formation geometry using consensus-based distributed control. Su
 ### Supported Formations
 
 | Formation | Use Case | Drones |
-|---|---|---|
+| :--- | :--- | :--- |
 | Grid | Area surveillance | 4+ |
 | Wedge | Threat response | 3+ |
 | Line | Search sweep | 2+ |
@@ -78,7 +80,7 @@ Maintains swarm formation geometry using consensus-based distributed control. Su
 ### Parameters
 
 | Parameter | Source | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `communication_radius` | `default_config.yaml` | `100.0 m` | Maximum inter-drone communication range |
 | `min_swarm_separation` | `default_config.yaml` | `2.0 m` | Minimum separation distance |
 | `max_swarm_spread` | `default_config.yaml` | `200.0 m` | Maximum spread distance |
@@ -96,13 +98,13 @@ Fuses data from four sensor types (radar, optical, RF, acoustic) into unified ta
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `SensorFusionManager` | Coordinates fusion across all sensor modalities |
 
 ### Sensor Specifications
 
 | Sensor | Range | Update Rate | Noise σ | FOV |
-|---|---|---|---|---|
+| :--- | :--- | :--- | :--- | :--- |
 | Radar | 200 m | 5 Hz | 2.0 m | 360° |
 | Optical | 150 m | 30 Hz | 0.5 m | 120° |
 | RF | 100 m | 10 Hz | 5.0 m | 360° |
@@ -123,7 +125,7 @@ Classifies detected targets as friendly, hostile, or neutral using Bayesian infe
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `ClassificationEngine` | Main classification pipeline |
 | `BayesianClassifier` | Bayesian posterior updating for classification |
 | `FeatureExtractor` | Extracts features from sensor data for classification |
@@ -131,7 +133,7 @@ Classifies detected targets as friendly, hostile, or neutral using Bayesian infe
 ### Target Types
 
 | Type | Confidence Range | Description |
-|---|---|---|
+| :--- | :--- | :--- |
 | Hostile | `[-1.0, -0.3]` | Threat requiring engagement |
 | Neutral | `(-0.3, 0.3)` | Unknown or non-threat entity |
 | Friendly | `[0.3, 1.0]` | Identified friendly asset |
@@ -149,7 +151,7 @@ Evaluates real-time threat levels for detected targets based on classification, 
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `ThreatAssessor` | Computes threat scores from target states and classifications |
 
 ### Threat Level Computation
@@ -173,144 +175,220 @@ Assigns drones to tasks (waypoints, targets, coverage zones) using the Hungarian
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `TaskAllocator` | High-level task assignment interface |
 | `HungarianAssignment` | Optimal assignment using the Hungarian algorithm |
 
 ### Algorithm
 
-The Hungarian algorithm solves the assignment problem by minimizing total cost:
+The Hungarian algorithm solves the assignment problem minimising total cost:
 
-```
-minimize  Σ_i Σ_j C[i,j] × X[i,j]
-subject to  each drone assigned exactly one task
-            each task assigned at most one drone
-```
+$$
+\min_{X} \sum_i \sum_j C[i,j] \cdot X[i,j] \quad \text{s.t. each drone assigned exactly one task}
+$$
 
-Where `C[i,j]` is the cost of assigning drone `i` to task `j` (typically Euclidean distance or energy cost).
+where `C[i,j]` is the cost of assigning drone `i` to task `j`.
 
 ---
 
-## Module 7: DMPC Controller
+## Module 7: ADMM Consensus
+
+**File:** `src/isr_rl_dmpc/modules/admm_consensus.py`
+
+### Purpose
+
+Enforces inter-drone consensus on shared reference trajectories and collision
+margins by iteratively solving the ADMM sub-problems.  This ensures that the
+local DMPC solutions of individual drones are globally consistent.
+
+### Key Classes
+
+| Class | Description |
+| :--- | :--- |
+| `ADMMConsensus` | Main ADMM coordinator: z/v/dual updates |
+
+### Configuration
+
+| Parameter | Source | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `rho` | `dmpc_config.yaml` | `1.0` | ADMM penalty parameter |
+| `max_iter` | `dmpc_config.yaml` | `10` | Max ADMM iterations per step |
+| `eps_abs` | `dmpc_config.yaml` | `1e-3` | Absolute primal/dual tolerance |
+
+### ADMM Update Cycle (per control step)
+
+```
+for k in range(max_admm_iters):
+    # 1. Local QP solve (each drone, parallelisable)
+    z_i = argmin { J_DMPC(z_i) + (rho/2)*‖z_i − v + y_i‖² }
+
+    # 2. Global average
+    v = mean([z_i + y_i for all i])
+
+    # 3. Dual update
+    y_i += z_i − v
+
+    if primal_residual < eps and dual_residual < eps:
+        break
+```
+
+See [math_docs/10_ADMM_CONSENSUS.md](../math_docs/10_ADMM_CONSENSUS.md) for the full derivation.
+
+---
+
+## Module 8: DMPC Controller
 
 **File:** `src/isr_rl_dmpc/modules/dmpc_controller.py`
 
 ### Purpose
 
-Implements Distributed Model Predictive Control with CVXPY-based convex optimization and PyTorch-learned cost weight adaptation.
+Implements MARL-adaptive Distributed Model Predictive Control using CVXPY/OSQP
+with dynamically scaled cost matrices provided by the MAPPO agent and a
+DARE-computed LQR terminal cost.
 
 ### Key Classes
 
 | Class | Description |
-|---|---|
-| `DMPC` | Main DMPC controller integrating solver and learning |
-| `MPCSolver` | CVXPY-based convex optimization solver |
-| `CostWeightNetwork` | PyTorch network that learns adaptive Q, R, P cost matrix scales |
-| `DynamicsResidualNetwork` | Neural network for learning unmodeled dynamics |
+| :--- | :--- |
+| `DMPC` | Main DMPC controller: builds and solves the QP |
+| `MPCSolver` | CVXPY/OSQP interface for the constrained QP |
+| `DMPCConfig` | Dataclass holding all DMPC parameters |
 
 ### Configuration
 
 | Parameter | Source | Default | Description |
-|---|---|---|---|
-| `prediction_horizon` | `default_config.yaml` | `10` | MPC prediction horizon (steps) |
-| `control_horizon` | `default_config.yaml` | `5` | MPC control horizon (steps) |
-| `constraint_tightening` | `default_config.yaml` | `0.95` | Constraint relaxation factor |
-| `solver_max_iterations` | `default_config.yaml` | `100` | Maximum solver iterations |
-| `solver_tolerance` | `default_config.yaml` | `0.0001` | Solver convergence tolerance |
+| :--- | :--- | :--- | :--- |
+| `prediction_horizon` | `dmpc_config.yaml` | `20` | MPC prediction horizon (steps) |
+| `accel_max` | `dmpc_config.yaml` | `10.0 m/s²` | Maximum control acceleration |
+| `collision_radius` | `dmpc_config.yaml` | `5.0 m` | Minimum safe separation |
+| `solver_timeout` | `dmpc_config.yaml` | `10 ms` | OSQP time budget per solve |
 
-### Hybrid Architecture
+### MARL-Adaptive Control Architecture
 
 ```
-State → CostWeightNetwork → (Q_scale, R_scale, P_scale)
-                                     │
-                                     ▼
-           Q = Q_scale × Q_base,  R = R_scale × R_base,  P = P_scale × P_base
-                                     │
-                                     ▼
-                            MPCSolver (CVXPY)
-                                     │
-                                     ▼
-                          Optimal control input u*
+MAPPO action (q_scale, r_scale) per drone
+         │
+         ▼
+Q_eff = Q ⊙ diag(q_scale),  R_eff = R ⊙ diag(r_scale)
+         │
+         ▼
+ADMM consensus variable v
+         │
+         ▼
+DMPC QP (CVXPY/OSQP):
+  Cost:     Σ ‖e_k‖²_Q_eff + ‖u_k‖²_R_eff  +  ‖e_N‖²_P
+  Dynamics: x_{k+1} = A x_k + B u_k
+  Saturation: ‖u_k‖ ≤ u_max
+  Collision:  ‖p_k − p_j‖ ≥ r_min
+         │
+         ▼
+  Optimal acceleration u*(t)
 ```
 
-The CostWeightNetwork learns to adapt the DMPC cost matrices based on the current state, while the CVXPY solver guarantees constraint satisfaction.
+Terminal cost $P$ is pre-computed from the DARE.
+See [math_docs/03_DMPC_FORMULATION.md](../math_docs/03_DMPC_FORMULATION.md).
 
 ---
 
-## Module 8: Attitude Controller
+## Module 9: Attitude Controller
 
 **File:** `src/isr_rl_dmpc/modules/attitude_controller.py`
 
 ### Purpose
 
-Implements geometric attitude control for individual drones with gain adaptation for agile maneuvers.
+Implements geometric attitude control on the SO(3) manifold for individual
+drones with fixed LQR-tuned gains.
 
 ### Key Classes
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `AttitudeController` | High-level attitude control interface |
-| `GeometricController` | SE(3) geometric controller for attitude tracking |
+| `GeometricController` | SO(3) geometric controller for attitude tracking |
+| `DroneParameters` | Physical parameters and fixed control gains |
 
 ### Control Law
 
-The geometric controller computes torques to track desired attitudes on SO(3):
+$$
+\boldsymbol{\tau} = -K_{p,\text{att}}\,\boldsymbol{e}_R - K_{d,\text{att}}\,\boldsymbol{e}_\omega + \boldsymbol{\omega} \times (J\boldsymbol{\omega})
+$$
 
-```
-τ = -k_R × e_R - k_ω × e_ω + ω × (J × ω)
-```
+where $\boldsymbol{e}_R = \frac{1}{2}\mathrm{vex}(R_d^\top R - R^\top R_d)$, $K_{p,\text{att}} = 4.5$, $K_{d,\text{att}} = 1.5$.
 
-Where:
-- `e_R` — Rotation error on SO(3)
-- `e_ω` — Angular velocity error
-- `k_R, k_ω` — Proportional and derivative gains
-- `J` — Inertia matrix
+See [math_docs/07_GEOMETRIC_ATTITUDE_CONTROL.md](../math_docs/07_GEOMETRIC_ATTITUDE_CONTROL.md).
 
 ---
 
-## Module 9: Learning Module
+## Module 10: DMPC Analytics
 
 **File:** `src/isr_rl_dmpc/modules/learning_module.py`
 
 ### Purpose
 
-Implements the RL learning pipeline with value and policy networks for optimizing DMPC cost function parameters.
+Lightweight analytics collector for the MARL-DMPC controller.  Records
+per-step statistics, computes performance metrics, and logs to TensorBoard.
 
 ### Key Classes
 
 | Class | Description |
-|---|---|
-| `LearningModule` | Orchestrates value and policy network training |
-| `ValueNetwork` | Critic network: V(s) ≈ E[Σ γ^k r_k \| s] |
-| `PolicyNetwork` | Actor network: π(a\|s) with Gaussian output |
-| `ExperienceBuffer` | Replay buffer with priority-based sampling |
+| :--- | :--- |
+| `DMPCAnalytics` | Accumulates step records and computes metrics |
+| `StepRecord` | Single DMPC step record (state, control, solve time, ADMM residual) |
 
-### Mathematical Framework
+### Tracked Metrics
 
 ```
-State:   s ∈ ℝ^d    (augmented system state)
-Action:  a ∈ ℝ^m    (DMPC parameters θ = [Q, R, P, slack])
-Reward:  r ∈ ℝ       (multi-objective scalar)
+Per-step:
+  - tracking_error  = ‖x − x_ref‖
+  - solve_time      = wall-clock OSQP solve duration (s)
+  - admm_residual   = ADMM primal residual ‖z_i − v‖
+  - objective       = QP objective value at solution
+  - q_scale / r_scale = MAPPO actions at this step
 
-Value function:    V(s) ≈ E[Σ_k γ^k r_k | s]
-TD error:          δ_k = r_k + γ V(s_{k+1}) - V(s_k)
-Policy gradient:   ∇J(θ) = E[∇_θ log π(a|s) × δ_k]
-```
-
-### Network Architecture
-
-**Value Network:**
-```
-Input(state_dim) → Linear(256) → ReLU → LayerNorm →
-Linear(256) → ReLU → LayerNorm →
-Linear(128) → ReLU → Linear(1)
+Aggregate:
+  - RMSE tracking error
+  - Mean / max solve time
+  - Solver success rate
+  - ADMM convergence rate
 ```
 
-**Policy Network:**
+### Persistence
+
+```python
+analytics.save("logs/mission_analytics.npz")
+analytics = DMPCAnalytics.load("logs/mission_analytics.npz")
 ```
-Input(state_dim) → Linear(256) → ReLU →
-Linear(256) → ReLU →
-Linear(128) → ReLU →
-├── Linear(action_dim) → Tanh   [mean]
-└── Linear(action_dim)          [log_std]
-```
+
+---
+
+## MAPPO Agent
+
+**File:** `src/isr_rl_dmpc/agents/mappo_agent.py`
+
+### Purpose
+
+Implements the **Multi-Agent Proximal Policy Optimization (MAPPO)** policy
+that dynamically tunes DMPC cost parameters at runtime.  Uses Stable-Baselines3
+PPO with a centralised critic (CTDE).
+
+### Key Classes
+
+| Class | Description |
+| :--- | :--- |
+| `MAPPOAgent` | Wraps SB3 PPO; exposes `act(obs)` → `(q_scale, r_scale)` per drone |
+
+### Input / Output
+
+| | Shape | Description |
+| :--- | :--- | :--- |
+| Input (per drone) | `(40,)` | Local observation (see GYM_DESIGN.md) |
+| Output (per drone) | `(14,)` | `[q_scale(11), r_scale(3)]` ∈ [0.1, 10.0] |
+
+### Architecture
+
+| Network | Layers | Input → Output |
+| :--- | :--- | :--- |
+| Actor $\pi_\theta$ | Linear(40→256) → ReLU → Linear(256→256) → ReLU → Linear(256→28) | 40-D obs → 14-D mean + 14-D log-std |
+| Critic $V_\phi$ | Linear(N×40→256) → ReLU → Linear(256→256) → ReLU → Linear(256→1) | joint obs → scalar value |
+
+See [math_docs/09_MAPPO_AGENT.md](../math_docs/09_MAPPO_AGENT.md) for full PPO/GAE derivations.

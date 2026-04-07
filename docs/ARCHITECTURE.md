@@ -1,6 +1,13 @@
 # System Architecture
 
-This document describes the high-level architecture of the ISR-RL-DMPC system, including its design patterns, data flow, and component interactions.
+This document describes the high-level architecture of the ISR-RL-DMPC system,
+including its design patterns, data flow, and component interactions.
+
+> **v3.0:** The system implements a **Multi-Agent Reinforcement Learning (MARL)
+> framework using MAPPO (Multi-Agent Proximal Policy Optimization) to dynamically
+> tune the cost parameters of a Distributed Model Predictive Control (DMPC) layer**.
+> Coordination between drones is achieved through **ADMM (Alternating Direction
+> Method of Multipliers)** to ensure consensus on shared constraints and objectives.
 
 ## Table of Contents
 
@@ -15,232 +22,156 @@ This document describes the high-level architecture of the ISR-RL-DMPC system, i
 
 ## Overview
 
-ISR-RL-DMPC is a **hybrid learning-control system** that combines Reinforcement Learning with Distributed Model Predictive Control for autonomous multi-drone swarm operations. The architecture follows a layered design where:
+ISR-RL-DMPC is a **MARL-adaptive multi-drone swarm system** that uses MAPPO to
+dynamically tune DMPC cost parameters, with ADMM enforcing inter-drone consensus.
+The architecture follows a layered design:
 
-1. **Perception Layer** — Sensor fusion and state estimation
-2. **Decision Layer** — Mission planning, classification, threat assessment, task allocation
-3. **Control Layer** — RL-optimized DMPC and attitude control
-4. **Learning Layer** — Value and policy networks for parameter optimization
+1. **Perception Layer** — Sensor fusion and EKF state estimation
+1. **Decision Layer** — Mission planning, classification, threat assessment, task allocation
+1. **MARL Layer** — MAPPO agents output per-drone Q/R cost scale vectors (14-D)
+1. **Consensus Layer** — ADMM synchronises local DMPC sub-problems across drones
+1. **Control Layer** — Per-drone DMPC (CVXPY/OSQP) + geometric attitude control
+1. **Analytics Layer** — DMPC performance monitoring and parameter diagnostics
 
 ## Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                       ISRGridEnv (Gymnasium)                        │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                    Observation (Dict)                         │   │
-│  │  swarm: (N,18)  targets: (M,12)  env: (K+4,)  adj: (N,N)   │   │
-│  └──────────────────────────────────────────────────────────────┘   │
+│                     MARLDMPCEnv (Gymnasium)                         │
+│  Per-Agent Observation (40-D per drone)                             │
+│  own_state(11) + ref(6) + tracking_err(3) + neighbour(7) + misc(13) │
 │                              │                                      │
 │                              ▼                                      │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                    DMPCAgent                                  │   │
-│  │  ┌────────────────┐  ┌────────────────┐  ┌───────────────┐  │   │
-│  │  │ PolicyNetwork  │  │ ValueNetwork   │  │ ExperienceBuffer│ │   │
-│  │  │ (Actor)        │  │ (Critic)       │  │ (Prioritized) │  │   │
-│  │  └────────────────┘  └────────────────┘  └───────────────┘  │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
+│  MAPPOAgent  (Stable-Baselines3 PPO)                                │
+│  Actor π_θ(o^i)  →  action (14-D: q_scale(11) + r_scale(3))         │
+│  Critic V_φ(o^1,...,o^N)  →  value  [centralised, CTDE]             │
+│                              │  q_scale, r_scale                    │
 │                              ▼                                      │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                 9 Integrated Modules                          │   │
-│  │                                                               │   │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │   │
-│  │  │ Mission  │ │Formation │ │ Sensor   │ │ Classifi-│       │   │
-│  │  │ Planner  │ │Controller│ │ Fusion   │ │ cation   │       │   │
-│  │  │  (M1)    │ │  (M2)    │ │  (M3)    │ │  (M4)    │       │   │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │   │
-│  │                                                               │   │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │   │
-│  │  │ Threat   │ │ Task     │ │ DMPC     │ │ Attitude │       │   │
-│  │  │ Assessor │ │Allocator │ │Controller│ │Controller│       │   │
-│  │  │  (M5)    │ │  (M6)    │ │  (M7)    │ │  (M8)    │       │   │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │   │
-│  │                                                               │   │
-│  │  ┌──────────┐                                                │   │
-│  │  │ Learning │                                                │   │
-│  │  │ Module   │                                                │   │
-│  │  │  (M9)    │                                                │   │
-│  │  └──────────┘                                                │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
+│  ADMMConsensus                                                      │
+│  z-update → v-update → dual-update  (3–5 iters per step)            │
+│                              │  consensus variable v                │
 │                              ▼                                      │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │              EnvironmentSimulator (6-DOF)                     │   │
-│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐             │   │
-│  │  │ DronePhysics│ │TargetPhysics│ │ WindModel  │             │   │
-│  │  └────────────┘  └────────────┘  └────────────┘             │   │
-│  └──────────────────────────────────────────────────────────────┘   │
+│  DMPCAgent (per drone)                                              │
+│  ┌──────────────────────────────┐  ┌────────────────────────────┐   │
+│  │  DMPC (CVXPY / OSQP)         │  │  AttitudeController (SO(3))│   │
+│  │  Q_eff = Q ⊙ diag(q_scale)  │  │  Geometric PD + gyro FF    │   │
+│  │  Terminal cost: DARE         │  └────────────────────────────┘   │
+│  └──────────────────────────────┘                                   │
 │                              │                                      │
-│                              ▼                                      │
-│                 Action: Motor PWM (N, 4)                            │
-│                 Reward: Scalar (5 components)                       │
+│  10 Integrated Modules                                              │
+│  M1 MissionPlanner  M2 FormationController  M3 SensorFusion         │
+│  M4 Classification  M5 ThreatAssessor       M6 TaskAllocator        │
+│  M7 ADMMConsensus   M8 DMPC                 M9 AttitudeController   │
+│  M10 DMPCAnalytics                                                  │
+│                              │                                      │
+│  EnvironmentSimulator (6-DOF rigid-body)                            │
+│  DronePhysics  TargetPhysics  WindModel                             │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Layer Structure
 
-### Perception Layer
-
-Responsible for sensing and state estimation.
+### MARL Layer
 
 | Component | File | Purpose |
-|---|---|---|
-| `SensorFusionManager` | `modules/sensor_fusion.py` | Fuses radar, optical, RF, and acoustic sensor data |
-| `DroneStateEstimation` | `core/drone_state_estimation.py` | Extended Kalman Filter (EKF) for drone pose estimation |
-| `TargetStateEstimation` | `core/target_state_estimation.py` | EKF for target tracking with 11-state model |
-| `SensorSimulator` | `gym_env/sensor_simulator.py` | Realistic sensor noise modeling |
+| :--- | :--- | :--- |
+| `MAPPOAgent` | `agents/mappo_agent.py` | SB3 PPO; shared actor + centralised critic; outputs Q/R scales |
+| `MARLDMPCEnv` | `gym_env/marl_env.py` | 40-D obs, 14-D action MARL Gymnasium environment |
 
-### Decision Layer
-
-Mission-level planning and decision making.
+### Consensus Layer
 
 | Component | File | Purpose |
-|---|---|---|
-| `MissionPlanner` | `modules/mission_planner.py` | Grid decomposition and waypoint generation |
-| `ClassificationEngine` | `modules/classification_engine.py` | Bayesian target classification |
-| `ThreatAssessor` | `modules/threat_assessor.py` | Threat level evaluation |
-| `TaskAllocator` | `modules/task_allocator.py` | Hungarian algorithm task assignment |
+| :--- | :--- | :--- |
+| `ADMMConsensus` | `modules/admm_consensus.py` | ADMM z/v/dual updates; enforces inter-drone trajectory agreement |
 
 ### Control Layer
 
-Real-time swarm and individual drone control.
+| Component | File | Purpose |
+| :--- | :--- | :--- |
+| `DMPC` | `modules/dmpc_controller.py` | CVXPY/OSQP MPC with MARL-adaptive cost and DARE terminal cost |
+| `AttitudeController` | `modules/attitude_controller.py` | Geometric SO(3) PD control (fixed gains) |
+| `FormationController` | `modules/formation_controller.py` | Consensus-based formation keeping |
+| `DMPCAgent` | `agents/dmpc_agent.py` | Unified agent interface |
+
+### Perception & Decision Layers
 
 | Component | File | Purpose |
-|---|---|---|
-| `FormationController` | `modules/formation_controller.py` | Consensus-based formation control |
-| `DMPC` | `modules/dmpc_controller.py` | CVXPY solver with learned cost weights |
-| `AttitudeController` | `modules/attitude_controller.py` | Geometric attitude control |
-
-### Learning Layer
-
-Reinforcement learning for DMPC parameter optimization.
-
-| Component | File | Purpose |
-|---|---|---|
-| `LearningModule` | `modules/learning_module.py` | Value + Policy networks (PyTorch) |
-| `DMPCAgent` | `agents/dmpc_agent.py` | Unified RL agent interface |
-| `ActorCriticTrainer` | `agents/actor_critic.py` | GAE-based training with entropy bonus |
-| `PrioritizedReplayBuffer` | `agents/experience_buffer.py` | Prioritized experience replay |
+| :--- | :--- | :--- |
+| `SensorFusionManager` | `modules/sensor_fusion.py` | EKF-based multi-sensor fusion |
+| `MissionPlanner` | `modules/mission_planner.py` | Grid decomposition and waypoint generation |
+| `ClassificationEngine` | `modules/classification_engine.py` | Bayesian target classification |
+| `ThreatAssessor` | `modules/threat_assessor.py` | Priority scoring of detected targets |
+| `TaskAllocator` | `modules/task_allocator.py` | Hungarian-algorithm task assignment |
+| `DMPCStabilityAnalyzer` | `analysis/stability_analysis.py` | Lyapunov, ISS, CBF, feasibility checks |
 
 ## Module System
 
-The system is built around 9 core modules that operate together:
-
 | # | Module | Input | Output |
-|---|---|---|---|
-| 1 | Mission Planner | Area boundaries, drone count | Grid cells, waypoints |
-| 2 | Formation Controller | Drone states, target formation | Formation commands |
-| 3 | Sensor Fusion | Raw sensor readings (4 types) | Fused detections |
-| 4 | Classification Engine | Sensor features | Target classifications |
-| 5 | Threat Assessor | Classifications, dynamics | Threat levels |
-| 6 | Task Allocator | Drone states, tasks | Drone–task assignments |
-| 7 | DMPC Controller | States, cost weights | Optimal control inputs |
-| 8 | Attitude Controller | Desired attitude, current state | Motor torques |
-| 9 | Learning Module | States, rewards | Updated cost weights |
+| :--- | :--- | :--- | :--- |
+| 1 | Mission Planner | Area polygon, num drones | Waypoint sequences |
+| 2 | Formation Controller | Waypoints, neighbour states | Formation velocity commands |
+| 3 | Sensor Fusion | Raw sensor readings | Filtered drone/target states |
+| 4 | Classification Engine | Target observations | Classification labels |
+| 5 | Threat Assessor | Classifications, positions | Threat priority scores |
+| 6 | Task Allocator | Threats, drone capabilities | Drone → task assignment |
+| 7 | ADMM Consensus | Local DMPC solutions (z_i) | Consensus variable v, dual vars μ |
+| 8 | DMPC Controller | State, reference, q_scale, r_scale | Optimal accel command (OSQP) |
+| 9 | Attitude Controller | State, accel command | Motor thrust commands |
+| 10 | DMPC Analytics | Solve results | Performance metrics |
 
 ## Data Flow
 
-### Training Loop
-
 ```
-1. env.reset() → initial observation (Dict)
-2. agent.act(obs) → action (motor PWM)
-3. env.step(action) → (next_obs, reward, terminated, truncated, info)
-4. agent.remember(obs, action, reward, next_obs, done)
-5. agent.train_on_batch() → (critic_loss, actor_loss)
-6. Repeat 2-5 for max_steps
-7. Repeat 1-6 for num_episodes
-```
-
-### Observation Pipeline
-
-```
-DronePhysics (position, velocity, quaternion, battery, health)
-    → to_vector() → 18D per drone → swarm observation (N, 18)
-
-TargetPhysics (position, velocity, acceleration, yaw)
-    → to_vector() → 12D per target → target observation (M, 12)
-
-CoverageMap (grid_cells) + MissionState (4 scalars)
-    → concatenate → environment observation (K+4,)
-
-Inter-drone distances → adjacency matrix (N, N)
-```
-
-### Control Pipeline
-
-```
-PolicyNetwork(state) → (mean, log_std) → sampled action
-    → reshape to (num_drones, 4) → motor PWM commands
-    → EnvironmentSimulator.step() → 6-DOF dynamics update
-    → collision detection, battery update, wind effects
-    → new drone/target states
+Sensors → M3 SensorFusion → M4 Classification → M5 ThreatAssessment
+                                                       ↓
+M1 MissionPlanner → M2 FormationController → M6 TaskAllocator
+                                                       ↓
+                         MAPPO Agent → (q_scale, r_scale per drone)
+                                                       ↓
+                    M7 ADMMConsensus ←→ M8 DMPC → M9 Attitude → Motor PWM
+                                              ↕
+                                        M10 Analytics
 ```
 
 ## Configuration System
 
-The configuration system uses Python dataclasses with YAML serialization:
-
 ```python
 from isr_rl_dmpc.config import load_config
 
-# Load with defaults
-config = load_config()
-
-# Load from file with overrides
-config = load_config(
-    "config/default_config.yaml",
-    overrides={"learning": {"batch_size": 64}}
-)
-
-# Access parameters
-lr = config.learning.learning_rate_critic
-horizon = config.dmpc.prediction_horizon
-
-# Validate all parameters
-config.validate()
+config = load_config("config/dmpc_config.yaml")
+print(config.dmpc.prediction_horizon)  # 20
+print(config.dmpc.admm_rho)            # 1.0
 ```
 
-### Configuration Hierarchy
+Key config files:
 
-```
-Config (master)
-├── DroneConfig       — Physical and control parameters
-├── SensorConfig      — Sensor and frequency parameters
-├── MissionConfig     — Coverage and separation parameters
-├── LearningConfig    — RL hyperparameters and reward weights
-└── DMPCConfig        — Prediction horizon and solver parameters
-```
+| File | Purpose |
+| :--- | :--- |
+| `config/dmpc_config.yaml` | MPC horizon, base cost matrices, ADMM rho, solver timeout |
+| `config/mappo_config.yaml` | PPO lr, clip, epochs, hidden dims, action bounds |
+| `config/drone_specs.yaml` | Physical parameters, sensor specs (hector_quadrotor) |
+| `config/mission_scenarios.yaml` | Pre-defined ISR mission scenarios |
 
 ## Design Patterns
 
-| Pattern | Implementation | Purpose |
-|---|---|---|
-| **Hybrid Control** | CVXPY optimizer + PyTorch networks | Safety through convex constraints, adaptivity through learning |
-| **Actor-Critic** | Separate PolicyNetwork and ValueNetwork | Stable policy gradient learning |
-| **Prioritized Replay** | PrioritizedReplayBuffer with importance sampling | Efficient experience utilization |
-| **State Manager** | Centralized StateManager with thread safety | Consistent state access across modules |
-| **Factory Pattern** | `make_env()` and `load_config()` functions | Simplified environment and config creation |
-| **Dataclass Configs** | `@dataclass` with `validate()` methods | Type-safe, validated configuration |
-| **Modular Design** | 9 independent modules with clear interfaces | Testability and maintainability |
+| Pattern | Implementation | Rationale |
+| :--- | :--- | :--- |
+| **CTDE (MARL)** | Centralised critic, decentralised actors (MAPPO) | Reduces variance; enables distributed execution |
+| **Adaptive Cost** | MAPPO outputs Q/R scales; `Q_eff = Q ⊙ diag(q_s)` | Preserves QP convexity while enabling online adaptation |
+| **ADMM Consensus** | ADMMConsensus wraps per-drone DMPC solves | Provable convergence to globally consistent solution |
+| **DARE Terminal Cost** | `scipy.linalg.solve_discrete_are` | Guarantees recursive feasibility regardless of MAPPO output |
+| **Fixed-Gain Attitude** | Geometric SO(3) with DARE-tuned gains | Deterministic, real-time safe inner loop |
+| **Analytics Separation** | DMPCAnalytics independent of control | Non-invasive monitoring |
 
 ## Technology Stack
 
-```
-Application Layer
-├── Gymnasium          — RL environment interface
-├── PyTorch            — Neural networks and gradient computation
-└── CVXPY              — Convex optimization for DMPC
-
-Computation Layer
-├── NumPy              — Array operations
-├── SciPy              — Scientific algorithms (Hungarian, linalg)
-└── scikit-learn       — Random Forest classifier
-
-Infrastructure Layer
-├── YAML               — Configuration serialization
-├── Matplotlib         — Visualization
-├── Jupyter            — Interactive notebooks
-└── pytest             — Testing framework
-```
+| Component | Technology |
+| :--- | :--- |
+| MARL Training | [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) PPO (MAPPO) |
+| Consensus | ADMM (custom `ADMMConsensus` module) |
+| Convex Optimisation | [CVXPY](https://www.cvxpy.org/) + [OSQP](https://osqp.org/) |
+| Terminal Cost | Discrete Algebraic Riccati Equation (SciPy) |
+| Task Allocation | Hungarian Algorithm (SciPy) |
+| Simulation | Gymnasium, 6-DOF rigid-body physics |
+| Visualisation | RViz2, TensorBoard, Matplotlib |
+| Configuration | YAML with dataclass validation |

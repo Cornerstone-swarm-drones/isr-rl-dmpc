@@ -1,10 +1,9 @@
 numpy>=1.21.0
 scipy>=1.7.0
 gymnasium>=0.26.0
+stable-baselines3>=2.0.0
 pyyaml>=5.4
-torch>=1.9.0
 cvxpy>=1.2.0
 osqp>=0.6.0
-foxglove-sdk>=0.18.0
-mcap>=1.1.0
-protobuf>=5.29.6
+# ROS2/RViz simulation: install rclpy via the ROS2 binary distribution
+# (not pip-installable; provided by sourcing /opt/ros/jazzy/setup.bash)

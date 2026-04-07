@@ -32,27 +32,36 @@ class TargetType(Enum):
 
 @dataclass
 class DroneConfig:
-    """Drone physical parameters."""
-    mass: float = 55.0  # kg (DJI Matrice 300 RTK)
-    gravity: float = 9.81  # m/s²
-    max_thrust: float = 600.0  # N (per motor)
+    """Drone physical parameters — tuned for hector_quadrotor airframe.
+
+    Reference: hector_quadrotor (TU Darmstadt)
+    https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor
+
+    mass       = 1.477 kg  (URDF base_link)
+    arm_length = 0.215 m
+    Ixx = Iyy  = 0.01152 kg·m²
+    Izz        = 0.02180 kg·m²
+    """
+    mass: float = 1.477              # kg
+    gravity: float = 9.81            # m/s²
+    max_thrust: float = 9.5          # N per motor (4× → 38 N peak)
     max_angular_velocity: float = 2.0  # rad/s
-    max_linear_velocity: float = 25.0  # m/s
-    battery_capacity: float = 55.0 * 3.6e3  # J (55 Wh)
-    battery_energy_rate: float = 1000.0  # W (power consumption coefficient)
-    min_battery_voltage: float = 10.5  # V (2S minimum)
-    hover_thrust: float = 135.75  # N (mass * gravity / 4 motors)
-    inertia_matrix: np.ndarray = None  # 3x3
-    motor_constant: float = 0.01  # rad/s per Newton thrust
+    max_linear_velocity: float = 15.0  # m/s
+    battery_capacity: float = 5000.0 * 14.8 * 3.6  # J  (5 Ah × 14.8 V × 3600)
+    battery_energy_rate: float = 64.0  # W (hover power estimate)
+    min_battery_voltage: float = 12.0  # V (3.0 V/cell × 4S)
+    hover_thrust: float = 1.477 * 9.81 / 4  # N per motor ≈ 3.62 N
+    inertia_matrix: np.ndarray = None
+    motor_constant: float = 8.27e-6  # rad/s per Newton thrust
 
     def __post_init__(self):
         """Initialize derived parameters."""
         if self.inertia_matrix is None:
-            # Approximate for Matrice 300 RTK
+            # hector_quadrotor URDF inertia values
             self.inertia_matrix = np.array([
-                [0.1147, 0.0, 0.0],
-                [0.0, 0.1147, 0.0],
-                [0.0, 0.0, 0.1040]
+                [0.01152, 0.0, 0.0],
+                [0.0, 0.01152, 0.0],
+                [0.0, 0.0, 0.02180]
             ])
 
 

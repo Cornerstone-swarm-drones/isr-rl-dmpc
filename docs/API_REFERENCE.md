@@ -32,7 +32,7 @@ config = load_config(overrides={"learning": {"batch_size": 64}})
 **Parameters:**
 
 | Name | Type | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `config_path` | `str \| None` | `"config/default_config.yaml"` | Path to YAML config file |
 | `overrides` | `dict \| None` | `None` | Parameter overrides |
 
@@ -55,7 +55,7 @@ config.apply_overrides({"learning": {"batch_size": 64}})
 **Attributes:**
 
 | Name | Type | Description |
-|---|---|---|
+| :--- | :--- | :--- |
 | `drone` | `DroneConfig` | Drone physical parameters |
 | `sensor` | `SensorConfig` | Sensor and frequency parameters |
 | `mission` | `MissionConfig` | Mission and coverage parameters |
@@ -65,7 +65,7 @@ config.apply_overrides({"learning": {"batch_size": 64}})
 **Methods:**
 
 | Method | Description |
-|---|---|
+| :--- | :--- |
 | `validate()` | Validate all configuration sections |
 | `to_dict()` | Convert to nested dictionary |
 | `from_dict(data)` | Class method: load from dictionary |
@@ -78,7 +78,7 @@ config.apply_overrides({"learning": {"batch_size": 64}})
 ### `DroneConfig`
 
 | Attribute | Type | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `mass` | `float` | `1.0` | Mass (kg) |
 | `inertia` | `List[float]` | `[0.05, 0.05, 0.1]` | Inertia (kg·m²) |
 | `max_acceleration` | `float` | `10.0` | Max acceleration (m/s²) |
@@ -90,7 +90,7 @@ config.apply_overrides({"learning": {"batch_size": 64}})
 ### `SensorConfig`
 
 | Attribute | Type | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `control_frequency` | `float` | `50.0` | Control loop frequency (Hz) |
 | `radar_range` | `float` | `200.0` | Radar detection range (m) |
 | `radar_update_rate` | `float` | `5.0` | Radar update rate (Hz) |
@@ -104,7 +104,7 @@ config.apply_overrides({"learning": {"batch_size": 64}})
 ### `MissionConfig`
 
 | Attribute | Type | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `grid_cell_size` | `float` | `10.0` | Grid cell size (m) |
 | `coverage_radius` | `float` | `5.0` | Sensor coverage radius (m) |
 | `communication_radius` | `float` | `100.0` | Communication range (m) |
@@ -115,7 +115,7 @@ config.apply_overrides({"learning": {"batch_size": 64}})
 ### `LearningConfig`
 
 | Attribute | Type | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `discount_factor` | `float` | `0.99` | Discount factor γ |
 | `learning_rate_critic` | `float` | `1e-3` | Critic learning rate |
 | `learning_rate_actor` | `float` | `1e-4` | Actor learning rate |
@@ -131,7 +131,7 @@ config.apply_overrides({"learning": {"batch_size": 64}})
 ### `DMPCConfig`
 
 | Attribute | Type | Default | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `prediction_horizon` | `int` | `10` | MPC prediction horizon (steps) |
 | `control_horizon` | `int` | `5` | MPC control horizon (steps) |
 | `receding_horizon_step` | `int` | `1` | Receding horizon step size |
@@ -168,7 +168,7 @@ state_copy = state.copy()           # deep copy
 **Attributes:**
 
 | Name | Type | Shape | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `position` | `np.ndarray` | `(3,)` | 3D position [x, y, z] (m) |
 | `velocity` | `np.ndarray` | `(3,)` | 3D velocity (m/s) |
 | `acceleration` | `np.ndarray` | `(3,)` | 3D acceleration (m/s²) |
@@ -181,7 +181,7 @@ state_copy = state.copy()           # deep copy
 **Methods:**
 
 | Method | Returns | Description |
-|---|---|---|
+| :--- | :--- | :--- |
 | `to_vector(normalize=False)` | `np.ndarray (18,)` | Flatten state to 1D array |
 | `to_dict()` | `dict` | Serialize to dictionary |
 | `from_dict(data)` | `DroneState` | Reconstruct from dictionary |
@@ -210,7 +210,7 @@ vector = target.to_vector()  # (12,) numpy array
 **Attributes:**
 
 | Name | Type | Shape | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `position` | `np.ndarray` | `(3,)` | 3D position (m) |
 | `velocity` | `np.ndarray` | `(3,)` | 3D velocity (m/s) |
 | `acceleration` | `np.ndarray` | `(3,)` | 3D acceleration (m/s²) |
@@ -226,7 +226,7 @@ vector = target.to_vector()  # (12,) numpy array
 **Methods:**
 
 | Method | Returns | Description |
-|---|---|---|
+| :--- | :--- | :--- |
 | `to_vector()` | `np.ndarray (12,)` | Flatten state (excl. covariance) |
 | `from_vector(state)` | `TargetState` | Reconstruct from 11D EKF vector |
 | `to_dict()` | `dict` | Serialize to dictionary |
@@ -257,7 +257,7 @@ mission.add_waypoint(np.array([100.0, 200.0]))
 **Attributes:**
 
 | Name | Type | Description |
-|---|---|---|
+| :--- | :--- | :--- |
 | `area_boundary` | `np.ndarray (N, 2)` | Polygon vertices of search area |
 | `waypoints` | `List[np.ndarray]` | Navigation waypoints |
 | `coverage_matrix` | `np.ndarray (bool)` | Grid cell coverage status |
@@ -268,7 +268,7 @@ mission.add_waypoint(np.array([100.0, 200.0]))
 **Methods:**
 
 | Method | Returns | Description |
-|---|---|---|
+| :--- | :--- | :--- |
 | `get_coverage_percentage()` | `float` | Coverage percentage (0–100) |
 | `get_mission_progress()` | `float` | Time progress ratio (0–1) |
 | `add_waypoint(waypoint)` | `None` | Add a navigation waypoint |
@@ -306,7 +306,7 @@ agent = DMPCAgent(
 **Methods:**
 
 | Method | Signature | Returns | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `act` | `(observation, training=True, deterministic=False)` | `np.ndarray` | Select action from policy |
 | `remember` | `(observation, action, reward, next_observation, done)` | `None` | Store transition in replay buffer |
 | `ready_to_train` | `()` | `bool` | Check if enough experience for training |
@@ -334,7 +334,7 @@ env = ISRGridEnv(num_drones=10, max_targets=5)
 **Methods:**
 
 | Method | Signature | Returns | Description |
-|---|---|---|---|
+| :--- | :--- | :--- | :--- |
 | `reset` | `(seed=None, options=None)` | `(obs, info)` | Reset to initial state |
 | `step` | `(action)` | `(obs, reward, terminated, truncated, info)` | Execute one step |
 | `render` | `()` | `np.ndarray \| None` | Render environment |
@@ -358,7 +358,7 @@ vec_env = VectorEnv(envs)
 **Methods:**
 
 | Method | Returns | Description |
-|---|---|---|
+| :--- | :--- | :--- |
 | `reset()` | `dict` | Reset all environments |
 | `step(actions)` | `(obs, rewards, dones, infos)` | Step all environments |
 | `close()` | `None` | Close all environments |
@@ -414,7 +414,7 @@ All modules are located under `isr_rl_dmpc.modules`.
 **Module:** `isr_rl_dmpc.modules.dmpc_controller`
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `DMPC` | Main DMPC controller |
 | `MPCSolver` | CVXPY-based solver |
 | `CostWeightNetwork` | PyTorch network for adaptive cost weights |
@@ -426,7 +426,7 @@ All modules are located under `isr_rl_dmpc.modules`.
 **Module:** `isr_rl_dmpc.modules.learning_module`
 
 | Class | Description |
-|---|---|
+| :--- | :--- |
 | `LearningModule` | Orchestrates value and policy training |
 | `ValueNetwork` | Critic: V(s) approximation |
 | `PolicyNetwork` | Actor: π(a\|s) with Gaussian output |
@@ -446,7 +446,7 @@ Quaternion operations, matrix utilities, and coordinate transformations.
 ### `logging_utils`
 
 | Function/Class | Description |
-|---|---|
+| :--- | :--- |
 | `setup_logger(name, log_file)` | Create a configured logger |
 | `MetricsLogger(name, log_dir)` | Metrics tracking with file output |
 
@@ -473,7 +473,7 @@ See [TRAINING.md](TRAINING.md) for detailed usage.
 **Key Functions:**
 
 | Function | Description |
-|---|---|
+| :--- | :--- |
 | `train(...)` | Main training loop |
 | `evaluate_policy(agent, env, num_episodes)` | Evaluate learned policy |
 | `parse_args()` | Parse CLI arguments |
@@ -487,7 +487,7 @@ python scripts/hyperparameter_search.py [options]
 **Key Functions:**
 
 | Function | Description |
-|---|---|
+| :--- | :--- |
 | `grid_search(...)` | Random search over hyperparameter space |
 | `evaluate_config(config, ...)` | Evaluate a single configuration |
 | `get_search_space()` | Define search space |

@@ -1,0 +1,47 @@
+# MAPPO Hyperparameter Configuration
+#
+# Used by scripts/train_mappo.py to configure the MAPPOAgent / SB3 PPO
+# training run on the MARLDMPCEnv environment.
+#
+# Reference: math_docs/09_MAPPO_AGENT.md
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Environment
+# ─────────────────────────────────────────────────────────────────────────────
+environment:
+  num_drones: 4
+  max_targets: 3
+  mission_duration: 1000       # Episode length (steps at 50 Hz = 20 s)
+  horizon: 20                  # DMPC prediction horizon
+  dt: 0.02                     # Discretisation step [s]
+  admm_iters: 5                # ADMM inner iterations per step
+  accel_max: 8.0               # Maximum acceleration [m/s²]
+  collision_radius: 3.0        # Minimum inter-drone separation [m]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Training
+# ─────────────────────────────────────────────────────────────────────────────
+training:
+  total_timesteps: 1_000_000   # Total environment steps
+  eval_freq: 10_000            # Evaluate every N steps
+  checkpoint_freq: 50_000      # Save checkpoint every N steps
+  log_dir: logs/mappo_dmpc
+  model_dir: models/mappo_dmpc
+  device: auto                 # 'auto', 'cpu', 'cuda'
+  seed: 42
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PPO Hyperparameters
+# ─────────────────────────────────────────────────────────────────────────────
+ppo:
+  policy: MlpPolicy
+  learning_rate: 3.0e-4
+  n_steps: 2048                # Steps per rollout per env
+  batch_size: 256              # Mini-batch size
+  n_epochs: 10                 # Epochs per update
+  gamma: 0.99                  # Discount factor
+  gae_lambda: 0.95             # GAE lambda
+  clip_range: 0.2              # PPO clipping ε
+  ent_coef: 0.01               # Entropy regularisation coefficient
+  vf_coef: 0.5                 # Value-function loss weight
+  max_grad_norm: 0.5           # Gradient norm clipping

@@ -171,26 +171,38 @@ class TargetTrackingEKF:
         self.Q[10, 10] = 0.0001
     
     def _init_sensor_params(self) -> Dict:
-        """Initialize sensor-specific parameters."""
+        """Initialize sensor-specific parameters.
+
+        Noise covariance values match 02_EXTENDED_KALMAN_FILTER.md §5:
+          - Radar:    R = diag(σ_r², σ_ṙ², σ_α², σ_el²) = diag(25, 1, 1e-4, 1e-4)
+          - Optical:  R = diag(σ_α², σ_el²)             = diag(4e-4, 4e-4)
+          - RF:       R = (1/c) · diag(σ_RF², …)        with σ_RF = 10 m → σ² = 100
+          - Acoustic: same structure as RF
+        """
         return {
             SensorType.RADAR: {
-                'measurement_noise': np.diag([0.5, 0.5, 0.1, 0.1]),  # (4×4)
+                # σ_r²=25 m², σ_ṙ²=1 (m/s)², σ_α²=1e-4 rad², σ_el²=1e-4 rad²
+                'measurement_noise': np.diag([25.0, 1.0, 1e-4, 1e-4]),
                 'min_confidence': 0.5,
                 'max_range': 10000.0  # meters
             },
             SensorType.OPTICAL: {
-                'measurement_noise_2d': np.diag([0.05, 0.05]),  # (2×2)
-                'measurement_noise_3d': np.diag([0.05, 0.05, 10.0]),  # (3×3)
+                # σ_α²=4e-4 rad², σ_el²=4e-4 rad²
+                'measurement_noise_2d': np.diag([4e-4, 4e-4]),
+                # 3D adds range: σ_r²=25 m²
+                'measurement_noise_3d': np.diag([4e-4, 4e-4, 25.0]),
                 'min_confidence': 0.3,
                 'max_range': 5000.0
             },
             SensorType.RF_FINGERPRINT: {
-                'measurement_noise': np.eye(3) * 50.0,  # (3×3)
+                # σ_RF = 10 m → σ_RF² = 100 m²; scaled by 1/confidence in update
+                'measurement_noise': np.eye(3) * 100.0,
                 'min_confidence': 0.4,
                 'max_range': 1000.0
             },
             SensorType.ACOUSTIC_TDOA: {
-                'measurement_noise': np.eye(3) * 100.0,  # (3×3)
+                # σ_ac = 10 m → σ_ac² = 100 m²; scaled by 1/confidence in update
+                'measurement_noise': np.eye(3) * 100.0,
                 'min_confidence': 0.3,
                 'max_range': 2000.0
             }
@@ -220,19 +232,29 @@ class TargetTrackingEKF:
         self.P = (self.P + self.P.T) / 2
     
     def _compute_process_matrix(self) -> np.ndarray:
-        """Compute 11×11 state transition matrix."""
+        """Compute 11×11 state transition matrix.
+
+        Uses the same first-order Euler integrator as the DMPC A matrix
+        (01_DRONE_STATE_SPACE.md §6):
+
+            p[k+1] = p[k] + dt·v[k]
+            v[k+1] = v[k] + dt·a[k]
+            ψ[k+1] = ψ[k] + dt·ψ̇[k]
+
+        The second-order position term (0.5·dt²·a) is intentionally omitted
+        to keep the prediction model consistent with the DMPC controller.
+        """
         F = np.eye(11)
-        
-        # Position <- velocity and acceleration
+
+        # Position ← velocity
         F[0:3, 3:6] = np.eye(3) * self.dt
-        F[0:3, 6:9] = np.eye(3) * (0.5 * self.dt**2)
-        
-        # Velocity <- acceleration
+
+        # Velocity ← acceleration
         F[3:6, 6:9] = np.eye(3) * self.dt
-        
-        # Yaw <- yaw_rate
+
+        # Yaw ← yaw_rate
         F[9, 10] = self.dt
-        
+
         return F
     
     def update_radar(self, measurement: RadarMeasurement, sensor_pos: np.ndarray) -> None:
@@ -405,7 +427,10 @@ class TargetTrackingEKF:
     def _ekf_update(self, z: np.ndarray, H: np.ndarray, R: np.ndarray) -> None:
         """
         Standard EKF update step.
-        
+
+        Uses the Joseph-form covariance update for numerical stability:
+            P = (I − KH) P (I − KH)ᵀ + K R Kᵀ
+
         Args:
             z: Measurement vector
             H: Measurement matrix (m×11)
@@ -414,24 +439,28 @@ class TargetTrackingEKF:
         # Innovation
         z_hat = H @ self.x
         y = z - z_hat
-        
+
         # Innovation covariance
         S = H @ self.P @ H.T + R
-        
+
         # Kalman gain
+        m = S.shape[0]
         try:
-            K = self.P @ H.T @ np.linalg.inv(S + 1e-9 * np.eye(S.shape[0]))
+            K = self.P @ H.T @ np.linalg.solve(S + 1e-9 * np.eye(m), np.eye(m))
         except np.linalg.LinAlgError:
             logger.warning(f"Singular covariance matrix for target {self.target_id}")
             return
-        
-        # Update state and covariance
+
+        # Update state
         self.x = self.x + K @ y
-        self.P = (np.eye(11) - K @ H) @ self.P
-        
+
         # Wrap yaw
         self.x[9] = NumericalOps.normalize_angle_positive(self.x[9])
-        
+
+        # Joseph-form covariance update
+        I_KH = np.eye(11) - K @ H
+        self.P = I_KH @ self.P @ I_KH.T + K @ R @ K.T
+
         # Ensure positive definite
         self.P = (self.P + self.P.T) / 2
     

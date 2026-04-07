@@ -1,12 +1,12 @@
 # Troubleshooting
 
-Common issues and solutions when working with ISR-RL-DMPC.
+Common issues and solutions when working with ISR-DMPC.
 
 ## Table of Contents
 
 - [Installation Issues](#installation-issues)
-- [Training Issues](#training-issues)
 - [Environment Issues](#environment-issues)
+- [DMPC Solver Issues](#dmpc-solver-issues)
 - [Performance Issues](#performance-issues)
 - [Configuration Issues](#configuration-issues)
 - [Testing Issues](#testing-issues)
@@ -38,27 +38,6 @@ pip install cvxpy
 
 ---
 
-### PyTorch CUDA Not Detected
-
-**Symptom:** `torch.cuda.is_available()` returns `False` even with a GPU.
-
-**Solution:**
-
-1. Verify your NVIDIA driver: `nvidia-smi`
-2. Install the correct PyTorch version for your CUDA:
-
-```bash
-# For CUDA 11.8
-pip install torch --index-url https://download.pytorch.org/whl/cu118
-
-# For CUDA 12.1
-pip install torch --index-url https://download.pytorch.org/whl/cu121
-```
-
-3. Verify: `python -c "import torch; print(torch.cuda.is_available())"`
-
----
-
 ### Import Errors After Installation
 
 **Symptom:** `ModuleNotFoundError: No module named 'isr_rl_dmpc'`
@@ -74,134 +53,6 @@ python -c "import isr_rl_dmpc; print('OK')"
 ```
 
 Make sure you are running commands from the repository root directory.
-
----
-
-## Training Issues
-
-### Training Diverges (Reward Decreases or NaN)
-
-**Symptoms:**
-- Episode reward decreasing over time
-- NaN values in loss or reward
-- Critic loss exploding
-- Actor loss reaching very large magnitudes (e.g. 1e18)
-
-**Solutions:**
-
-1. **Reduce learning rates:**
-
-   ```yaml
-   learning:
-     learning_rate_critic: 0.0003  # from 0.001
-     learning_rate_actor: 0.00003  # from 0.0001
-   ```
-
-2. **Reduce gradient clipping threshold:**
-
-   ```yaml
-   training:
-     max_grad_norm: 0.5  # from 1.0
-   ```
-
-3. **Increase warmup steps** to populate the buffer with diverse experience:
-
-   ```yaml
-   training:
-     warmup_steps: 20000  # from 10000
-   ```
-
-4. **Check reward weights** — an extremely large safety penalty can cause value function instability.
-   Per-step rewards are automatically clipped to [-10, 10]. Advantages are normalized before policy gradient updates.
-
-5. **Actor loss exploding:** This typically indicates unnormalized advantages. The DMPCAgent normalizes advantages automatically (zero mean, unit std). If the issue persists, reduce the actor learning rate further.
-
----
-
-### Agent Does Not Improve (Flat Reward Curve)
-
-**Symptoms:**
-- Episode reward stays constant
-- Coverage does not improve
-
-**Solutions:**
-
-1. **Increase exploration noise:**
-
-   ```yaml
-   exploration:
-     noise_std: 0.3   # from 0.1
-     noise_decay: 0.999  # slower decay
-   ```
-
-2. **Increase batch size** for more stable gradient estimates:
-
-   ```yaml
-   learning:
-     batch_size: 128  # from 32
-   ```
-
-3. **Check that the replay buffer is filling up.** If `agent.ready_to_train()` is never `True`, the buffer is too small or the batch size is too large relative to the number of steps.
-
-4. **Increase the number of episodes.** Some configurations need 300+ episodes to show improvement.
-
----
-
-### Agent Always Goes to the Same Location
-
-**Symptom:** All drones converge to a single point.
-
-**Solutions:**
-
-1. **Increase formation reward weight** to encourage separation:
-
-   ```yaml
-   learning:
-     weight_formation: 10.0  # from 2.0
-   ```
-
-2. **Increase `min_swarm_separation`:**
-
-   ```yaml
-   mission:
-     min_swarm_separation: 5.0  # from 2.0
-   ```
-
-3. **Ensure coverage reward incentivizes new areas.** The reward for newly covered cells should be significantly positive.
-
----
-
-### Out of Memory (OOM) During Training
-
-**Symptom:** `RuntimeError: CUDA out of memory` or system memory exhaustion.
-
-**Solutions:**
-
-1. **Reduce batch size:**
-
-   ```yaml
-   learning:
-     batch_size: 16  # from 32 or 64
-   ```
-
-2. **Reduce buffer size:**
-
-   ```yaml
-   learning:
-     buffer_size: 50000  # from 100000
-   ```
-
-3. **Reduce number of drones:**
-
-   ```python
-   env = ISRGridEnv(num_drones=4)  # instead of 10
-   ```
-
-4. **Use CPU instead of GPU** for small experiments:
-
-   ```bash
-   python scripts/train_agent.py --device cpu
-   ```
 
 ---
 
@@ -268,39 +119,7 @@ img = env.render()  # Returns numpy array
 
 ---
 
-## Performance Issues
-
-### Training is Slow
-
-**Solutions:**
-
-1. **Use GPU:**
-
-   ```bash
-   python scripts/train_agent.py --device cuda
-   ```
-
-2. **Use vectorized environments** for parallel data collection:
-
-   ```python
-   vec_env = make_env('ISRGridEnv-v0', num_envs=4, num_drones=10)
-   ```
-
-3. **Reduce DMPC solver iterations** if the solver is the bottleneck:
-
-   ```yaml
-   dmpc:
-     solver_max_iterations: 50   # from 100
-     solver_tolerance: 0.001     # from 0.0001
-   ```
-
-4. **Reduce grid resolution** for faster simulation:
-
-   ```python
-   env = ISRGridEnv(grid_size=(10, 10))  # instead of (20, 20)
-   ```
-
----
+## DMPC Solver Issues
 
 ### CVXPY Solver Timeout
 
@@ -312,21 +131,77 @@ img = env.render()  # Returns numpy array
 
    ```yaml
    dmpc:
-     prediction_horizon: 5   # from 10
-     control_horizon: 3      # from 5
+     prediction_horizon: 12   # from 20 (safe minimum for 50 Hz)
    ```
 
-2. **Increase solver tolerance:**
+1. **Enable OSQP warm-starting** for 3–8× speedup on subsequent solves:
+
+   ```python
+   # In MPCSolver.solve():
+   self.problem.solve(solver=cp.OSQP, warm_start=True, …)
+   ```
+
+1. **Increase solver tolerance** (reduces iterations at slight accuracy cost):
 
    ```yaml
    dmpc:
      solver_tolerance: 0.001  # from 0.0001
    ```
 
-3. **Reduce the number of neighbor constraints:**
+1. **Reduce neighbour constraints:**
 
    ```python
    DMPCConfig(n_neighbors=2)  # from 4
+   ```
+
+---
+
+### DMPC Returns Zero Control (Infeasible)
+
+**Symptom:** Drone hovers in place; DMPC logs `solver_status != optimal`.
+
+**Cause:** A neighbour drone has entered the collision-avoidance radius,
+making the DMPC QP infeasible.
+
+**Solutions:**
+
+1. Increase the collision radius in `dmpc_config.yaml`:
+
+   ```yaml
+   dmpc:
+     collision_radius: 3.0   # reduce if spacing allows
+   ```
+
+1. Ensure the formation controller (Module 2) maintains `communication_radius`
+   and `min_swarm_separation` so drones never start inside each other's
+   exclusion zone.
+
+---
+
+## Performance Issues
+
+### Simulation Running Slowly
+
+**Solutions:**
+
+1. **Reduce grid resolution** for faster simulation:
+
+   ```python
+   env = ISRGridEnv(grid_size=(10, 10))  # instead of (20, 20)
+   ```
+
+1. **Reduce DMPC solver iterations** if the solver is the bottleneck:
+
+   ```yaml
+   dmpc:
+     solver_max_iterations: 50   # from 100
+     solver_tolerance: 0.001     # from 0.0001
+   ```
+
+1. **Use vectorized environments** for parallel data collection:
+
+   ```python
+   vec_env = make_env('ISRGridEnv-v0', num_envs=4, num_drones=10)
    ```
 
 ---
@@ -366,8 +241,8 @@ Common validation rules:
 **Solution:**
 
 1. Verify YAML syntax (indentation must use spaces, not tabs)
-2. Validate with an online YAML validator
-3. Check for special characters that need quoting
+1. Validate with an online YAML validator
+1. Check for special characters that need quoting
 
 ---
 

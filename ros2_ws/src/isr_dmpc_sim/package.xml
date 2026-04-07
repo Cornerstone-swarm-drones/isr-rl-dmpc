@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>isr_dmpc_sim</name>
+  <version>2.0.0</version>
+  <description>
+    ROS2 simulation package for the ISR-DMPC autonomous swarm system.
+    Runs the pure-DMPC controller inside a 6-DOF physics loop and streams
+    drone poses, target markers, trajectory paths, and TF frames to RViz2.
+  </description>
+
+  <maintainer email="jrb252049@iitd.ac.in">Cornerstone-swarm-drones</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <!-- Runtime dependencies -->
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>rviz2</depend>
+
+  <!-- Optional: real-hardware MAVLink bridge via MAVROS.
+       Install with: sudo apt install ros-jazzy-mavros ros-jazzy-mavros-extras
+       Only required when use_sim:=false is passed to the launch file.       -->
+  <exec_depend condition="$ROS_VERSION == 2">mavros_msgs</exec_depend>
+
+  <!-- Test dependencies -->
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

@@ -3,11 +3,12 @@
 ## Before You Start Coding
 
 1. **Update local repository:**
-   ```bash
-   git pull origin develop
-   ```
 
-2. Create feature branch from develop:
+```bash
+git pull origin develop
+```
+
+1. Create feature branch from develop:
 
 ```bash
 git checkout develop
@@ -15,7 +16,7 @@ git pull origin develop
 git checkout -b feature/your-feature-name
 ```
 
-3. Push branch to GitHub:
+1. Push branch to GitHub:
 
 ```bash
 git push -u origin feature/your-feature-name
@@ -32,7 +33,7 @@ git commit -m "feat: Add function description
 - Include reasoning if non-obvious"
 ```
 
-2. Commit message format:
+1. Commit message format:
 
 ```text
 <type>: <subject>
@@ -42,7 +43,7 @@ git commit -m "feat: Add function description
 Types: feat, fix, docs, style, refactor, test, chore
 ```
 
-3. Push regularly:
+1. Push regularly:
 
 ```bash
 git push origin feature/your-feature-name
@@ -55,42 +56,43 @@ git push origin feature/your-feature-name
 git pull origin develop
 ```
 
-2. Resolve any conflicts locally
+1. Resolve any conflicts locally
 
-3. Run all tests locally:
+1. Run all tests locally:
 
 ```bash
 pytest tests/
 ```
 
-4. Create Pull Request on GitHub:
+1. Create Pull Request on GitHub:
 
-- Go to your branch on GitHub
+   - Go to your branch on GitHub
 
-- Click "Compare & pull request"
+   - Click "Compare & pull request"
 
-- Add description:
+   - Add description:
 
-```text
-## Description
-What does this PR do?
+   ```text
+   ## Description
+   What does this PR do?
 
-## Related Issue
-Closes #123
+   ## Related Issue
+   Closes #123
 
-## Type of Change
-- [ ] Feature
-- [ ] Bug fix
-- [ ] Documentation
+   ## Type of Change
+   - [ ] Feature
+   - [ ] Bug fix
+   - [ ] Documentation
 
-## Testing
-How was this tested?
-```
-- Request code review from team members
+   ## Testing
+   How was this tested?
+   ```
 
-5. Address review comments
+   - Request code review from team members
 
-6. Team Lead merges after approval:
+1. Address review comments
+
+1. Team Lead merges after approval:
 
 ```bash
 git checkout develop
@@ -98,7 +100,8 @@ git pull origin develop
 git merge feature/your-feature-name
 git push origin develop
 ```
-7. Delete feature branch:
+
+1. Delete feature branch:
 
 ```bash
 git branch -d feature/your-feature-name
