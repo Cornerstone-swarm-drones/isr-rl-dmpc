@@ -279,7 +279,7 @@ $$
 \min_{\boldsymbol{y}} \; \tfrac{1}{2}\,\boldsymbol{y}^\top H_{\text{qp}}\,\boldsymbol{y} + \boldsymbol{c}^\top \boldsymbol{y} \quad \text{s.t.} \quad \boldsymbol{l} \le A_{\text{qp}}\,\boldsymbol{y} \le \boldsymbol{u}
 $$
 
-where $\boldsymbol{y} = [\mathrm{vec}(\mathtt{x\_var});\; \mathrm{vec}(\mathtt{u\_var})]$
+where $\boldsymbol{y} = [\mathrm{vec}(\mathtt{x\_var})^\top,\; \mathrm{vec}(\mathtt{u\_var})^\top]^\top$
 is the stacked decision variable vector.
 
 | Problem size (default, 1 drone, $N{=}20$) | Value |

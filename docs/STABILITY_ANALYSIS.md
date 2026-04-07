@@ -43,8 +43,7 @@ $$
 where:
 
 $$
-A = \begin{bmatrix} I_3 & \Delta t\,I_3 & 0 \\ 0 & I_3 & \Delta t\,I_3 \\ 0 & 0 & I_3 \end{bmatrix},
-\qquad
+A = \begin{bmatrix} I_3 & \Delta t\,I_3 & 0 \\ 0 & I_3 & \Delta t\,I_3 \\ 0 & 0 & I_3 \end{bmatrix}, \qquad
 B = \begin{bmatrix} 0 \\ 0 \\ \Delta t\,I_3 \end{bmatrix}
 $$
 

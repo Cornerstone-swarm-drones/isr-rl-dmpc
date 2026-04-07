@@ -144,7 +144,7 @@ $$
 
 #### GPS Update
 
-Full-state GPS measurement $\boldsymbol{z} = [\boldsymbol{p}_{\text{GPS}};\; \boldsymbol{v}_{\text{GPS}}] \in \mathbb{R}^6$:
+Full-state GPS measurement $\boldsymbol{z} = [\boldsymbol{p}_{\text{GPS}}^\top,\; \boldsymbol{v}_{\text{GPS}}^\top]^\top \in \mathbb{R}^6$:
 
 $$
 H_{\text{gps}} = I_6, \qquad
@@ -311,8 +311,7 @@ H_{\text{RF}} = [I_3 \mid \boldsymbol{0}_{3 \times 8}]
 $$
 
 $$
-R_{\text{RF}} = \frac{1}{c}\,\mathrm{diag}(\sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2),
-\quad \sigma_{\text{RF}} = 10\;\text{m}
+R_{\text{RF}} = \frac{1}{c}\,\mathrm{diag}(\sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2), \quad \sigma_{\text{RF}} = 10\;\text{m}
 $$
 
 ### 5.5. Acoustic TDOA (3-D)
