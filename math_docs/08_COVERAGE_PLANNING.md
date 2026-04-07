@@ -236,7 +236,7 @@ or the maximum mission duration is reached.
 ## 8  Complexity Analysis
 
 | Operation | Complexity |
-|-----------|-----------|
+| :--- | :--- |
 | Grid decomposition | $O(m_{\text{total}} \cdot \lvert\mathcal{B}\rvert)$ where $m_{\text{total}} = (x_{\text{range}}/r) \times (y_{\text{range}}/r)$ |
 | Point-in-polygon per cell | $O(\lvert\mathcal{B}\rvert)$ |
 | Priority scoring | $O(m)$ |

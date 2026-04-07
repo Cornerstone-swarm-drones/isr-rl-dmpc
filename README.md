@@ -170,7 +170,7 @@ isr-rl-dmpc/
 ## Documentation
 
 | Document | Description |
-|---|---|
+| :--- | :--- |
 | [math_docs/](math_docs/) | **Mathematical reference** — full derivations for all algorithms |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture — MARL + ADMM + DMPC layers |
 | [MODULE_SPECS.md](docs/MODULE_SPECS.md) | Detailed module specifications including MAPPO and ADMM |
@@ -185,7 +185,7 @@ isr-rl-dmpc/
 ## Technology Stack
 
 | Component | Technology |
-|---|---|
+| :--- | :--- |
 | MARL Training | [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) PPO (MAPPO) |
 | Consensus Layer | ADMM (Alternating Direction Method of Multipliers) |
 | Convex Optimisation | [CVXPY](https://www.cvxpy.org/) + [OSQP](https://osqp.org/) |
@@ -204,7 +204,7 @@ isr-rl-dmpc/
 Three pre-defined real-world ISR scenarios are available in `config/mission_scenarios.yaml`:
 
 | Scenario | Area | Drones | Targets | Formation | Duration |
-|---|---|---|---|---|---|
+| :--- | :--- | :--- | :--- | :--- | :--- |
 | Area Surveillance | 400×400 m | 4 | 0 | Grid | 20 min |
 | Threat Response | 250×250 m | 4 | 2 | Wedge | 10 min |
 | Search & Track | 600×600 m | 4 | 3 | Line | 20 min |
@@ -216,7 +216,7 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 ## Team
 
 | Name | Email |
-|---|---|
+| :--- | :--- |
 | Jivesh Kesar | jrb252026@iitd.ac.in |
 | Harsh | jrb252049@iitd.ac.in |
 | Rohit Shankar Sinha | jrb252051@iitd.ac.in |

@@ -277,7 +277,7 @@ contribution of the missing drone over subsequent iterations.
 ## 9  Default Parameters
 
 | Parameter | Symbol | Value | Source |
-|-----------|--------|-------|--------|
+| :--- | :--- | :--- | :--- |
 | ADMM penalty | $\rho$ | 1.0 | `ADMMConsensus.rho` |
 | Max iterations | $K$ | 10 | `ADMMConsensus.max_iter` |
 | Absolute tolerance | $\varepsilon_{\text{abs}}$ | 1 × 10⁻³ | `ADMMConsensus.eps_abs` |

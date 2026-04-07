@@ -130,7 +130,7 @@ eigenvalues must satisfy $|\lambda_i| < 1$ for asymptotic stability.
 **Typical result** (default $Q = I_9$, $R = 0.1 \cdot I_3$, $\Delta t = 0.02\;\text{s}$):
 
 | Mode | $\lvert\lambda_i\rvert$ |
-|------|---------|
+| :--- | :--- |
 | Position convergence | 0.942 |
 | Velocity convergence | 0.983 (complex pair) |
 | Acceleration convergence | 0.942 |
@@ -191,7 +191,7 @@ the IMU noise characteristics of the drone platform.
 ### 4.4 ISR Implications
 
 | Disturbance Source | Typical Magnitude | DMPC Tolerance |
-|---|---|---|
+| :--- | :--- | :--- |
 | Wind gust (moderate) | 2–5 m/s velocity | Handled by prediction horizon |
 | IMU noise | < 0.01 m/s² | Within ISS bound |
 | Sensor fusion lag | 20–50 ms | 1–2 prediction steps |
@@ -316,7 +316,7 @@ of the formation error to zero.
 ### 8.1 Coverage Performance
 
 | Scenario | Drones | Horizon $N$ | Coverage Rate | Stability |
-|---|---|---|---|---|
+| :--- | :--- | :--- | :--- | :--- |
 | Area Surveillance | 4 | 20 | ≥ 90 % in 30 min | Asymptotically stable |
 | Threat Response | 6 | 20 | N/A (threat-centric) | ISS w.r.t. target motion |
 | Search & Track | 5 | 20 | ≥ 85 % in 20 min | ISS w.r.t. target motion |

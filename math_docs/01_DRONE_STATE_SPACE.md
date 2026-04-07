@@ -25,7 +25,7 @@
 The system uses **two different state representations** for two different purposes:
 
 | Purpose | Dimension | State components |
-|---------|-----------|-----------------|
+| :--- | :--- | :--- |
 | DMPC control optimisation | **11-D** | position, velocity, acceleration, yaw, yaw-rate |
 | Sensor-fusion / EKF estimation | **18-D** | position, velocity, acceleration, quaternion, angular velocity, battery, health |
 
@@ -42,7 +42,7 @@ $$
 $$
 
 | Indices | Symbol | Units | Description |
-|---------|--------|-------|-------------|
+| :--- | :--- | :--- | :--- |
 | 0–2 | $\mathbf{p}$ | m | Position in world frame |
 | 3–5 | $\mathbf{v}$ | m/s | Linear velocity |
 | 6–8 | $\mathbf{a}$ | m/s² | Linear acceleration |
@@ -179,7 +179,7 @@ where $I_3$ is the $3 \times 3$ identity matrix.
 ### Block interpretation
 
 | Block | Rows | Cols | Meaning |
-|-------|------|------|---------|
+| :--- | :--- | :--- | :--- |
 | $A[0{:}3,\;3{:}6] = \Delta t\,I_3$ | position | velocity | $\mathbf{p} \mathrel{+}= \Delta t\,\mathbf{v}$ |
 | $A[3{:}6,\;6{:}9] = \Delta t\,I_3$ | velocity | acceleration | $\mathbf{v} \mathrel{+}= \Delta t\,\mathbf{a}$ |
 | $A[9,\;10] = \Delta t$ | yaw | yaw-rate | $\psi \mathrel{+}= \Delta t\,\dot\psi$ |

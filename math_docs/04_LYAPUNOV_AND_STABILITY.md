@@ -138,7 +138,7 @@ rho   = np.max(np.abs(eigs))   # spectral radius
 **Typical result** (default $Q = I_9$, $R = 0.1 I_3$, $\Delta t = 0.02\;\text{s}$):
 
 | Mode | $\lvert\lambda_i\rvert$ |
-|------|----------------|
+| :--- | :--- |
 | Position convergence | ≈ 0.942 |
 | Velocity convergence | ≈ 0.983 |
 | Acceleration convergence | ≈ 0.942 |
@@ -204,7 +204,7 @@ $$
 ### Disturbance Sources
 
 | Source | Typical magnitude | DMPC tolerance |
-|--------|------------------|----------------|
+| :--- | :--- | :--- |
 | Moderate wind gust | 2–5 m/s velocity | Handled by prediction horizon |
 | IMU noise | < 0.01 m/s² | Within ISS bound |
 | Sensor fusion lag | 20–50 ms (1–2 steps) | Within ISS bound |

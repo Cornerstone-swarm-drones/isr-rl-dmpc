@@ -15,7 +15,7 @@ and links back to the corresponding source file(s).
 ## Contents
 
 | # | File | Topic |
-|---|------|-------|
+| :--- | :--- | :--- |
 | 1 | [01_DRONE_STATE_SPACE.md](01_DRONE_STATE_SPACE.md) | Drone state vectors, discrete-time linearised dynamics, integrator chain |
 | 2 | [02_EXTENDED_KALMAN_FILTER.md](02_EXTENDED_KALMAN_FILTER.md) | EKF predict/update equations, 18-D drone estimation, 11-D target tracking, multi-sensor fusion |
 | 3 | [03_DMPC_FORMULATION.md](03_DMPC_FORMULATION.md) | DMPC QP optimisation, MARL-adaptive cost matrices, DARE terminal cost, OSQP solver |
@@ -56,7 +56,7 @@ math_docs/                           src/isr_rl_dmpc/
 ## Notation Conventions
 
 | Symbol | Meaning |
-|--------|---------|
+| :--- | :--- |
 | $\mathbf{x}$ | State vector |
 | $\mathbf{u}$ | Control (input) vector |
 | $A, B$ | Discrete-time system matrices |
