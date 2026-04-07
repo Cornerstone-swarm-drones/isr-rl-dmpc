@@ -175,8 +175,7 @@ is **Input-to-State Stable (ISS)** if there exist class-$\mathcal{KL}$ function
 $\beta$ and class-$\mathcal{K}$ function $\gamma$ such that:
 
 $$
-\|\mathbf{e}[t]\| \le \beta(\|\mathbf{e}[0]\|,\, t)
-  + \gamma\!\left(\sup_{0 \le s \le t} \|\mathbf{w}[s]\|\right)
+\|\mathbf{e}[t]\| \le \beta(\|\mathbf{e}[0]\|,\, t) + \gamma\!\left(\sup_{0 \le s \le t} \|\mathbf{w}[s]\|\right)
 $$
 
 ### ISS Gain Bound
@@ -350,9 +349,7 @@ control step.
 The formation controller uses the consensus protocol:
 
 $$
-\mathbf{v}_i \leftarrow \mathbf{v}_i
-  + \varepsilon \sum_{j \in \mathcal{N}(i)}
-    (\mathbf{x}_j - \mathbf{x}_i - \mathbf{d}_{ij})
+\mathbf{v}_i \leftarrow \mathbf{v}_i + \varepsilon \sum_{j \in \mathcal{N}(i)} (\mathbf{x}_j - \mathbf{x}_i - \mathbf{d}_{ij})
 $$
 
 where $\mathbf{d}_{ij}$ is the desired relative position.  Convergence is governed

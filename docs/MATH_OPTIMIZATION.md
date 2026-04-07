@@ -29,12 +29,7 @@ The ISR-RL-DMPC system solves the following adaptive QP per drone at every
 control step (50 Hz):
 
 $$
-\min_{\mathbf{x},\mathbf{u}} \;
-  \sum_{k=0}^{N-1} \Bigl[
-    \|\mathbf{x}_k - \mathbf{x}^{\text{ref}}_k\|^2_{Q_{\text{eff}}}
-    + \|\mathbf{u}_k\|^2_{R_{\text{eff}}}
-  \Bigr]
-  + \|\mathbf{x}_N - \mathbf{x}^{\text{ref}}_N\|^2_P
+\min_{\mathbf{x},\mathbf{u}} \; \sum_{k=0}^{N-1} \Bigl[ \|\mathbf{x}_k - \mathbf{x}^{\text{ref}}_k\|^2_{Q_{\text{eff}}} + \|\mathbf{u}_k\|^2_{R_{\text{eff}}} \Bigr] + \|\mathbf{x}_N - \mathbf{x}^{\text{ref}}_N\|^2_P
 $$
 
 $$
@@ -56,9 +51,7 @@ and **ADMM** drives consensus across local DMPC sub-problems via the
 augmented Lagrangian:
 
 $$
-\mathcal{L}_\rho = \sum_i J_i(\mathbf{z}_i)
-  + \boldsymbol{\mu}_i^\top(\mathbf{z}_i - \mathbf{v})
-  + \tfrac{\rho}{2}\|\mathbf{z}_i - \mathbf{v}\|^2
+\mathcal{L}_\rho = \sum_i J_i(\mathbf{z}_i) + \boldsymbol{\mu}_i^\top(\mathbf{z}_i - \mathbf{v}) + \tfrac{\rho}{2}\|\mathbf{z}_i - \mathbf{v}\|^2
 $$
 
 **Known improvement opportunities:**

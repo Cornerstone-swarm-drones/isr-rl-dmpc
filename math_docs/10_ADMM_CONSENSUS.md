@@ -93,10 +93,7 @@ Introducing the scaled dual variable $\mathbf{y}_i = \boldsymbol{\mu}_i / \rho$,
 the augmented Lagrangian simplifies to:
 
 $$
-\mathcal{L}_\rho = \sum_{i=1}^{N} \left[
-  f_i(\mathbf{z}_i)
-  + \frac{\rho}{2} \|\mathbf{z}_i - \mathbf{v} + \mathbf{y}_i\|^2
-\right] + \text{const}
+\mathcal{L}_\rho = \sum_{i=1}^{N} \left[ f_i(\mathbf{z}_i) + \frac{\rho}{2} \|\mathbf{z}_i - \mathbf{v} + \mathbf{y}_i\|^2 \right] + \text{const}
 $$
 
 ---
@@ -110,10 +107,7 @@ ADMM minimises $\mathcal{L}_\rho$ by alternating between three update steps.
 Each drone $i$ solves its local sub-problem independently:
 
 $$
-\mathbf{z}_i^{k+1} \leftarrow \arg\min_{\mathbf{z}_i} \left[
-  f_i(\mathbf{z}_i)
-  + \frac{\rho}{2} \|\mathbf{z}_i - \mathbf{v}^k + \mathbf{y}_i^k\|^2
-\right]
+\mathbf{z}_i^{k+1} \leftarrow \arg\min_{\mathbf{z}_i} \left[ f_i(\mathbf{z}_i) + \frac{\rho}{2} \|\mathbf{z}_i - \mathbf{v}^k + \mathbf{y}_i^k\|^2 \right]
 $$
 
 For the DMPC setting, $f_i$ is a convex QP; adding the quadratic proximal
@@ -192,13 +186,11 @@ $10^{-3}$ m in the swarm configuration.
 Iteration stops when both residuals fall below absolute and relative tolerances:
 
 $$
-r_{\text{prim}}^k \le \varepsilon_{\text{prim}} = \varepsilon_{\text{abs}}\sqrt{N}
-  + \varepsilon_{\text{rel}} \max\!\bigl(\|\mathbf{z}^k\|,\, \|\mathbf{v}^k\|\bigr)
+r_{\text{prim}}^k \le \varepsilon_{\text{prim}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}} \max\!\bigl(\|\mathbf{z}^k\|,\, \|\mathbf{v}^k\|\bigr)
 $$
 
 $$
-r_{\text{dual}}^k \le \varepsilon_{\text{dual}} = \varepsilon_{\text{abs}}\sqrt{N}
-  + \varepsilon_{\text{rel}}\,\rho \|\mathbf{y}^k\|
+r_{\text{dual}}^k \le \varepsilon_{\text{dual}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}}\,\rho \|\mathbf{y}^k\|
 $$
 
 with default tolerances $\varepsilon_{\text{abs}} = \varepsilon_{\text{rel}} = 10^{-3}$.
@@ -241,8 +233,7 @@ for ADMM iteration k in range(max_admm_iters):
 The DMPC cost is augmented by the proximal term:
 
 $$
-J_{\text{ADMM}}^{(i)} = J_{\text{DMPC}}^{(i)}(\mathbf{z}_i)
-  + \frac{\rho}{2}\|\mathbf{z}_i - \mathbf{v} + \mathbf{y}_i\|^2
+J_{\text{ADMM}}^{(i)} = J_{\text{DMPC}}^{(i)}(\mathbf{z}_i) + \frac{\rho}{2}\|\mathbf{z}_i - \mathbf{v} + \mathbf{y}_i\|^2
 $$
 
 This additional quadratic term is added to the QP objective in CVXPY as a

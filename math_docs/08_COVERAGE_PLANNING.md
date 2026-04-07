@@ -148,7 +148,7 @@ A **greedy tour** starting from the drone's current position:
 > $\text{remaining} = \{c_1, \ldots, c_k\}$, $\;\text{path} = []$, $\;\text{current} = \mathbf{p}_{\text{start}}$
 >
 > While $\text{remaining} \ne \emptyset$:
-> $$c^* = \arg\min_{c \in \text{remaining}} \|c.\text{center} - \text{current}\|$$
+> $c^* = \arg\min_{c \in \text{remaining}} \|c.\text{center} - \text{current}\|$
 > append $c^*$ to path, set $\text{current} = c^*.\text{center}$, remove $c^*$ from remaining.
 
 This is the classic **nearest-neighbour heuristic** for the Travelling Salesman

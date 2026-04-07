@@ -31,10 +31,7 @@ At each control time step $t$, drone $i$ solves a finite-horizon **Quadratic
 Program (QP)** whose cost matrices are *dynamically scaled* by the MAPPO policy:
 
 $$
-\min_{\mathbf{x}, \mathbf{u}} \;
-  \sum_{k=0}^{N-1} \Bigl[ \mathbf{e}_k^\top Q_{\text{eff}}^{(i)} \mathbf{e}_k
-    + \mathbf{u}_k^\top R_{\text{eff}}^{(i)} \mathbf{u}_k \Bigr]
-  + \mathbf{e}_N^\top P\, \mathbf{e}_N
+\min_{\mathbf{x}, \mathbf{u}} \; \sum_{k=0}^{N-1} \Bigl[ \mathbf{e}_k^\top Q_{\text{eff}}^{(i)} \mathbf{e}_k + \mathbf{u}_k^\top R_{\text{eff}}^{(i)} \mathbf{u}_k \Bigr] + \mathbf{e}_N^\top P\, \mathbf{e}_N
 $$
 
 subject to:
@@ -117,8 +114,7 @@ The remaining $N{-}1$ controls are discarded (receding-horizon principle).
 ### Stage Cost
 
 $$
-\ell(\mathbf{e}_k, \mathbf{u}_k) = \mathbf{e}_k^\top Q_{\text{eff}} \mathbf{e}_k
-  + \mathbf{u}_k^\top R_{\text{eff}} \mathbf{u}_k
+\ell(\mathbf{e}_k, \mathbf{u}_k) = \mathbf{e}_k^\top Q_{\text{eff}} \mathbf{e}_k + \mathbf{u}_k^\top R_{\text{eff}} \mathbf{u}_k
 $$
 
 - $\|\mathbf{e}_k\|^2_{Q_{\text{eff}}}$: penalises deviation from the reference trajectory
@@ -143,9 +139,7 @@ LQR cost-to-go as the terminal cost provides:
 ### Total Cost
 
 $$
-J = \sum_{k=0}^{N-1} \bigl(\mathbf{e}_k^\top Q_{\text{eff}} \mathbf{e}_k
-  + \mathbf{u}_k^\top R_{\text{eff}} \mathbf{u}_k\bigr)
-  + \mathbf{e}_N^\top P\, \mathbf{e}_N
+J = \sum_{k=0}^{N-1} \bigl(\mathbf{e}_k^\top Q_{\text{eff}} \mathbf{e}_k + \mathbf{u}_k^\top R_{\text{eff}} \mathbf{u}_k\bigr) + \mathbf{e}_N^\top P\, \mathbf{e}_N
 $$
 
 This is convex (sum of convex quadratics) and can be solved globally by a
@@ -255,10 +249,7 @@ full proof).
 CVXPY canonicalises the DMPC problem into the standard OSQP form:
 
 $$
-\min_{\mathbf{y}} \; \tfrac{1}{2}\,\mathbf{y}^\top H_{\text{qp}}\,\mathbf{y}
-  + \mathbf{c}^\top \mathbf{y}
-  \quad \text{s.t.} \quad
-  \mathbf{l} \le A_{\text{qp}}\,\mathbf{y} \le \mathbf{u}
+\min_{\mathbf{y}} \; \tfrac{1}{2}\,\mathbf{y}^\top H_{\text{qp}}\,\mathbf{y} + \mathbf{c}^\top \mathbf{y} \quad \text{s.t.} \quad \mathbf{l} \le A_{\text{qp}}\,\mathbf{y} \le \mathbf{u}
 $$
 
 where $\mathbf{y} = [\mathrm{vec}(\mathtt{x\_var});\; \mathrm{vec}(\mathtt{u\_var})]$
@@ -281,10 +272,7 @@ the local DMPC sub-problems across drones.  The **augmented Lagrangian** for the
 global consensus problem is:
 
 $$
-\mathcal{L}_\rho(\mathbf{z}_1,\ldots,\mathbf{z}_N, \mathbf{v}, \boldsymbol{\mu})
-= \sum_{i=1}^{N} J_i(\mathbf{z}_i)
-  + \sum_{i=1}^{N} \boldsymbol{\mu}_i^\top (\mathbf{z}_i - \mathbf{v})
-  + \frac{\rho}{2} \sum_{i=1}^{N} \|\mathbf{z}_i - \mathbf{v}\|^2
+\mathcal{L}_\rho(\mathbf{z}_1,\ldots,\mathbf{z}_N, \mathbf{v}, \boldsymbol{\mu}) = \sum_{i=1}^{N} J_i(\mathbf{z}_i) + \sum_{i=1}^{N} \boldsymbol{\mu}_i^\top (\mathbf{z}_i - \mathbf{v}) + \frac{\rho}{2} \sum_{i=1}^{N} \|\mathbf{z}_i - \mathbf{v}\|^2
 $$
 
 where:
@@ -298,9 +286,7 @@ ADMM iterates three steps per DMPC solve cycle:
 **x-update** (local QP solve per drone, parallelisable):
 
 $$
-\mathbf{z}_i^{k+1} \leftarrow \arg\min_{\mathbf{z}_i} \Bigl[
-  J_i(\mathbf{z}_i) + \boldsymbol{\mu}_i^{k\top}(\mathbf{z}_i - \mathbf{v}^k)
-  + \tfrac{\rho}{2}\|\mathbf{z}_i - \mathbf{v}^k\|^2 \Bigr]
+\mathbf{z}_i^{k+1} \leftarrow \arg\min_{\mathbf{z}_i} \Bigl[ J_i(\mathbf{z}_i) + \boldsymbol{\mu}_i^{k\top}(\mathbf{z}_i - \mathbf{v}^k) + \tfrac{\rho}{2}\|\mathbf{z}_i - \mathbf{v}^k\|^2 \Bigr]
 $$
 
 **v-update** (global average, closed form):
@@ -313,8 +299,7 @@ $$
 **Dual update**:
 
 $$
-\boldsymbol{\mu}_i^{k+1} \leftarrow \boldsymbol{\mu}_i^k
-  + \rho\,(\mathbf{z}_i^{k+1} - \mathbf{v}^{k+1})
+\boldsymbol{\mu}_i^{k+1} \leftarrow \boldsymbol{\mu}_i^k + \rho\,(\mathbf{z}_i^{k+1} - \mathbf{v}^{k+1})
 $$
 
 ---

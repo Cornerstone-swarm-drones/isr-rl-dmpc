@@ -42,11 +42,7 @@ problem on a bipartite graph.
 The cost of assigning task $\tau_i$ to drone $d_j$ is a weighted sum of five factors:
 
 $$
-C[i,j] = 0.30\,c_{\text{dist}}
-  + 0.20\,c_{\text{fuel}}
-  + 0.20\,c_{\text{load}}
-  + 0.15\,c_{\text{sensor}}
-  - 0.15\,b_{\text{priority}}
+C[i,j] = 0.30\,c_{\text{dist}} + 0.20\,c_{\text{fuel}} + 0.20\,c_{\text{load}} + 0.15\,c_{\text{sensor}} - 0.15\,b_{\text{priority}}
 $$
 
 ### Distance Cost

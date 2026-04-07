@@ -251,11 +251,7 @@ couples each drone's DMPC sub-problem to a shared consensus variable $\mathbf{v}
 The ADMM augmented Lagrangian for the formation consensus problem is:
 
 $$
-\mathcal{L}_\rho = \sum_{i=1}^{N} \left[
-  \|\mathbf{p}_i - \mathbf{p}^{\text{des}}_i\|^2
-  + \boldsymbol{\mu}_i^\top (\mathbf{p}_i - \mathbf{v})
-  + \frac{\rho}{2}\|\mathbf{p}_i - \mathbf{v}\|^2
-\right]
+\mathcal{L}_\rho = \sum_{i=1}^{N} \left[ \|\mathbf{p}_i - \mathbf{p}^{\text{des}}_i\|^2 + \boldsymbol{\mu}_i^\top (\mathbf{p}_i - \mathbf{v}) + \frac{\rho}{2}\|\mathbf{p}_i - \mathbf{v}\|^2 \right]
 $$
 
 The global consensus variable $\mathbf{v}$ converges to the swarm centroid:
