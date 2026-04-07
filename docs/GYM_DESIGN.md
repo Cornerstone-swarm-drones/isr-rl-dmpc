@@ -58,25 +58,25 @@ env = make_env('MARLDMPCEnv-v0', num_drones=4)
 
 Each drone receives its own **40-dimensional local observation** vector:
 
-```
-obs^(i) ∈ R^40
-```
+$$
+\mathbf{obs}^{(i)} \in \mathbb{R}^{40}
+$$
 
 | Indices | Component | Dim | Description |
 | :--- | :--- | :--- | :--- |
-| 0–10 | Own DMPC state | 11 | [p(3), v(3), a(3), ψ, ψ̇] |
-| 11–13 | Reference position | 3 | Current waypoint p_ref |
-| 14–16 | Reference velocity | 3 | v_ref |
-| 17–19 | Tracking error | 3 | e_p = p − p_ref |
-| 20–25 | Nearest neighbour relative state | 6 | [Δp(3), Δv(3)] to closest drone |
-| 26–28 | Mean swarm offset | 3 | p̄_neighbours − p^(i) |
+| 0–10 | Own DMPC state | 11 | $[\mathbf{p}(3), \mathbf{v}(3), \mathbf{a}(3), \psi, \dot{\psi}]$ |
+| 11–13 | Reference position | 3 | Current waypoint $p_\text{ref}$ |
+| 14–16 | Reference velocity | 3 | $v_\text{ref}$ |
+| 17–19 | Tracking error | 3 | $e_p = p - p_\text{ref}$ |
+| 20–25 | Nearest neighbour relative state | 6 | $[\Delta p(3), \Delta v(3)]$ to closest drone |
+| 26–28 | Mean swarm offset | 3 | $\bar{p}_\text{neighbours} - p^{(i)}$ |
 | 29 | Battery level | 1 | Normalised [0, 1] |
 | 30 | Health | 1 | Structural health [0, 1] |
-| 31–33 | Last applied control | 3 | Previous u^(i) |
-| 34–36 | ADMM primal residual | 3 | ‖z_i − v‖ per axis |
+| 31–33 | Last applied control | 3 | Previous $u^{(i)}$ |
+| 34–36 | ADMM primal residual | 3 | $\|z_i - v\|$ per axis |
 | 37 | DMPC solve time | 1 | Normalised last QP solve time |
-| 38 | Collision margin | 1 | min_j‖p^(i)−p^(j)‖ − r_min (norm.) |
-| 39 | Mission progress | 1 | t / T_max |
+| 38 | Collision margin | 1 | $\min_j\|p^{(i)}-p^{(j)}\| - r_\min$ (norm.) |
+| 39 | Mission progress | 1 | $t / T_\max$ |
 
 **Gymnasium space:**
 
@@ -91,16 +91,16 @@ observation_space = spaces.Box(
 
 Each drone's action is a **14-dimensional vector of multiplicative cost scale factors**:
 
-```
-a^(i) = [q_s(0..10), r_s(0..2)]  ∈ [0.1, 10.0]^14
-```
+$$
+\mathbf{a}^{(i)} = [q_s(0..10),\ r_s(0..2)] \in [0.1,\ 10.0]^{14}
+$$
 
 These are applied to the DMPC base cost matrices:
 
-```
-Q_eff^(i) = Q ⊙ diag(q_s^(i))
-R_eff^(i) = R ⊙ diag(r_s^(i))
-```
+$$
+Q_\text{eff}^{(i)} = Q \odot \mathrm{diag}(\mathbf{q}_s^{(i)}), \qquad
+R_\text{eff}^{(i)} = R \odot \mathrm{diag}(\mathbf{r}_s^{(i)})
+$$
 
 **Gymnasium space:**
 
@@ -115,16 +115,16 @@ action_space = spaces.Box(
 
 Each agent receives a scalar reward per step:
 
-```
-r^(i) = w_track * r_track + w_form * r_form + w_safe * r_safe + w_eff * r_eff
-```
+$$
+r^{(i)} = w_\text{track}\,r_\text{track} + w_\text{form}\,r_\text{form} + w_\text{safe}\,r_\text{safe} + w_\text{eff}\,r_\text{eff}
+$$
 
 | Component | Formula | Weight |
 | :--- | :--- | :--- |
-| Tracking | `exp(-0.1 * ‖e_p‖²) − 1` | 5.0 |
-| Formation | `−mean(‖Δp_ij − d_ij‖)` over neighbours | 2.0 |
-| Safety | `sum(min(0, ‖p_i−p_j‖ − r_min))` | 10.0 |
-| Efficiency | `−‖u^(i)‖²` | 0.1 |
+| Tracking | $\exp(-0.1\|\mathbf{e}_p\|^2) - 1$ | 5.0 |
+| Formation | $-\text{mean}(\|\Delta\mathbf{p}_{ij} - \mathbf{d}_{ij}\|)$ over neighbours | 2.0 |
+| Safety | $\sum_j\min(0, \|\mathbf{p}_i-\mathbf{p}_j\| - r_{\min})$ | 10.0 |
+| Efficiency | $-\|\mathbf{u}^{(i)}\|^2$ | 0.1 |
 
 The centralised critic during training uses the sum of all agents' rewards to
 compute a global value estimate.
@@ -133,18 +133,18 @@ compute a global value estimate.
 
 1. **Reset:** Drones initialised in a random formation within the mission area.
    MAPPO action initialised to all-ones (identity scaling of Q and R).
-2. **Step:** MAPPO outputs `(q_scale, r_scale)` per drone → ADMM consensus runs
+1. **Step:** MAPPO outputs `(q_scale, r_scale)` per drone → ADMM consensus runs
    for `admm_iters` iterations → each drone's DMPC solves its QP → physics
    simulator advances by `dt = 0.02 s`.
-3. **Termination:** Episode ends after `mission_duration` steps, or if any
-   drone collision occurs (`‖p_i − p_j‖ < 0.5 * r_min`).
+1. **Termination:** Episode ends after `mission_duration` steps, or if any
+   drone collision occurs ($\|\mathbf{p}_i - \mathbf{p}_j\| < 0.5\,r_{\min}$).
 
 ## Physics Simulator
 
 The environment wraps the same 6-DOF `EnvironmentSimulator` used by the ROS2
 node, ensuring sim-to-real consistency:
 
-- **Drone:** hector\_quadrotor airframe (mass 1.477 kg, J = diag(0.01152, 0.01152, 0.02180) kg·m²)
+- **Drone:** hector\_quadrotor airframe (mass 1.477 kg, $J = \mathrm{diag}(0.01152, 0.01152, 0.02180)\;\text{kg·m}^2$)
 - **Aerodynamics:** Linear drag (c_d = 0.22), hover thrust compensation
 - **Wind:** Dryden turbulence model (configurable intensity)
 - **Battery:** First-order discharge model

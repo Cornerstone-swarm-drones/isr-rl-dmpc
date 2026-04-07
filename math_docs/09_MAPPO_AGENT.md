@@ -9,22 +9,22 @@
 ## Table of Contents
 
 1. [MARL Framework Overview](#1-marl-framework-overview)
-2. [Centralised Training / Decentralised Execution (CTDE)](#2-centralised-training--decentralised-execution-ctde)
-3. [Observation Space (40-D per Agent)](#3-observation-space-40-d-per-agent)
-4. [Action Space (14-D per Agent)](#4-action-space-14-d-per-agent)
-5. [Reward Function](#5-reward-function)
-6. [PPO Policy Gradient](#6-ppo-policy-gradient)
-7. [MAPPO — Shared Centralised Critic](#7-mappo--shared-centralised-critic)
-8. [Advantage Estimation (GAE)](#8-advantage-estimation-gae)
-9. [PPO Clipping Objective](#9-ppo-clipping-objective)
-10. [Entropy Regularisation](#10-entropy-regularisation)
-11. [Training Loop](#11-training-loop)
-12. [Hyperparameters](#12-hyperparameters)
-13. [References](#13-references)
+1. [Centralised Training / Decentralised Execution (CTDE)](#2-centralised-training--decentralised-execution-ctde)
+1. [Observation Space (40-D per Agent)](#3-observation-space-40-d-per-agent)
+1. [Action Space (14-D per Agent)](#4-action-space-14-d-per-agent)
+1. [Reward Function](#5-reward-function)
+1. [PPO Policy Gradient](#6-ppo-policy-gradient)
+1. [MAPPO — Shared Centralised Critic](#7-mappo--shared-centralised-critic)
+1. [Advantage Estimation (GAE)](#8-advantage-estimation-gae)
+1. [PPO Clipping Objective](#9-ppo-clipping-objective)
+1. [Entropy Regularisation](#10-entropy-regularisation)
+1. [Training Loop](#11-training-loop)
+1. [Hyperparameters](#12-hyperparameters)
+1. [References](#13-references)
 
 ---
 
-## 1  MARL Framework Overview
+## 1. MARL Framework Overview
 
 The system uses **Multi-Agent Reinforcement Learning (MARL)** to adaptively
 tune the cost parameters of the DMPC layer.  Rather than hand-tuning $Q$ and $R$
@@ -49,7 +49,7 @@ Drone Physics / ADMM Consensus
 
 ---
 
-## 2  Centralised Training / Decentralised Execution (CTDE)
+## 2. Centralised Training / Decentralised Execution (CTDE)
 
 During **training**, a centralised critic $V_\phi$ observes the **joint state**
 of all $N$ drones (full observability), reducing gradient variance:
@@ -70,7 +70,7 @@ exploits permutation symmetry and reduces the number of parameters.
 
 ---
 
-## 3  Observation Space (40-D per Agent)
+## 3. Observation Space (40-D per Agent)
 
 Each drone receives a 40-dimensional local observation vector:
 
@@ -96,7 +96,7 @@ $$
 
 ---
 
-## 4  Action Space (14-D per Agent)
+## 4. Action Space (14-D per Agent)
 
 The action is a 14-dimensional vector of multiplicative cost scale factors:
 
@@ -123,7 +123,7 @@ $$
 
 ---
 
-## 5  Reward Function
+## 5. Reward Function
 
 The per-step scalar reward for drone $i$ is a weighted combination:
 
@@ -175,7 +175,7 @@ Penalises unnecessarily large control commands.
 
 ---
 
-## 6  PPO Policy Gradient
+## 6. PPO Policy Gradient
 
 Standard policy gradient maximises the expected return:
 
@@ -195,7 +195,7 @@ where $\hat{A}_t$ is the **advantage estimate** at step $t$.
 
 ---
 
-## 7  MAPPO — Shared Centralised Critic
+## 7. MAPPO — Shared Centralised Critic
 
 MAPPO modifies standard PPO by using a **centralised value function** that
 conditions on the concatenated observations of all agents:
@@ -217,7 +217,7 @@ formation keeping).
 
 ---
 
-## 8  Advantage Estimation (GAE)
+## 8. Advantage Estimation (GAE)
 
 Generalised Advantage Estimation (GAE, Schulman et al. 2016) smoothly
 interpolates between TD(1) and Monte-Carlo returns:
@@ -239,7 +239,7 @@ $$
 
 ---
 
-## 9  PPO Clipping Objective
+## 9. PPO Clipping Objective
 
 PPO prevents destructively large policy updates by clipping the probability ratio:
 
@@ -261,7 +261,7 @@ The clip parameter $\epsilon = 0.2$ is the default.
 
 ---
 
-## 10  Entropy Regularisation
+## 10. Entropy Regularisation
 
 An entropy bonus prevents premature collapse to a deterministic policy:
 
@@ -289,7 +289,7 @@ is the value function loss, $c_1 = 0.5$, $c_2 = 0.01$.
 
 ---
 
-## 11  Training Loop
+## 11. Training Loop
 
 ```
 for episode in range(num_episodes):
@@ -321,7 +321,7 @@ for episode in range(num_episodes):
 
 ---
 
-## 12  Hyperparameters
+## 12. Hyperparameters
 
 | Parameter | Value | Description |
 | :--- | :--- | :--- |
@@ -339,15 +339,15 @@ for episode in range(num_episodes):
 
 ---
 
-## 13  References
+## 13. References
 
 1. J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, "Proximal
    Policy Optimization Algorithms," *arXiv:1707.06347*, 2017.
-2. C. Yu, A. Velu, E. Vinitsky, Y. Wang, A. Bayen, and Y. Wu, "The Surprising
+1. C. Yu, A. Velu, E. Vinitsky, Y. Wang, A. Bayen, and Y. Wu, "The Surprising
    Effectiveness of PPO in Cooperative Multi-Agent Games,"
    *NeurIPS*, 2022.
-3. J. Schulman, P. Moritz, S. Levine, M. Jordan, and P. Abbeel, "High-Dimensional
+1. J. Schulman, P. Moritz, S. Levine, M. Jordan, and P. Abbeel, "High-Dimensional
    Continuous Control Using Generalised Advantage Estimation,"
    *ICLR*, 2016.
-4. R. Lowe et al., "Multi-Agent Actor-Critic for Mixed Cooperative-Competitive
+1. R. Lowe et al., "Multi-Agent Actor-Critic for Mixed Cooperative-Competitive
    Environments," *NeurIPS*, 2017.

@@ -27,11 +27,11 @@ dynamically tune DMPC cost parameters, with ADMM enforcing inter-drone consensus
 The architecture follows a layered design:
 
 1. **Perception Layer** — Sensor fusion and EKF state estimation
-2. **Decision Layer** — Mission planning, classification, threat assessment, task allocation
-3. **MARL Layer** — MAPPO agents output per-drone Q/R cost scale vectors (14-D)
-4. **Consensus Layer** — ADMM synchronises local DMPC sub-problems across drones
-5. **Control Layer** — Per-drone DMPC (CVXPY/OSQP) + geometric attitude control
-6. **Analytics Layer** — DMPC performance monitoring and parameter diagnostics
+1. **Decision Layer** — Mission planning, classification, threat assessment, task allocation
+1. **MARL Layer** — MAPPO agents output per-drone Q/R cost scale vectors (14-D)
+1. **Consensus Layer** — ADMM synchronises local DMPC sub-problems across drones
+1. **Control Layer** — Per-drone DMPC (CVXPY/OSQP) + geometric attitude control
+1. **Analytics Layer** — DMPC performance monitoring and parameter diagnostics
 
 ## Architecture Diagram
 

@@ -134,21 +134,21 @@ img = env.render()  # Returns numpy array
      prediction_horizon: 12   # from 20 (safe minimum for 50 Hz)
    ```
 
-2. **Enable OSQP warm-starting** for 3–8× speedup on subsequent solves:
+1. **Enable OSQP warm-starting** for 3–8× speedup on subsequent solves:
 
    ```python
    # In MPCSolver.solve():
    self.problem.solve(solver=cp.OSQP, warm_start=True, …)
    ```
 
-3. **Increase solver tolerance** (reduces iterations at slight accuracy cost):
+1. **Increase solver tolerance** (reduces iterations at slight accuracy cost):
 
    ```yaml
    dmpc:
      solver_tolerance: 0.001  # from 0.0001
    ```
 
-4. **Reduce neighbour constraints:**
+1. **Reduce neighbour constraints:**
 
    ```python
    DMPCConfig(n_neighbors=2)  # from 4
@@ -172,7 +172,7 @@ making the DMPC QP infeasible.
      collision_radius: 3.0   # reduce if spacing allows
    ```
 
-2. Ensure the formation controller (Module 2) maintains `communication_radius`
+1. Ensure the formation controller (Module 2) maintains `communication_radius`
    and `min_swarm_separation` so drones never start inside each other's
    exclusion zone.
 
@@ -190,7 +190,7 @@ making the DMPC QP infeasible.
    env = ISRGridEnv(grid_size=(10, 10))  # instead of (20, 20)
    ```
 
-2. **Reduce DMPC solver iterations** if the solver is the bottleneck:
+1. **Reduce DMPC solver iterations** if the solver is the bottleneck:
 
    ```yaml
    dmpc:
@@ -198,7 +198,7 @@ making the DMPC QP infeasible.
      solver_tolerance: 0.001     # from 0.0001
    ```
 
-3. **Use vectorized environments** for parallel data collection:
+1. **Use vectorized environments** for parallel data collection:
 
    ```python
    vec_env = make_env('ISRGridEnv-v0', num_envs=4, num_drones=10)
@@ -241,8 +241,8 @@ Common validation rules:
 **Solution:**
 
 1. Verify YAML syntax (indentation must use spaces, not tabs)
-2. Validate with an online YAML validator
-3. Check for special characters that need quoting
+1. Validate with an online YAML validator
+1. Check for special characters that need quoting
 
 ---
 

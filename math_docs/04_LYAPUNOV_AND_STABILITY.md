@@ -9,18 +9,18 @@
 ## Table of Contents
 
 1. [System Model for Stability Analysis](#1-system-model-for-stability-analysis)
-2. [Lyapunov Stability](#2-lyapunov-stability)
-3. [Eigenvalue Analysis](#3-eigenvalue-analysis)
-4. [Input-to-State Stability (ISS)](#4-input-to-state-stability-iss)
-5. [Control Barrier Functions (CBF)](#5-control-barrier-functions-cbf)
-6. [Recursive Feasibility](#6-recursive-feasibility)
-7. [Swarm-Level Stability](#7-swarm-level-stability)
-8. [Running the Analysis](#8-running-the-analysis)
-9. [References](#9-references)
+1. [Lyapunov Stability](#2-lyapunov-stability)
+1. [Eigenvalue Analysis](#3-eigenvalue-analysis)
+1. [Input-to-State Stability (ISS)](#4-input-to-state-stability-iss)
+1. [Control Barrier Functions (CBF)](#5-control-barrier-functions-cbf)
+1. [Recursive Feasibility](#6-recursive-feasibility)
+1. [Swarm-Level Stability](#7-swarm-level-stability)
+1. [Running the Analysis](#8-running-the-analysis)
+1. [References](#9-references)
 
 ---
 
-## 1  System Model for Stability Analysis
+## 1. System Model for Stability Analysis
 
 ### Translational Controllable Subsystem (9-D)
 
@@ -60,7 +60,7 @@ near the terminal set.
 
 ---
 
-## 2  Lyapunov Stability
+## 2. Lyapunov Stability
 
 ### Candidate Lyapunov Function
 
@@ -119,7 +119,7 @@ Typical value with default parameters: **margin ≈ 0.017**.
 
 ---
 
-## 3  Eigenvalue Analysis
+## 3. Eigenvalue Analysis
 
 ### Closed-Loop Eigenvalues
 
@@ -161,7 +161,7 @@ $$
 
 ---
 
-## 4  Input-to-State Stability (ISS)
+## 4. Input-to-State Stability (ISS)
 
 ### Definition
 
@@ -212,7 +212,7 @@ $$
 
 ---
 
-## 5  Control Barrier Functions (CBF)
+## 5. Control Barrier Functions (CBF)
 
 ### Safety Function
 
@@ -274,15 +274,15 @@ to 1.0 enforce the barrier more aggressively (better safety, less manoeuvrabilit
 
 ---
 
-## 6  Recursive Feasibility
+## 6. Recursive Feasibility
 
 ### Standard MPC Result
 
 **Theorem (Rawlings & Mayne, 2019):** Let the DMPC be equipped with:
 
 1. Terminal cost $V_f(\mathbf{e}) = \mathbf{e}^\top P\,\mathbf{e}$ (DARE solution).
-2. Terminal set $\Omega_f = \{\mathbf{e} : \mathbf{e}^\top P\,\mathbf{e} \le c\}$ (LQR-invariant ellipsoid).
-3. Terminal control law $\mathbf{u}_f = -K\,\mathbf{e}$.
+1. Terminal set $\Omega_f = \{\mathbf{e} : \mathbf{e}^\top P\,\mathbf{e} \le c\}$ (LQR-invariant ellipsoid).
+1. Terminal control law $\mathbf{u}_f = -K\,\mathbf{e}$.
 
 If the problem is **feasible at time $t = 0$**, it remains feasible for all $t > 0$.
 
@@ -312,11 +312,11 @@ Collision constraints can break feasibility if a neighbour enters the minimum
 separation radius at the start of a time step.  This is prevented by:
 
 1. The formation controller (Module 2) maintaining a minimum gap $> r_{\min}$.
-2. The DMPC constraint tightening factor $0.9 \times r_{\min}$ providing a buffer zone.
+1. The DMPC constraint tightening factor $0.9 \times r_{\min}$ providing a buffer zone.
 
 ---
 
-## 7  Swarm-Level Stability
+## 7. Swarm-Level Stability
 
 ### Distributed Stability
 
@@ -359,7 +359,7 @@ convergence of the formation error to zero.
 
 ---
 
-## 8  Running the Analysis
+## 8. Running the Analysis
 
 ```python
 from isr_rl_dmpc.analysis import DMPCStabilityAnalyzer
@@ -401,15 +401,15 @@ DMPC Swarm Stability Report
 
 ---
 
-## 9  References
+## 9. References
 
 1. J. B. Rawlings, D. Q. Mayne, and M. Diehl, *Model Predictive Control:
    Theory, Computation, and Design*, 2nd ed., Nob Hill Publishing, 2019.
-2. D. Q. Mayne, "Model predictive control: Recent developments and future
+1. D. Q. Mayne, "Model predictive control: Recent developments and future
    promise," *Automatica*, 50(12):2967–2986, 2014.
-3. I. Kolmanovsky and E. G. Gilbert, "Theory and computation of disturbance
+1. I. Kolmanovsky and E. G. Gilbert, "Theory and computation of disturbance
    invariant sets for discrete-time linear systems," *Math. Probl. Eng.*,
    4(4):317–367, 1998.
-4. A. D. Ames, S. Coogan, M. Egerstedt, G. Notomista, K. Sreenath, and
+1. A. D. Ames, S. Coogan, M. Egerstedt, G. Notomista, K. Sreenath, and
    P. Tabuada, "Control barrier functions: Theory and applications,"
    *Proc. European Control Conference*, 2019.

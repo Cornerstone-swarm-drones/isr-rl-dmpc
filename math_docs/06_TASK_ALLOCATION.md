@@ -8,24 +8,24 @@
 ## Table of Contents
 
 1. [Problem Formulation](#1-problem-formulation)
-2. [Cost Matrix Construction](#2-cost-matrix-construction)
-3. [The Assignment Problem](#3-the-assignment-problem)
-4. [Hungarian Algorithm](#4-hungarian-algorithm)
-5. [Rectangular Matrices and Padding](#5-rectangular-matrices-and-padding)
-6. [Greedy Fallback](#6-greedy-fallback)
-7. [Complexity Analysis](#7-complexity-analysis)
-8. [References](#8-references)
+1. [Cost Matrix Construction](#2-cost-matrix-construction)
+1. [The Assignment Problem](#3-the-assignment-problem)
+1. [Hungarian Algorithm](#4-hungarian-algorithm)
+1. [Rectangular Matrices and Padding](#5-rectangular-matrices-and-padding)
+1. [Greedy Fallback](#6-greedy-fallback)
+1. [Complexity Analysis](#7-complexity-analysis)
+1. [References](#8-references)
 
 ---
 
-## 1  Problem Formulation
+## 1. Problem Formulation
 
 Given:
-- **m** ISR tasks `{τ₁, …, τₘ}` (detect, classify, track, cover, transit)
-- **n** available drones `{d₁, …, dₙ}`
-- A cost matrix **C ∈ ℝᵐˣⁿ** where `C[i, j]` is the cost of assigning task i to drone j
+- $m$ ISR tasks $\{\tau_1, \ldots, \tau_m\}$ (detect, classify, track, cover, transit)
+- $n$ available drones $\{d_1, \ldots, d_n\}$
+- A cost matrix $\mathbf{C} \in \mathbb{R}^{m \times n}$ where $C[i, j]$ is the cost of assigning task $i$ to drone $j$
 
-Find a one-to-one assignment `σ: tasks → drones` that minimises total cost:
+Find a one-to-one assignment $\sigma: \text{tasks} \to \text{drones}$ that minimises total cost:
 
 $$
 \min_{\sigma} \; \sum_i C[i,\, \sigma(i)]
@@ -37,7 +37,7 @@ problem on a bipartite graph.
 
 ---
 
-## 2  Cost Matrix Construction
+## 2. Cost Matrix Construction
 
 The cost of assigning task $\tau_i$ to drone $d_j$ is a weighted sum of five factors:
 
@@ -96,7 +96,7 @@ $$
 
 ---
 
-## 3  The Assignment Problem
+## 3. The Assignment Problem
 
 The cost matrix $C$ defines a **weighted bipartite graph**:
 - Left nodes: tasks
@@ -113,7 +113,7 @@ optimal matching in $O(n^3)$ time.
 
 ---
 
-## 4  Hungarian Algorithm
+## 4. Hungarian Algorithm
 
 The implementation follows the **potential-augmenting-path** (Jonker-Volgenant)
 variant operating on the cost matrix directly.
@@ -132,7 +132,7 @@ This is the LP dual of the assignment problem.  By strong duality, the
 primal and dual optima coincide when a perfect matching with zero reduced
 cost exists.
 
-**Reduced cost:** `C̃[i, j] = C[i, j] − u[i] − v[j] ≥ 0`
+**Reduced cost:** $\tilde{C}[i, j] = C[i, j] - u[i] - v[j] \ge 0$
 
 ### Algorithm Steps (Pseudo-Code)
 
@@ -174,12 +174,12 @@ By the **König–Egerváry theorem**, the minimum-weight perfect matching equal
 the maximum dual objective.  The algorithm terminates with an optimal
 assignment because:
 1. Potentials are always feasible (reduced costs ≥ 0).
-2. Augmentation strictly increases the size of the matching.
-3. After n augmentations, the matching is perfect.
+1. Augmentation strictly increases the size of the matching.
+1. After n augmentations, the matching is perfect.
 
 ---
 
-## 5  Rectangular Matrices and Padding
+## 5. Rectangular Matrices and Padding
 
 When the number of tasks `m ≠ n` (drones), the matrix is padded to a square
 `max(m, n) × max(m, n)` matrix with infeasible cost entries (1e6):
@@ -197,7 +197,7 @@ assigned to dummy tasks are considered **unassigned**.
 
 ---
 
-## 6  Greedy Fallback
+## 6. Greedy Fallback
 
 When there are more tasks than drones, all tasks cannot be assigned
 simultaneously.  The **greedy fallback** prioritises tasks by `τᵢ.priority`
@@ -216,7 +216,7 @@ but runs in O(m n) time and handles real-time task surges.
 
 ---
 
-## 7  Complexity Analysis
+## 7. Complexity Analysis
 
 | Variant | Time Complexity | Use Case |
 | :--- | :--- | :--- |
@@ -228,12 +228,12 @@ runs in microseconds on modern hardware.
 
 ---
 
-## 8  References
+## 8. References
 
 1. H. W. Kuhn, "The Hungarian method for the assignment problem," *Naval
    Research Logistics Quarterly*, 2(1–2):83–97, 1955.
-2. J. Munkres, "Algorithms for the assignment and transportation problems,"
+1. J. Munkres, "Algorithms for the assignment and transportation problems,"
    *Journal of the Society for Industrial and Applied Mathematics*,
    5(1):32–38, 1957.
-3. R. Jonker and A. Volgenant, "A shortest augmenting path algorithm for
+1. R. Jonker and A. Volgenant, "A shortest augmenting path algorithm for
    dense and sparse linear assignment problems," *Computing*, 38:325–340, 1987.
