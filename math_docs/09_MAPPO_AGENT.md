@@ -128,10 +128,7 @@ $$
 The per-step scalar reward for drone $i$ is a weighted combination:
 
 $$
-r^{(i)}_t = w_{\text{track}}\,r_{\text{track}}
-  + w_{\text{form}}\,r_{\text{form}}
-  + w_{\text{safe}}\,r_{\text{safe}}
-  + w_{\text{eff}}\,r_{\text{eff}}
+r^{(i)}_t = w_{\text{track}}\,r_{\text{track}} + w_{\text{form}}\,r_{\text{form}} + w_{\text{safe}}\,r_{\text{safe}} + w_{\text{eff}}\,r_{\text{eff}}
 $$
 
 ### Tracking Reward
@@ -204,8 +201,7 @@ MAPPO modifies standard PPO by using a **centralised value function** that
 conditions on the concatenated observations of all agents:
 
 $$
-\hat{A}_t^{(i)} = r_t^{(i)} + \gamma\, V_\phi\bigl(\mathbf{o}_{t+1}^{(1:N)}\bigr)
-  - V_\phi\bigl(\mathbf{o}_t^{(1:N)}\bigr)
+\hat{A}_t^{(i)} = r_t^{(i)} + \gamma\, V_\phi\bigl(\mathbf{o}_{t+1}^{(1:N)}\bigr) - V_\phi\bigl(\mathbf{o}_t^{(1:N)}\bigr)
 $$
 
 This global critic significantly reduces advantage variance compared to a
@@ -285,9 +281,7 @@ $$
 The full PPO-MAPPO objective is:
 
 $$
-\mathcal{L}(\theta) = \mathcal{L}^{\text{CLIP}}(\theta)
-  - c_1\, \mathcal{L}^{\text{VF}}(\phi)
-  + c_2\, \mathcal{L}^{\text{ENT}}(\theta)
+\mathcal{L}(\theta) = \mathcal{L}^{\text{CLIP}}(\theta) - c_1\, \mathcal{L}^{\text{VF}}(\phi) + c_2\, \mathcal{L}^{\text{ENT}}(\theta)
 $$
 
 where $\mathcal{L}^{\text{VF}} = \mathbb{E}_t[(V_\phi(\mathbf{o}_t) - V_t^{\text{target}})^2]$
