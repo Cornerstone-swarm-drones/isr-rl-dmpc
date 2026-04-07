@@ -12,11 +12,16 @@ Mathematical problem solved at each time step:
 
   min   Σ_{k=0}^{N-1} [||e_k||²_Q + ||u_k||²_R] + ||e_N||²_P
   s.t.  x_{k+1} = A x_k + B u_k          (linearised dynamics)
-        ||u_k||₂ ≤ u_max                   (control saturation)
-        ||p_k − p_j||₂ ≥ r_min   ∀j∈𝒩    (collision avoidance)
+        |u_{k,ℓ}| ≤ u_max  ∀ k,ℓ          (per-axis box saturation)
+        CBF(p_k, p_j) ≥ 0   ∀j∈𝒩          (linearised collision barrier)
         x_0 = x(t)                         (initial condition)
 
 where e_k = x_k − x_ref_k is the tracking error.
+
+Collision avoidance uses a linearised Control Barrier Function (CBF)
+constraint that is affine in the decision variables and hence compatible
+with the OSQP QP solver.  See 03_DMPC_FORMULATION.md §11 and
+04_LYAPUNOV_AND_STABILITY.md §5 for the derivation.
 """
 
 from dataclasses import dataclass, field
@@ -98,24 +103,45 @@ def compute_lqr_terminal_cost(
 
 
 class MPCSolver:
-    """CVXPY: Real-time convex MPC solver"""
-    
+    """CVXPY / OSQP real-time convex MPC solver.
+
+    The QP is built once at construction (base constraints only).  Collision
+    avoidance is handled via a linearised Control Barrier Function (CBF)
+    constraint that is **affine** in the decision variables, ensuring the
+    problem remains a valid convex QP at every call.
+
+    From 04_LYAPUNOV_AND_STABILITY.md §5, the discrete-time CBF condition
+    applied to each prediction step k and neighbour j is:
+
+        h_k  = ‖p_nom_k − p_j‖² − r_min²     (barrier value at nominal trajectory)
+        d_k  = p_nom_k − p_j                   (separation vector)
+        dist_k = ‖d_k‖                         (scalar distance, clipped to ε)
+
+    Linearised constraint (affine in x_var[:3, k]):
+
+        d_k @ x_var[:3, k]  ≥  dist_k * r_min + d_k @ p_j
+
+    The nominal trajectory p_nom_k is obtained by propagating x0 through
+    the autonomous dynamics (u = 0): p_nom_{k+1} = (A @ x_nom_k)[:3].
+    """
+
     def __init__(self, config: DMPCConfig):
         """
-        Initialize CVXPY QP problem for MPC
-        
-        min ||x||²_Q + ||u||²_R + ||x_T||²_P
-        s.t. x_{k+1} = A*x_k + B*u_k (linearized dynamics)
-             ||u_k|| ≤ u_max (control saturation)
-             ||p_i - p_j|| ≥ r_min (collision avoidance)
+        Initialise the CVXPY QP problem.
+
+        min  Σ_{k=0}^{N-1} [‖e_k‖²_Q + ‖u_k‖²_R] + ‖e_N‖²_P
+        s.t. x_{k+1} = A x_k + B u_k        (linearised dynamics)
+             |u_{k,ℓ}| ≤ u_max  ∀ k,ℓ       (per-axis box saturation)
+             x_0      = x(t)                 (initial condition)
+        Collision avoidance CBF constraints are added fresh each solve().
         """
         self.config = config
         self.horizon = config.horizon
-        
+
         # Decision variables
         self.x_var = cp.Variable((config.state_dim, config.horizon + 1))
         self.u_var = cp.Variable((config.control_dim, config.horizon))
-        
+
         # Parameters (updated each solve)
         self.x0_param = cp.Parameter(config.state_dim)
         self.A_param = cp.Parameter((config.state_dim, config.state_dim))
@@ -124,10 +150,7 @@ class MPCSolver:
         self.R_param = cp.Parameter((config.control_dim, config.control_dim), PSD=True)
         self.P_param = cp.Parameter((config.state_dim, config.state_dim), PSD=True)
         self.x_ref_param = cp.Parameter((config.state_dim, config.horizon + 1))
-        
-        # Collision constraint parameters
-        self.collision_params = []  # List of (position_idx, neighbor_pos) for each constraint
-        
+
         # Build cost function
         cost = 0
         for k in range(self.horizon):
@@ -135,51 +158,65 @@ class MPCSolver:
             u_err = self.u_var[:, k]
             cost += cp.quad_form(x_err, self.Q_param)
             cost += cp.quad_form(u_err, self.R_param)
-        
+
         # Terminal cost
         x_err_T = self.x_var[:, -1] - self.x_ref_param[:, -1]
         cost += cp.quad_form(x_err_T, self.P_param)
-        
-        # Build constraints list
-        constraints = []
-        
+
+        self._objective = cp.Minimize(cost)
+
+        # Build BASE constraints (initial condition + dynamics + saturation).
+        # These never change across calls; collision CBF constraints are added
+        # fresh in solve() using a newly constructed Problem.
+        self._base_constraints: List = []
+
         # Initial condition
-        constraints.append(self.x_var[:, 0] == self.x0_param)
-        
-        # Dynamics constraints: x_{k+1} = A*x_k + B*u_k
+        self._base_constraints.append(self.x_var[:, 0] == self.x0_param)
+
+        # Dynamics: x_{k+1} = A x_k + B u_k
         for k in range(self.horizon):
-            constraints.append(
-                self.x_var[:, k+1] == 
-                self.A_param @ self.x_var[:, k] + self.B_param @ self.u_var[:, k]
+            self._base_constraints.append(
+                self.x_var[:, k + 1]
+                == self.A_param @ self.x_var[:, k] + self.B_param @ self.u_var[:, k]
             )
-        
-        # Control saturation: ||u_k|| ≤ u_max
+
+        # Control saturation: per-axis box constraints |u_{k,ℓ}| ≤ u_max
+        # (linear constraints — required for OSQP; see 03_DMPC_FORMULATION.md §11)
         for k in range(self.horizon):
-            constraints.append(cp.norm(self.u_var[:, k]) <= config.accel_max)
-        
-        # Collision constraints (added dynamically)
-        # These will be appended in solve() based on neighbor positions
-        self.dynamic_constraints = []
-        
-        # Problem definition
-        self.problem = cp.Problem(cp.Minimize(cost), constraints + self.dynamic_constraints)
-    
-    def solve(self, x0: np.ndarray, x_ref: np.ndarray, A: np.ndarray, B: np.ndarray,
-              Q: np.ndarray, R: np.ndarray, P: np.ndarray,
-              neighbor_positions: List[np.ndarray] = None) -> Tuple[np.ndarray, Dict]:
+            self._base_constraints.append(
+                self.u_var[:, k] <= config.accel_max
+            )
+            self._base_constraints.append(
+                self.u_var[:, k] >= -config.accel_max
+            )
+
+    def solve(
+        self,
+        x0: np.ndarray,
+        x_ref: np.ndarray,
+        A: np.ndarray,
+        B: np.ndarray,
+        Q: np.ndarray,
+        R: np.ndarray,
+        P: np.ndarray,
+        neighbor_positions: Optional[List[np.ndarray]] = None,
+    ) -> Tuple[np.ndarray, Dict]:
         """
-        Solve MPC problem for current state
-        
+        Solve the MPC QP for the current state.
+
         Args:
-            x0: Current state [state_dim]
-            x_ref: Reference trajectory [horizon+1, state_dim]
-            A, B: Linearized dynamics matrices
-            Q, R, P: Cost matrices (potentially scaled by networks)
-            neighbor_positions: List of neighbor position vectors for collision avoidance
-        
+            x0:               Current state [state_dim].
+            x_ref:            Reference trajectory of shape
+                              ``(horizon+1, state_dim)``.
+            A, B:             Linearised dynamics matrices.
+            Q, R, P:          Cost matrices.
+            neighbor_positions: List of neighbour 3-D position vectors for
+                              linearised CBF collision avoidance.
+
         Returns:
-            u_opt: Optimal control sequence [horizon, control_dim]
-            info: Dictionary with solve info (status, solve_time, etc.)
+            u_opt: Optimal control sequence ``(horizon, control_dim)``.
+            info:  Dict with keys ``status``, ``solve_time``, ``objective``,
+                   and optionally ``x_trajectory``.
         """
         # Update parameters
         self.x0_param.value = x0
@@ -188,58 +225,73 @@ class MPCSolver:
         self.Q_param.value = Q
         self.R_param.value = R
         self.P_param.value = P
-        self.x_ref_param.value = x_ref.T  # Transpose to [state_dim, horizon+1]
-        
-        # Clear and rebuild dynamic constraints (collision avoidance)
-        self.dynamic_constraints = []
-        if neighbor_positions is not None:
-            for neighbor_pos in neighbor_positions:
-                # Collision constraint: ||p_k - neighbor_pos|| >= r_min for all k
-                for k in range(self.horizon):
-                    pos_k = self.x_var[:3, k]  # Extract position from state
-                    dist_k = cp.norm(pos_k - neighbor_pos)
-                    # Soft constraint via trust region
-                    self.dynamic_constraints.append(
-                        dist_k >= self.config.collision_radius * 0.9  # 10% safety margin
+        self.x_ref_param.value = x_ref.T  # (state_dim, horizon+1)
+
+        # Build linearised CBF collision constraints fresh each call.
+        # Constraint (affine in x_var[:3, k]):
+        #   d_k @ x_var[:3, k]  ≥  dist_k * r_min + d_k @ p_j
+        # where d_k = p_nom_k − p_j, dist_k = ‖d_k‖.
+        collision_constraints: List = []
+        r_min = self.config.collision_radius * 0.9  # 10 % safety margin
+        if neighbor_positions:
+            x_nom = x0.copy()
+            for k in range(self.horizon):
+                p_nom_k = x_nom[:3]
+                for p_j in neighbor_positions:
+                    d = p_nom_k - p_j
+                    dist = float(np.linalg.norm(d))
+                    if dist < 1e-3:
+                        # Numerically degenerate — skip this step/neighbour pair
+                        continue
+                    rhs = float(dist * r_min + d @ p_j)
+                    collision_constraints.append(
+                        d @ self.x_var[:3, k] >= rhs
                     )
-        
-        # Rebuild problem with new constraints
-        constraints = self.problem.constraints + self.dynamic_constraints
-        self.problem = cp.Problem(self.problem.objective, constraints)
-        
-        # Solve with OSQP backend
+                # Propagate nominal trajectory (u = 0)
+                x_nom = A @ x_nom
+
+        # Assemble and solve a fresh Problem (avoids constraint accumulation)
+        all_constraints = self._base_constraints + collision_constraints
+        problem = cp.Problem(self._objective, all_constraints)
+
         try:
-            self.problem.solve(
+            problem.solve(
                 solver=cp.OSQP,
                 max_iter=3000,
                 eps_abs=1e-3,
                 eps_rel=1e-3,
-                time_limit=self.config.solver_timeout
+                time_limit=self.config.solver_timeout,
             )
         except Exception as e:
             print(f"Solver warning: {e}")
             return np.zeros((self.horizon, self.config.control_dim)), {
-                'status': 'infeasible',
-                'solve_time': 0,
-                'objective': np.inf
+                "status": "error",
+                "solve_time": 0,
+                "objective": np.inf,
             }
-        
-        # Extract solution
-        if self.problem.status == 'optimal' or self.problem.status == 'optimal_inaccurate':
-            u_opt = np.array(self.u_var.value).T if self.u_var.value is not None else \
-                    np.zeros((self.horizon, self.config.control_dim))
+
+        if problem.status in ("optimal", "optimal_inaccurate"):
+            u_val = self.u_var.value
+            x_val = self.x_var.value
+            u_opt = np.array(u_val).T if u_val is not None else \
+                np.zeros((self.horizon, self.config.control_dim))
+            solve_time = (
+                problem.solver_stats.solve_time
+                if problem.solver_stats is not None
+                else 0.0
+            )
             return u_opt, {
-                'status': self.problem.status,
-                'solve_time': self.problem.solver_stats.solve_time if hasattr(self.problem, 'solver_stats') else 0,
-                'objective': self.problem.value if self.problem.value is not None else np.inf,
-                'x_trajectory': np.array(self.x_var.value).T if self.x_var.value is not None else None
+                "status": problem.status,
+                "solve_time": solve_time,
+                "objective": problem.value if problem.value is not None else np.inf,
+                "x_trajectory": np.array(x_val).T if x_val is not None else None,
             }
         else:
-            print(f"Solver status: {self.problem.status}")
+            print(f"Solver status: {problem.status}")
             return np.zeros((self.horizon, self.config.control_dim)), {
-                'status': self.problem.status,
-                'solve_time': 0,
-                'objective': np.inf
+                "status": problem.status,
+                "solve_time": 0,
+                "objective": np.inf,
             }
 
 
@@ -301,17 +353,20 @@ class DMPC:
             x_ref:           Reference trajectory of shape
                              ``(horizon, state_dim)`` or
                              ``(horizon+1, state_dim)``.
+                             If only ``horizon`` steps are given, the last
+                             step is replicated to fill the terminal slot.
             neighbor_states: List of neighbour state vectors used for
                              collision avoidance.  Only the first 3
                              components (position) are used.
             q_scale:         Per-state cost scale vector of shape
                              ``(state_dim,)`` from MARL policy.
-                             ``Q_eff = Q ⊙ diag(q_scale)``.  Uses base
-                             Q when ``None``.
+                             ``Q_eff = Q ⊙ diag(q_scale)`` (Hadamard product
+                             with diagonal matrix — see 03_DMPC_FORMULATION.md
+                             §2).  Uses base Q when ``None``.
             r_scale:         Per-input cost scale vector of shape
                              ``(control_dim,)`` from MARL policy.
-                             ``R_eff = R ⊙ diag(r_scale)``.  Uses base
-                             R when ``None``.
+                             ``R_eff = R ⊙ diag(r_scale)``.  Uses base R
+                             when ``None``.
 
         Returns:
             u_opt: Optimal control sequence ``(horizon, control_dim)``.
@@ -320,20 +375,30 @@ class DMPC:
         """
         A, B = self._get_linearized_dynamics()
 
+        # Normalise x_ref to shape (horizon+1, state_dim)
+        x_ref = np.asarray(x_ref, dtype=np.float64)
+        if x_ref.shape[0] == self.config.horizon:
+            x_ref = np.vstack([x_ref, x_ref[-1:]])  # replicate terminal step
+
         neighbor_positions: Optional[List[np.ndarray]] = None
         if neighbor_states is not None:
             neighbor_positions = [s[:3] for s in neighbor_states]
 
         # Apply MARL-supplied cost scales when provided.
+        # Q_eff = Q ⊙ diag(q_scale): column-scale Q so each state channel's
+        # contribution is weighted by the corresponding q_scale element.
+        # For the default Q = I this gives diag(q_scale), which is PSD iff
+        # all q_scale entries are positive (guaranteed by the [0.1, 10] clip).
         if q_scale is not None:
-            Q_eff = self.Q @ np.diag(np.asarray(q_scale, dtype=np.float64))
-            # Keep PSD by symmetrising
-            Q_eff = (Q_eff + Q_eff.T) / 2.0
+            qs = np.clip(np.asarray(q_scale, dtype=np.float64), 0.1, 10.0)
+            Q_eff = self.Q * qs  # broadcasts: Q[i,j] * qs[j] — column scaling
+            Q_eff = (Q_eff + Q_eff.T) / 2.0  # symmetrise for numerical safety
         else:
             Q_eff = self.Q
 
         if r_scale is not None:
-            R_eff = self.R @ np.diag(np.asarray(r_scale, dtype=np.float64))
+            rs = np.clip(np.asarray(r_scale, dtype=np.float64), 0.1, 10.0)
+            R_eff = self.R * rs  # column scaling
             R_eff = (R_eff + R_eff.T) / 2.0
         else:
             R_eff = self.R
