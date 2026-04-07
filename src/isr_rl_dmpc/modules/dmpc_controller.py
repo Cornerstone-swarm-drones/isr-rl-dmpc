@@ -290,6 +290,8 @@ class DMPC:
         x: np.ndarray,
         x_ref: np.ndarray,
         neighbor_states: Optional[List[np.ndarray]] = None,
+        q_scale: Optional[np.ndarray] = None,
+        r_scale: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, Dict]:
         """
         Compute the optimal control sequence for the current state.
@@ -302,6 +304,14 @@ class DMPC:
             neighbor_states: List of neighbour state vectors used for
                              collision avoidance.  Only the first 3
                              components (position) are used.
+            q_scale:         Per-state cost scale vector of shape
+                             ``(state_dim,)`` from MARL policy.
+                             ``Q_eff = Q ⊙ diag(q_scale)``.  Uses base
+                             Q when ``None``.
+            r_scale:         Per-input cost scale vector of shape
+                             ``(control_dim,)`` from MARL policy.
+                             ``R_eff = R ⊙ diag(r_scale)``.  Uses base
+                             R when ``None``.
 
         Returns:
             u_opt: Optimal control sequence ``(horizon, control_dim)``.
@@ -314,13 +324,27 @@ class DMPC:
         if neighbor_states is not None:
             neighbor_positions = [s[:3] for s in neighbor_states]
 
+        # Apply MARL-supplied cost scales when provided.
+        if q_scale is not None:
+            Q_eff = self.Q @ np.diag(np.asarray(q_scale, dtype=np.float64))
+            # Keep PSD by symmetrising
+            Q_eff = (Q_eff + Q_eff.T) / 2.0
+        else:
+            Q_eff = self.Q
+
+        if r_scale is not None:
+            R_eff = self.R @ np.diag(np.asarray(r_scale, dtype=np.float64))
+            R_eff = (R_eff + R_eff.T) / 2.0
+        else:
+            R_eff = self.R
+
         return self.cvxpy_solver.solve(
             x0=x,
             x_ref=x_ref,
             A=A,
             B=B,
-            Q=self.Q,
-            R=self.R,
+            Q=Q_eff,
+            R=R_eff,
             P=self.P,
             neighbor_positions=neighbor_positions,
         )

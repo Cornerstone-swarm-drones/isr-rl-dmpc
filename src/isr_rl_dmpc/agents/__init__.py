@@ -1,11 +1,15 @@
 """
 ISR-RL-DMPC Agents module.
 
-Only the pure DMPC agent is available.  The former RL-based
-ActorCriticTrainer, ExperienceBuffer, and PrioritizedReplayBuffer
-have been removed.
+Exports the pure DMPC agent (DMPCAgent) and the MARL MAPPO agent
+(MAPPOAgent) that wraps Stable-Baselines3 PPO for adaptive DMPC
+cost-weight tuning.
 """
 
 from .dmpc_agent import DMPCAgent
 
-__all__ = ["DMPCAgent"]
+try:  # SB3 may not be installed in minimal setups
+    from .mappo_agent import MAPPOAgent
+    __all__ = ["DMPCAgent", "MAPPOAgent"]
+except ImportError:  # pragma: no cover
+    __all__ = ["DMPCAgent"]

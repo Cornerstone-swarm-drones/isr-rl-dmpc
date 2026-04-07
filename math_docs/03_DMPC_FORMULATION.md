@@ -62,8 +62,8 @@ $$
 where:
 - $\mathbf{e}_k = \mathbf{x}_k - \mathbf{x}^{\text{ref}}_k$ — tracking error at prediction step $k$
 - $N$ — prediction horizon (default: 20 steps = 0.4 s at 50 Hz)
-- $Q_{\text{eff}}^{(i)} = Q \odot \operatorname{diag}(\mathbf{q}_s^{(i)}) \succ 0$ — effective state-error cost ($11 \times 11$)
-- $R_{\text{eff}}^{(i)} = R \odot \operatorname{diag}(\mathbf{r}_s^{(i)}) \succ 0$ — effective control-effort cost ($3 \times 3$)
+- $Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\mathbf{q}_s^{(i)}) \succ 0$ — effective state-error cost ($11 \times 11$)
+- $R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\mathbf{r}_s^{(i)}) \succ 0$ — effective control-effort cost ($3 \times 3$)
 - $P \succ 0$ — terminal cost matrix ($11 \times 11$), computed from DARE
 - $\mathbf{q}_s^{(i)}, \mathbf{r}_s^{(i)}$ — positive scaling vectors output by the MAPPO agent
 
@@ -87,8 +87,8 @@ $$
 These are element-wise scale factors applied to the base cost matrices:
 
 $$
-Q_{\text{eff}}^{(i)} = Q \odot \operatorname{diag}(\mathbf{q}_s^{(i)}), \qquad
-R_{\text{eff}}^{(i)} = R \odot \operatorname{diag}(\mathbf{r}_s^{(i)})
+Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\mathbf{q}_s^{(i)}), \qquad
+R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\mathbf{r}_s^{(i)})
 $$
 
 where $\odot$ denotes element-wise (Hadamard) product.  All scale values are
@@ -261,7 +261,7 @@ $$
   \mathbf{l} \le A_{\text{qp}}\,\mathbf{y} \le \mathbf{u}
 $$
 
-where $\mathbf{y} = [\operatorname{vec}(\mathtt{x\_var});\; \operatorname{vec}(\mathtt{u\_var})]$
+where $\mathbf{y} = [\mathrm{vec}(\mathtt{x\_var});\; \mathrm{vec}(\mathtt{u\_var})]$
 is the stacked decision variable vector.
 
 | Problem size (default, 1 drone, $N{=}20$) | Value |

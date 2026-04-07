@@ -148,7 +148,7 @@ Full-state GPS measurement $\mathbf{z} = [\mathbf{p}_{\text{GPS}};\; \mathbf{v}_
 
 $$
 H_{\text{gps}} = I_6, \qquad
-R_{\text{gps}} = \operatorname{diag}(\sigma_p^2, \sigma_p^2, \sigma_p^2, \sigma_v^2, \sigma_v^2, \sigma_v^2)
+R_{\text{gps}} = \mathrm{diag}(\sigma_p^2, \sigma_p^2, \sigma_p^2, \sigma_v^2, \sigma_v^2, \sigma_v^2)
 $$
 
 Default noise: $\sigma_p = 5.0\;\text{m}$, $\sigma_v = 1.0\;\text{m/s}$.
@@ -196,7 +196,7 @@ Roll/pitch correction via cross-product error:
 $$
 \mathbf{e} = \mathbf{a}_{\text{norm}} \times \hat{\mathbf{g}}, \qquad
 \Delta\mathbf{q} = k_a\,[0, \mathbf{e}], \qquad
-\mathbf{q} \leftarrow \operatorname{normalise}(\mathbf{q} + \Delta\mathbf{q})
+\mathbf{q} \leftarrow \mathrm{normalise}(\mathbf{q} + \Delta\mathbf{q})
 $$
 
 where $k_a = 0.01$ is the accelerometer correction gain.
@@ -206,7 +206,7 @@ where $k_a = 0.01$ is the accelerometer correction gain.
 $$
 \mathbf{e} = \mathbf{m}_{\text{norm}} \times \mathbf{m}_{\text{expected}}, \qquad
 \Delta\mathbf{q} = k_m\,[0, \mathbf{e}], \qquad
-\mathbf{q} \leftarrow \operatorname{normalise}(\mathbf{q} + \Delta\mathbf{q})
+\mathbf{q} \leftarrow \mathrm{normalise}(\mathbf{q} + \Delta\mathbf{q})
 $$
 
 where $k_m = 0.01$ is the magnetometer correction gain.
@@ -279,7 +279,7 @@ r = \|\boldsymbol{\delta}\|, \qquad
 $$
 
 $$
-\alpha_z = \operatorname{atan2}(\delta_y, \delta_x), \qquad
+\alpha_z = \mathrm{atan2}(\delta_y, \delta_x), \qquad
 \text{el} = \arcsin(\delta_z / r)
 $$
 
@@ -288,8 +288,8 @@ h_{\text{radar}}(\mathbf{x}) = [r,\; \dot{r},\; \alpha_z,\; \text{el}]^\top
 $$
 
 $$
-R_{\text{radar}} = \operatorname{diag}(\sigma_r^2, \sigma_{\dot{r}}^2, \sigma_{\alpha}^2, \sigma_{\text{el}}^2)
-= \operatorname{diag}(25, 1, 10^{-4}, 10^{-4})
+R_{\text{radar}} = \mathrm{diag}(\sigma_r^2, \sigma_{\dot{r}}^2, \sigma_{\alpha}^2, \sigma_{\text{el}}^2)
+= \mathrm{diag}(25, 1, 10^{-4}, 10^{-4})
 $$
 
 ### 5.3  Optical Bearing (2-D / 3-D)
@@ -299,8 +299,8 @@ h_{\text{opt}}(\mathbf{x}) = [\alpha_z,\; \text{el}]^\top \quad \text{(2-D, no r
 $$
 
 $$
-R_{\text{opt}} = \operatorname{diag}(\sigma_\alpha^2, \sigma_{\text{el}}^2)
-= \operatorname{diag}(4 \times 10^{-4}, 4 \times 10^{-4})
+R_{\text{opt}} = \mathrm{diag}(\sigma_\alpha^2, \sigma_{\text{el}}^2)
+= \mathrm{diag}(4 \times 10^{-4}, 4 \times 10^{-4})
 $$
 
 ### 5.4  RF Fingerprinting (3-D)
@@ -311,7 +311,7 @@ H_{\text{RF}} = [I_3 \mid \mathbf{0}_{3 \times 8}]
 $$
 
 $$
-R_{\text{RF}} = \frac{1}{c}\,\operatorname{diag}(\sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2),
+R_{\text{RF}} = \frac{1}{c}\,\mathrm{diag}(\sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2),
 \quad \sigma_{\text{RF}} = 10\;\text{m}
 $$
 
@@ -361,7 +361,7 @@ The full 18-D covariance is a **block-diagonal** assembly of the three
 sub-filter covariances:
 
 $$
-P_{18} = \operatorname{block\_diag}\!\bigl(P_{pv}(6 \times 6),\;
+P_{18} = \mathrm{block\_diag}\!\bigl(P_{pv}(6 \times 6),\;
   P_a(3 \times 3),\; P_{\text{att}}(4 \times 4),\;
   P_{\omega}(3 \times 3),\; P_E(1 \times 1),\; P_h(1 \times 1)\bigr)
 $$

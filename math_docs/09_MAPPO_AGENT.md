@@ -109,15 +109,15 @@ $$
 These are passed to the DMPC as:
 
 $$
-Q_{\text{eff}}^{(i)} = Q \odot \operatorname{diag}(\mathbf{q}_s^{(i)}), \qquad
-R_{\text{eff}}^{(i)} = R \odot \operatorname{diag}(\mathbf{r}_s^{(i)})
+Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\mathbf{q}_s^{(i)}), \qquad
+R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\mathbf{r}_s^{(i)})
 $$
 
 The actor network outputs a mean $\boldsymbol{\mu}_a$ and log-std
 $\log\boldsymbol{\sigma}_a$; actions are sampled from
 
 $$
-\mathbf{a}^{(i)} = \operatorname{clip}\!\bigl(\boldsymbol{\mu}_a + \boldsymbol{\sigma}_a \odot \boldsymbol{\varepsilon},\;0.1,\;10.0\bigr),
+\mathbf{a}^{(i)} = \mathrm{clip}\!\bigl(\boldsymbol{\mu}_a + \boldsymbol{\sigma}_a \odot \boldsymbol{\varepsilon},\;0.1,\;10.0\bigr),
   \quad \boldsymbol{\varepsilon} \sim \mathcal{N}(\mathbf{0}, I)
 $$
 
@@ -250,7 +250,7 @@ PPO prevents destructively large policy updates by clipping the probability rati
 $$
 \mathcal{L}^{\text{CLIP}}(\theta) = \mathbb{E}_t\!\left[
   \min\!\bigl(\rho_t(\theta)\,\hat{A}_t,\;
-    \operatorname{clip}(\rho_t(\theta),\;1{-}\epsilon,\;1{+}\epsilon)\,\hat{A}_t\bigr)
+    \mathrm{clip}(\rho_t(\theta),\;1{-}\epsilon,\;1{+}\epsilon)\,\hat{A}_t\bigr)
 \right]
 $$
 
