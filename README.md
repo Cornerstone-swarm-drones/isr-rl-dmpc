@@ -3,7 +3,7 @@
 **Autonomous Multi-Drone ISR Swarm using MARL-Adaptive Distributed MPC**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![ROS2](https://img.shields.io/badge/ROS2-Humble%2FJazzy-brightgreen)](https://docs.ros.org/)
+[![ROS2 Jazzy](https://img.shields.io/badge/ROS2-Jazzy-brightgreen)](https://docs.ros.org/en/jazzy/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ISR-RL-DMPC is an autonomous Intelligence, Surveillance & Reconnaissance (ISR) platform for
@@ -60,14 +60,16 @@ required.
 git clone https://github.com/Cornerstone-swarm-drones/isr-rl-dmpc.git
 cd isr-rl-dmpc
 
-# Setup virtual environment
+# ── Option A: Conda (recommended for GPU training) ──────────────────────────
+conda env create -f environment.yml
+conda activate isr-rl-dmpc
+
+# ── Option B: Python venv (CPU / lightweight) ────────────────────────────────
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Install all dependencies (includes stable-baselines3 for MAPPO)
 pip install -r requirements/dev.txt
 
-# Install the package in development mode
+# Install the package in development mode (both options)
 pip install -e .
 
 # Run tests
@@ -82,11 +84,11 @@ python scripts/run_mission.py --config config/dmpc_config.yaml
 
 ### ROS2 / RViz2 Simulation
 
-Prerequisites: ROS2 Humble or Jazzy installed and sourced.
+Prerequisites: ROS2 Jazzy installed and sourced (Ubuntu 24.04 Noble).
 
 ```bash
-# Source ROS2
-source /opt/ros/humble/setup.bash    # or jazzy
+# Source ROS2 Jazzy
+source /opt/ros/jazzy/setup.bash
 
 # Build the ROS2 workspace
 cd ros2_ws
