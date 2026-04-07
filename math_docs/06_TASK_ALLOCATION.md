@@ -23,7 +23,7 @@
 Given:
 - $m$ ISR tasks $\{\tau_1, \ldots, \tau_m\}$ (detect, classify, track, cover, transit)
 - $n$ available drones $\{d_1, \ldots, d_n\}$
-- A cost matrix $\mathbf{C} \in \mathbb{R}^{m \times n}$ where $C[i, j]$ is the cost of assigning task $i$ to drone $j$
+- A cost matrix $\boldsymbol{C} \in \mathbb{R}^{m \times n}$ where $C[i, j]$ is the cost of assigning task $i$ to drone $j$
 
 Find a one-to-one assignment $\sigma: \text{tasks} \to \text{drones}$ that minimises total cost:
 
@@ -48,7 +48,7 @@ $$
 ### Distance Cost
 
 $$
-d_{ij} = \|\tau_i.\mathbf{p} - d_j.\mathbf{p}\|, \qquad
+d_{ij} = \|\tau_i.\boldsymbol{p} - d_j.\boldsymbol{p}\|, \qquad
 c_{\text{dist}} = d_{ij} / 1000 \quad \text{(normalised to } {\approx}\,[0,2] \text{ for 1 km range)}
 $$
 

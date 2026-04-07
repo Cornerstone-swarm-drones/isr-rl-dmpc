@@ -2,7 +2,7 @@
 
 **Source files:**
 - `src/isr_rl_dmpc/modules/dmpc_controller.py` — `DMPC`, `MPCSolver`, `DMPCConfig`, `compute_lqr_terminal_cost`
-- `src/isr_rl_dmpc/agents/mappo_agent.py` — `MAPPOAgent` (provides $\mathbf{q}_s, \mathbf{r}_s$)
+- `src/isr_rl_dmpc/agents/mappo_agent.py` — `MAPPOAgent` (provides $\boldsymbol{q}_s, \boldsymbol{r}_s$)
 - `src/isr_rl_dmpc/modules/admm_consensus.py` — `ADMMConsensus`
 
 ---
@@ -31,38 +31,38 @@ At each control time step $t$, drone $i$ solves a finite-horizon **Quadratic
 Program (QP)** whose cost matrices are *dynamically scaled* by the MAPPO policy:
 
 $$
-\min_{\mathbf{x}, \mathbf{u}} \; \sum_{k=0}^{N-1} \Bigl[ \mathbf{e}_k^\top Q_{\text{eff}}^{(i)} \mathbf{e}_k + \mathbf{u}_k^\top R_{\text{eff}}^{(i)} \mathbf{u}_k \Bigr] + \mathbf{e}_N^\top P\, \mathbf{e}_N
+\min_{\boldsymbol{x}, \boldsymbol{u}} \; \sum_{k=0}^{N-1} \Bigl[ \boldsymbol{e}_k^\top Q_{\text{eff}}^{(i)} \boldsymbol{e}_k + \boldsymbol{u}_k^\top R_{\text{eff}}^{(i)} \boldsymbol{u}_k \Bigr] + \boldsymbol{e}_N^\top P\, \boldsymbol{e}_N
 $$
 
 subject to:
 
 $$
-\mathbf{x}_{k+1} = A\,\mathbf{x}_k + B\,\mathbf{u}_k
+\boldsymbol{x}_{k+1} = A\,\boldsymbol{x}_k + B\,\boldsymbol{u}_k
   \quad (\text{linearised dynamics})
 $$
 
 $$
-\|\mathbf{u}_k\|_2 \le u_{\max}
+\|\boldsymbol{u}_k\|_2 \le u_{\max}
   \quad (\text{acceleration saturation})
 $$
 
 $$
-\|\mathbf{p}_k - \mathbf{p}_j\|_2 \ge r_{\min}
+\|\boldsymbol{p}_k - \boldsymbol{p}_j\|_2 \ge r_{\min}
   \quad \forall\, j \in \mathcal{N}(i)
   \quad (\text{collision avoidance})
 $$
 
 $$
-\mathbf{x}_0 = \mathbf{x}(t) \quad (\text{initial condition})
+\boldsymbol{x}_0 = \boldsymbol{x}(t) \quad (\text{initial condition})
 $$
 
 where:
-- $\mathbf{e}_k = \mathbf{x}_k - \mathbf{x}^{\text{ref}}_k$ — tracking error at prediction step $k$
+- $\boldsymbol{e}_k = \boldsymbol{x}_k - \boldsymbol{x}^{\text{ref}}_k$ — tracking error at prediction step $k$
 - $N$ — prediction horizon (default: 20 steps = 0.4 s at 50 Hz)
-- $Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\mathbf{q}_s^{(i)}) \succ 0$ — effective state-error cost ($11 \times 11$)
-- $R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\mathbf{r}_s^{(i)}) \succ 0$ — effective control-effort cost ($3 \times 3$)
+- $Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\boldsymbol{q}_s^{(i)}) \succ 0$ — effective state-error cost ($11 \times 11$)
+- $R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\boldsymbol{r}_s^{(i)}) \succ 0$ — effective control-effort cost ($3 \times 3$)
 - $P \succ 0$ — terminal cost matrix ($11 \times 11$), computed from DARE
-- $\mathbf{q}_s^{(i)}, \mathbf{r}_s^{(i)}$ — positive scaling vectors output by the MAPPO agent
+- $\boldsymbol{q}_s^{(i)}, \boldsymbol{r}_s^{(i)}$ — positive scaling vectors output by the MAPPO agent
 
 This is a **Distributed MPC (DMPC)**: each drone solves its own QP independently,
 using the most recent communicated positions of neighbours as fixed obstacle positions
@@ -77,15 +77,15 @@ The MAPPO agent (see [09_MAPPO_AGENT.md](09_MAPPO_AGENT.md)) outputs a 14-dimens
 action vector per drone:
 
 $$
-\mathbf{a}^{(i)} = \bigl[\underbrace{q_{s,0}, \ldots, q_{s,10}}_{\mathbf{q}_s \in \mathbb{R}^{11}},\;
-  \underbrace{r_{s,0}, r_{s,1}, r_{s,2}}_{\mathbf{r}_s \in \mathbb{R}^{3}}\bigr]
+\boldsymbol{a}^{(i)} = \bigl[\underbrace{q_{s,0}, \ldots, q_{s,10}}_{\boldsymbol{q}_s \in \mathbb{R}^{11}},\;
+  \underbrace{r_{s,0}, r_{s,1}, r_{s,2}}_{\boldsymbol{r}_s \in \mathbb{R}^{3}}\bigr]
 $$
 
 These are element-wise scale factors applied to the base cost matrices:
 
 $$
-Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\mathbf{q}_s^{(i)}), \qquad
-R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\mathbf{r}_s^{(i)})
+Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\boldsymbol{q}_s^{(i)}), \qquad
+R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\boldsymbol{r}_s^{(i)})
 $$
 
 where $\odot$ denotes element-wise (Hadamard) product.  All scale values are
@@ -114,18 +114,18 @@ The remaining $N{-}1$ controls are discarded (receding-horizon principle).
 ### Stage Cost
 
 $$
-\ell(\mathbf{e}_k, \mathbf{u}_k) = \mathbf{e}_k^\top Q_{\text{eff}} \mathbf{e}_k + \mathbf{u}_k^\top R_{\text{eff}} \mathbf{u}_k
+\ell(\boldsymbol{e}_k, \boldsymbol{u}_k) = \boldsymbol{e}_k^\top Q_{\text{eff}} \boldsymbol{e}_k + \boldsymbol{u}_k^\top R_{\text{eff}} \boldsymbol{u}_k
 $$
 
-- $\|\mathbf{e}_k\|^2_{Q_{\text{eff}}}$: penalises deviation from the reference trajectory
+- $\|\boldsymbol{e}_k\|^2_{Q_{\text{eff}}}$: penalises deviation from the reference trajectory
   in each state channel, weighted by the MAPPO-adapted $Q_{\text{eff}}$.
-- $\|\mathbf{u}_k\|^2_{R_{\text{eff}}}$: penalises large control inputs, promoting smooth
+- $\|\boldsymbol{u}_k\|^2_{R_{\text{eff}}}$: penalises large control inputs, promoting smooth
   trajectories and limiting actuator wear.
 
 ### Terminal Cost
 
 $$
-V_f(\mathbf{e}_N) = \mathbf{e}_N^\top P\, \mathbf{e}_N
+V_f(\boldsymbol{e}_N) = \boldsymbol{e}_N^\top P\, \boldsymbol{e}_N
 $$
 
 $P$ is the **LQR optimal cost-to-go** matrix solved from the DARE.  Using the
@@ -139,7 +139,7 @@ LQR cost-to-go as the terminal cost provides:
 ### Total Cost
 
 $$
-J = \sum_{k=0}^{N-1} \bigl(\mathbf{e}_k^\top Q_{\text{eff}} \mathbf{e}_k + \mathbf{u}_k^\top R_{\text{eff}} \mathbf{u}_k\bigr) + \mathbf{e}_N^\top P\, \mathbf{e}_N
+J = \sum_{k=0}^{N-1} \bigl(\boldsymbol{e}_k^\top Q_{\text{eff}} \boldsymbol{e}_k + \boldsymbol{u}_k^\top R_{\text{eff}} \boldsymbol{u}_k\bigr) + \boldsymbol{e}_N^\top P\, \boldsymbol{e}_N
 $$
 
 This is convex (sum of convex quadratics) and can be solved globally by a
@@ -152,11 +152,11 @@ convex QP solver.
 ### 5.1. Dynamics Constraints
 
 $$
-\mathbf{x}_{k+1} = A\,\mathbf{x}_k + B\,\mathbf{u}_k, \quad k = 0, 1, \ldots, N{-}1
+\boldsymbol{x}_{k+1} = A\,\boldsymbol{x}_k + B\,\boldsymbol{u}_k, \quad k = 0, 1, \ldots, N{-}1
 $$
 
 $$
-\mathbf{x}_0 = \mathbf{x}(t)
+\boldsymbol{x}_0 = \boldsymbol{x}(t)
 $$
 
 These are **equality constraints** in the QP.  $A$ and $B$ are constant
@@ -166,7 +166,7 @@ for their structure.
 ### 5.2. Control Saturation
 
 $$
-\|\mathbf{u}_k\|_2 \le u_{\max}, \quad k = 0, \ldots, N{-}1
+\|\boldsymbol{u}_k\|_2 \le u_{\max}, \quad k = 0, \ldots, N{-}1
 $$
 
 $u_{\max} = 10.0\;\text{m/s}^2$ (default).  CVXPY/OSQP represents this as a
@@ -174,10 +174,10 @@ $u_{\max} = 10.0\;\text{m/s}^2$ (default).  CVXPY/OSQP represents this as a
 
 ### 5.3. Collision Avoidance Constraints
 
-For each neighbour $j$ at (fixed) position $\mathbf{p}_j$ and each prediction step $k$:
+For each neighbour $j$ at (fixed) position $\boldsymbol{p}_j$ and each prediction step $k$:
 
 $$
-\|\mathbf{p}_k - \mathbf{p}_j\|_2 \ge r_{\min}
+\|\boldsymbol{p}_k - \boldsymbol{p}_j\|_2 \ge r_{\min}
 $$
 
 where $r_{\min} = 0.9 \times r_{\text{collision}}$ (10% safety margin).
@@ -235,7 +235,7 @@ $\rho(A_{\text{cl}}) \approx 0.983$, confirming asymptotic stability ($|\lambda_
 The **LQR value function**:
 
 $$
-V(\mathbf{e}) = \mathbf{e}^\top P\, \mathbf{e}
+V(\boldsymbol{e}) = \boldsymbol{e}^\top P\, \boldsymbol{e}
 $$
 
 is a valid Lyapunov function because $P \succ 0$ and $\Delta V < 0$ under the LQR
@@ -249,10 +249,10 @@ full proof).
 CVXPY canonicalises the DMPC problem into the standard OSQP form:
 
 $$
-\min_{\mathbf{y}} \; \tfrac{1}{2}\,\mathbf{y}^\top H_{\text{qp}}\,\mathbf{y} + \mathbf{c}^\top \mathbf{y} \quad \text{s.t.} \quad \mathbf{l} \le A_{\text{qp}}\,\mathbf{y} \le \mathbf{u}
+\min_{\boldsymbol{y}} \; \tfrac{1}{2}\,\boldsymbol{y}^\top H_{\text{qp}}\,\boldsymbol{y} + \boldsymbol{c}^\top \boldsymbol{y} \quad \text{s.t.} \quad \boldsymbol{l} \le A_{\text{qp}}\,\boldsymbol{y} \le \boldsymbol{u}
 $$
 
-where $\mathbf{y} = [\mathrm{vec}(\mathtt{x\_var});\; \mathrm{vec}(\mathtt{u\_var})]$
+where $\boldsymbol{y} = [\mathrm{vec}(\mathtt{x\_var});\; \mathrm{vec}(\mathtt{u\_var})]$
 is the stacked decision variable vector.
 
 | Problem size (default, 1 drone, $N{=}20$) | Value |
@@ -272,12 +272,12 @@ the local DMPC sub-problems across drones.  The **augmented Lagrangian** for the
 global consensus problem is:
 
 $$
-\mathcal{L}_\rho(\mathbf{z}_1,\ldots,\mathbf{z}_N, \mathbf{v}, \boldsymbol{\mu}) = \sum_{i=1}^{N} J_i(\mathbf{z}_i) + \sum_{i=1}^{N} \boldsymbol{\mu}_i^\top (\mathbf{z}_i - \mathbf{v}) + \frac{\rho}{2} \sum_{i=1}^{N} \|\mathbf{z}_i - \mathbf{v}\|^2
+\mathcal{L}_\rho(\boldsymbol{z}_1,\ldots,\boldsymbol{z}_N, \boldsymbol{v}, \boldsymbol{\mu}) = \sum_{i=1}^{N} J_i(\boldsymbol{z}_i) + \sum_{i=1}^{N} \boldsymbol{\mu}_i^\top (\boldsymbol{z}_i - \boldsymbol{v}) + \frac{\rho}{2} \sum_{i=1}^{N} \|\boldsymbol{z}_i - \boldsymbol{v}\|^2
 $$
 
 where:
-- $\mathbf{z}_i$ — drone $i$'s local copy of the shared variable (reference trajectory)
-- $\mathbf{v}$ — global consensus variable (average trajectory)
+- $\boldsymbol{z}_i$ — drone $i$'s local copy of the shared variable (reference trajectory)
+- $\boldsymbol{v}$ — global consensus variable (average trajectory)
 - $\boldsymbol{\mu}_i$ — dual variable (Lagrange multiplier) for drone $i$
 - $\rho > 0$ — ADMM penalty parameter (default: 1.0)
 
@@ -286,20 +286,20 @@ ADMM iterates three steps per DMPC solve cycle:
 **x-update** (local QP solve per drone, parallelisable):
 
 $$
-\mathbf{z}_i^{k+1} \leftarrow \arg\min_{\mathbf{z}_i} \Bigl[ J_i(\mathbf{z}_i) + (\boldsymbol{\mu}_i^k)^\top(\mathbf{z}_i - \mathbf{v}^k) + \tfrac{\rho}{2}\|\mathbf{z}_i - \mathbf{v}^k\|^2 \Bigr]
+\boldsymbol{z}_i^{k+1} \leftarrow \arg\min_{\boldsymbol{z}_i} \Bigl[ J_i(\boldsymbol{z}_i) + (\boldsymbol{\mu}_i^k)^\top(\boldsymbol{z}_i - \boldsymbol{v}^k) + \tfrac{\rho}{2}\|\boldsymbol{z}_i - \boldsymbol{v}^k\|^2 \Bigr]
 $$
 
 **v-update** (global average, closed form):
 
 $$
-\mathbf{v}^{k+1} \leftarrow \frac{1}{N} \sum_{i=1}^{N}
-  \bigl(\mathbf{z}_i^{k+1} + \boldsymbol{\mu}_i^k / \rho\bigr)
+\boldsymbol{v}^{k+1} \leftarrow \frac{1}{N} \sum_{i=1}^{N}
+  \bigl(\boldsymbol{z}_i^{k+1} + \boldsymbol{\mu}_i^k / \rho\bigr)
 $$
 
 **Dual update**:
 
 $$
-\boldsymbol{\mu}_i^{k+1} \leftarrow \boldsymbol{\mu}_i^k + \rho\,(\mathbf{z}_i^{k+1} - \mathbf{v}^{k+1})
+\boldsymbol{\mu}_i^{k+1} \leftarrow \boldsymbol{\mu}_i^k + \rho\,(\boldsymbol{z}_i^{k+1} - \boldsymbol{v}^{k+1})
 $$
 
 ---
@@ -349,7 +349,7 @@ A formally safe alternative replaces the distance constraint with a
 **Control Barrier Function (CBF)** inequality:
 
 $$
-h(\mathbf{p},\, \mathbf{p}_j) = \|\mathbf{p} - \mathbf{p}_j\|^2 - r_{\min}^2 \ge 0
+h(\boldsymbol{p},\, \boldsymbol{p}_j) = \|\boldsymbol{p} - \boldsymbol{p}_j\|^2 - r_{\min}^2 \ge 0
 $$
 
 $$

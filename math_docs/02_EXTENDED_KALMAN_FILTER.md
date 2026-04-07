@@ -57,10 +57,10 @@ The (Extended) Kalman Filter alternates between two steps:
 
 ### Predict Step
 
-Given process model $f(\mathbf{x})$ and process noise covariance $Q$:
+Given process model $f(\boldsymbol{x})$ and process noise covariance $Q$:
 
 $$
-\hat{\mathbf{x}}^-[k] = f(\hat{\mathbf{x}}[k{-}1],\, \mathbf{u})
+\hat{\boldsymbol{x}}^-[k] = f(\hat{\boldsymbol{x}}[k{-}1],\, \boldsymbol{u})
   \quad \text{(propagate mean)}
 $$
 
@@ -69,15 +69,15 @@ P^-[k] = F\,P[k{-}1]\,F^\top + Q
   \quad \text{(propagate covariance)}
 $$
 
-where $F = \partial f / \partial \mathbf{x}$ is the Jacobian of the process model.
-For linear models $f(\mathbf{x}) = A\mathbf{x}$, $F = A$ exactly.
+where $F = \partial f / \partial \boldsymbol{x}$ is the Jacobian of the process model.
+For linear models $f(\boldsymbol{x}) = A\boldsymbol{x}$, $F = A$ exactly.
 
 ### Update Step
 
-Given measurement model $h(\mathbf{x})$, measurement $\mathbf{z}$, and noise covariance $R_{\text{meas}}$:
+Given measurement model $h(\boldsymbol{x})$, measurement $\boldsymbol{z}$, and noise covariance $R_{\text{meas}}$:
 
 $$
-\hat{\mathbf{y}} = \mathbf{z} - h(\hat{\mathbf{x}}^-)
+\hat{\boldsymbol{y}} = \boldsymbol{z} - h(\hat{\boldsymbol{x}}^-)
   \quad \text{(innovation)}
 $$
 
@@ -92,7 +92,7 @@ K = P^-\,H^\top S^{-1}
 $$
 
 $$
-\hat{\mathbf{x}} = \hat{\mathbf{x}}^- + K\,\hat{\mathbf{y}}
+\hat{\boldsymbol{x}} = \hat{\boldsymbol{x}}^- + K\,\hat{\boldsymbol{y}}
   \quad \text{(corrected mean)}
 $$
 
@@ -101,7 +101,7 @@ P = (I - KH)\,P^-
   \quad \text{(corrected covariance)}
 $$
 
-where $H = \partial h / \partial \mathbf{x}$ is the measurement Jacobian.
+where $H = \partial h / \partial \boldsymbol{x}$ is the measurement Jacobian.
 
 **Key property:** The Kalman gain $K$ optimally weights the prior estimate
 against the new measurement based on their respective uncertainties ($P^-$ and $R_{\text{meas}}$).
@@ -110,24 +110,24 @@ against the new measurement based on their respective uncertainties ($P^-$ and $
 
 ## 3. Drone State Estimation (18-D)
 
-The full 18-D drone state $[\mathbf{p}(3), \mathbf{v}(3), \mathbf{a}(3), \mathbf{q}(4), \boldsymbol{\omega}(3), E(1), h(1)]$
+The full 18-D drone state $[\boldsymbol{p}(3), \boldsymbol{v}(3), \boldsymbol{a}(3), \boldsymbol{q}(4), \boldsymbol{\omega}(3), E(1), h(1)]$
 is estimated by three specialised sub-filters fused inside `DroneStateEstimator`.
 
 ### 3.1. Position/Velocity EKF (6-D)
 
-**State:** $\mathbf{x}_{pv} = [p_x, p_y, p_z, v_x, v_y, v_z]^\top \in \mathbb{R}^6$
+**State:** $\boldsymbol{x}_{pv} = [p_x, p_y, p_z, v_x, v_y, v_z]^\top \in \mathbb{R}^6$
 
 #### Process Model (Euler integration)
 
-The IMU accelerometer provides body-frame acceleration $\mathbf{a}_{\text{body}}$.
-After rotating to the world frame ($\mathbf{a}_{\text{world}} = R(\mathbf{q})\,\mathbf{a}_{\text{body}} - g\,\mathbf{e}_3$):
+The IMU accelerometer provides body-frame acceleration $\boldsymbol{a}_{\text{body}}$.
+After rotating to the world frame ($\boldsymbol{a}_{\text{world}} = R(\boldsymbol{q})\,\boldsymbol{a}_{\text{body}} - g\,\boldsymbol{e}_3$):
 
 $$
-\mathbf{p}[k{+}1] = \mathbf{p}[k] + \Delta t\,\mathbf{v}[k] + \tfrac{1}{2}\Delta t^2\,\mathbf{a}_{\text{world}}
+\boldsymbol{p}[k{+}1] = \boldsymbol{p}[k] + \Delta t\,\boldsymbol{v}[k] + \tfrac{1}{2}\Delta t^2\,\boldsymbol{a}_{\text{world}}
 $$
 
 $$
-\mathbf{v}[k{+}1] = \mathbf{v}[k] + \Delta t\,\mathbf{a}_{\text{world}}
+\boldsymbol{v}[k{+}1] = \boldsymbol{v}[k] + \Delta t\,\boldsymbol{a}_{\text{world}}
 $$
 
 State transition matrix:
@@ -144,7 +144,7 @@ $$
 
 #### GPS Update
 
-Full-state GPS measurement $\mathbf{z} = [\mathbf{p}_{\text{GPS}};\; \mathbf{v}_{\text{GPS}}] \in \mathbb{R}^6$:
+Full-state GPS measurement $\boldsymbol{z} = [\boldsymbol{p}_{\text{GPS}};\; \boldsymbol{v}_{\text{GPS}}] \in \mathbb{R}^6$:
 
 $$
 H_{\text{gps}} = I_6, \qquad
@@ -155,14 +155,14 @@ Default noise: $\sigma_p = 5.0\;\text{m}$, $\sigma_v = 1.0\;\text{m/s}$.
 
 ### 3.2. Attitude EKF — Quaternion (4-D)
 
-**State:** $\mathbf{q} = [q_w, q_x, q_y, q_z]^\top$ (unit quaternion, scalar-first)
+**State:** $\boldsymbol{q} = [q_w, q_x, q_y, q_z]^\top$ (unit quaternion, scalar-first)
 
 #### Quaternion Kinematics
 
 The quaternion derivative is:
 
 $$
-\dot{\mathbf{q}} = \tfrac{1}{2}\,\mathbf{q} \otimes [0, \boldsymbol{\omega}]^\top
+\dot{\boldsymbol{q}} = \tfrac{1}{2}\,\boldsymbol{q} \otimes [0, \boldsymbol{\omega}]^\top
 $$
 
 where $\otimes$ is the quaternion product and $\boldsymbol{\omega} \in \mathbb{R}^3$ is the gyro reading.
@@ -170,11 +170,11 @@ where $\otimes$ is the quaternion product and $\boldsymbol{\omega} \in \mathbb{R
 Discrete-time prediction (first-order):
 
 $$
-\mathbf{q}[k{+}1] = \mathbf{q}[k] + \tfrac{1}{2}\,\Omega(\boldsymbol{\omega})\,\mathbf{q}[k]\,\Delta t
+\boldsymbol{q}[k{+}1] = \boldsymbol{q}[k] + \tfrac{1}{2}\,\Omega(\boldsymbol{\omega})\,\boldsymbol{q}[k]\,\Delta t
 $$
 
 $$
-\mathbf{q}[k{+}1] \leftarrow \mathbf{q}[k{+}1] / \|\mathbf{q}[k{+}1]\|
+\boldsymbol{q}[k{+}1] \leftarrow \boldsymbol{q}[k{+}1] / \|\boldsymbol{q}[k{+}1]\|
   \quad \text{(renormalise)}
 $$
 
@@ -194,9 +194,9 @@ $$
 Roll/pitch correction via cross-product error:
 
 $$
-\mathbf{e} = \mathbf{a}_{\text{norm}} \times \hat{\mathbf{g}}, \qquad
-\Delta\mathbf{q} = k_a\,[0, \mathbf{e}], \qquad
-\mathbf{q} \leftarrow \mathrm{normalise}(\mathbf{q} + \Delta\mathbf{q})
+\boldsymbol{e} = \boldsymbol{a}_{\text{norm}} \times \hat{\boldsymbol{g}}, \qquad
+\Delta\boldsymbol{q} = k_a\,[0, \boldsymbol{e}], \qquad
+\boldsymbol{q} \leftarrow \mathrm{normalise}(\boldsymbol{q} + \Delta\boldsymbol{q})
 $$
 
 where $k_a = 0.01$ is the accelerometer correction gain.
@@ -204,9 +204,9 @@ where $k_a = 0.01$ is the accelerometer correction gain.
 #### Magnetometer Correction (yaw)
 
 $$
-\mathbf{e} = \mathbf{m}_{\text{norm}} \times \mathbf{m}_{\text{expected}}, \qquad
-\Delta\mathbf{q} = k_m\,[0, \mathbf{e}], \qquad
-\mathbf{q} \leftarrow \mathrm{normalise}(\mathbf{q} + \Delta\mathbf{q})
+\boldsymbol{e} = \boldsymbol{m}_{\text{norm}} \times \boldsymbol{m}_{\text{expected}}, \qquad
+\Delta\boldsymbol{q} = k_m\,[0, \boldsymbol{e}], \qquad
+\boldsymbol{q} \leftarrow \mathrm{normalise}(\boldsymbol{q} + \Delta\boldsymbol{q})
 $$
 
 where $k_m = 0.01$ is the magnetometer correction gain.
@@ -216,11 +216,11 @@ where $k_m = 0.01$ is the magnetometer correction gain.
 A simple bias-subtraction model with low-pass bias estimation:
 
 $$
-\hat{\boldsymbol{\omega}}[k] = \boldsymbol{\omega}_{\text{gyro}}[k] - \mathbf{b}[k]
+\hat{\boldsymbol{\omega}}[k] = \boldsymbol{\omega}_{\text{gyro}}[k] - \boldsymbol{b}[k]
 $$
 
 $$
-\mathbf{b}[k{+}1] = (1-\alpha)\,\mathbf{b}[k] + \alpha\,\boldsymbol{\omega}_{\text{gyro}}[k]
+\boldsymbol{b}[k{+}1] = (1-\alpha)\,\boldsymbol{b}[k] + \alpha\,\boldsymbol{\omega}_{\text{gyro}}[k]
   \quad (\text{stationary calibration, } \alpha = 0.1)
 $$
 
@@ -244,7 +244,7 @@ $$
 
 ## 4. Target Tracking EKF (11-D)
 
-**State:** $\mathbf{x}_{\text{tgt}} = [\mathbf{p}(3), \mathbf{v}(3), \mathbf{a}(3), \psi, \dot\psi]^\top \in \mathbb{R}^{11}$
+**State:** $\boldsymbol{x}_{\text{tgt}} = [\boldsymbol{p}(3), \boldsymbol{v}(3), \boldsymbol{a}(3), \psi, \dot\psi]^\top \in \mathbb{R}^{11}$
 
 This mirrors the DMPC drone state and uses the same triple-integrator
 dynamics (Section 6 of `01_DRONE_STATE_SPACE.md`).
@@ -256,7 +256,7 @@ F_{\text{tgt}} = A_{11} \quad \text{(same matrix as DMPC } A \text{ matrix)}
 $$
 
 Non-linear measurement models require the Jacobian $H$ to be computed at the
-current state estimate $\hat{\mathbf{x}}$.  See [Section 5](#5-multi-sensor-measurement-models).
+current state estimate $\hat{\boldsymbol{x}}$.  See [Section 5](#5-multi-sensor-measurement-models).
 
 ---
 
@@ -265,17 +265,17 @@ current state estimate $\hat{\mathbf{x}}$.  See [Section 5](#5-multi-sensor-meas
 ### 5.1. GPS / RTK
 
 $$
-h_{\text{GPS}}(\mathbf{x}) = [p_x, p_y, p_z, v_x, v_y, v_z]^\top, \qquad H_{\text{GPS}} = I_6
+h_{\text{GPS}}(\boldsymbol{x}) = [p_x, p_y, p_z, v_x, v_y, v_z]^\top, \qquad H_{\text{GPS}} = I_6
 $$
 
 ### 5.2. Radar (4-D)
 
-Radar measures range, range-rate, azimuth, and elevation from sensor position $\mathbf{s}$:
+Radar measures range, range-rate, azimuth, and elevation from sensor position $\boldsymbol{s}$:
 
 $$
-\boldsymbol{\delta} = \mathbf{p}_{\text{tgt}} - \mathbf{s}, \qquad
+\boldsymbol{\delta} = \boldsymbol{p}_{\text{tgt}} - \boldsymbol{s}, \qquad
 r = \|\boldsymbol{\delta}\|, \qquad
-\dot{r} = \frac{\boldsymbol{\delta}^\top \mathbf{v}}{r}
+\dot{r} = \frac{\boldsymbol{\delta}^\top \boldsymbol{v}}{r}
 $$
 
 $$
@@ -284,7 +284,7 @@ $$
 $$
 
 $$
-h_{\text{radar}}(\mathbf{x}) = [r,\; \dot{r},\; \alpha_z,\; \text{el}]^\top
+h_{\text{radar}}(\boldsymbol{x}) = [r,\; \dot{r},\; \alpha_z,\; \text{el}]^\top
 $$
 
 $$
@@ -295,7 +295,7 @@ $$
 ### 5.3. Optical Bearing (2-D / 3-D)
 
 $$
-h_{\text{opt}}(\mathbf{x}) = [\alpha_z,\; \text{el}]^\top \quad \text{(2-D, no range)}
+h_{\text{opt}}(\boldsymbol{x}) = [\alpha_z,\; \text{el}]^\top \quad \text{(2-D, no range)}
 $$
 
 $$
@@ -306,8 +306,8 @@ $$
 ### 5.4. RF Fingerprinting (3-D)
 
 $$
-h_{\text{RF}}(\mathbf{x}) = [p_x, p_y, p_z]^\top, \qquad
-H_{\text{RF}} = [I_3 \mid \mathbf{0}_{3 \times 8}]
+h_{\text{RF}}(\boldsymbol{x}) = [p_x, p_y, p_z]^\top, \qquad
+H_{\text{RF}} = [I_3 \mid \boldsymbol{0}_{3 \times 8}]
 $$
 
 $$

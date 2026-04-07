@@ -29,29 +29,29 @@ The ISR-RL-DMPC system solves the following adaptive QP per drone at every
 control step (50 Hz):
 
 $$
-\min_{\mathbf{x},\mathbf{u}} \; \sum_{k=0}^{N-1} \Bigl[ \|\mathbf{x}_k - \mathbf{x}^{\text{ref}}_k\|^2_{Q_{\text{eff}}} + \|\mathbf{u}_k\|^2_{R_{\text{eff}}} \Bigr] + \|\mathbf{x}_N - \mathbf{x}^{\text{ref}}_N\|^2_P
+\min_{\boldsymbol{x},\boldsymbol{u}} \; \sum_{k=0}^{N-1} \Bigl[ \|\boldsymbol{x}_k - \boldsymbol{x}^{\text{ref}}_k\|^2_{Q_{\text{eff}}} + \|\boldsymbol{u}_k\|^2_{R_{\text{eff}}} \Bigr] + \|\boldsymbol{x}_N - \boldsymbol{x}^{\text{ref}}_N\|^2_P
 $$
 
 $$
 \text{s.t.} \quad
-\mathbf{x}_{k+1} = A\mathbf{x}_k + B\mathbf{u}_k, \quad
-\|\mathbf{u}_k\|_2 \le u_{\max}, \quad
-\|\mathbf{p}_k - \mathbf{p}_j\|_2 \ge r_{\min} \;\forall j \in \mathcal{N}
+\boldsymbol{x}_{k+1} = A\boldsymbol{x}_k + B\boldsymbol{u}_k, \quad
+\|\boldsymbol{u}_k\|_2 \le u_{\max}, \quad
+\|\boldsymbol{p}_k - \boldsymbol{p}_j\|_2 \ge r_{\min} \;\forall j \in \mathcal{N}
 $$
 
 where the **MAPPO agent** outputs per-drone scale vectors each step:
 
 $$
-Q_{\text{eff}} = Q \odot \mathrm{diag}(\mathbf{q}_s), \qquad
-R_{\text{eff}} = R \odot \mathrm{diag}(\mathbf{r}_s), \qquad
-\mathbf{q}_s, \mathbf{r}_s \in [0.1,\;10.0]
+Q_{\text{eff}} = Q \odot \mathrm{diag}(\boldsymbol{q}_s), \qquad
+R_{\text{eff}} = R \odot \mathrm{diag}(\boldsymbol{r}_s), \qquad
+\boldsymbol{q}_s, \boldsymbol{r}_s \in [0.1,\;10.0]
 $$
 
 and **ADMM** drives consensus across local DMPC sub-problems via the
 augmented Lagrangian:
 
 $$
-\mathcal{L}_\rho = \sum_i J_i(\mathbf{z}_i) + \boldsymbol{\mu}_i^\top(\mathbf{z}_i - \mathbf{v}) + \tfrac{\rho}{2}\|\mathbf{z}_i - \mathbf{v}\|^2
+\mathcal{L}_\rho = \sum_i J_i(\boldsymbol{z}_i) + \boldsymbol{\mu}_i^\top(\boldsymbol{z}_i - \boldsymbol{v}) + \tfrac{\rho}{2}\|\boldsymbol{z}_i - \boldsymbol{v}\|^2
 $$
 
 **Known improvement opportunities:**
@@ -245,7 +245,7 @@ ref[2]   = target_altitude             # desired altitude
 
 ### 6.1. Current Limitation
 
-The soft constraint $\|\mathbf{p}_k - \mathbf{p}_j\| \ge 0.9 \times r_{\min}$ can be violated when
+The soft constraint $\|\boldsymbol{p}_k - \boldsymbol{p}_j\| \ge 0.9 \times r_{\min}$ can be violated when
 the OSQP solver reaches its time budget without a feasible point.
 
 ### 6.2. Control Barrier Function (CBF) Constraint
@@ -254,11 +254,11 @@ Replace the hard collision constraint with a CBF inequality that is
 always feasible and forward-invariant:
 
 $$
-h(\mathbf{x}) = \|\mathbf{p} - \mathbf{p}_j\|^2 - r_{\min}^2 \ge 0
+h(\boldsymbol{x}) = \|\boldsymbol{p} - \boldsymbol{p}_j\|^2 - r_{\min}^2 \ge 0
 $$
 
 $$
-\text{CBF constraint:} \quad \nabla h \cdot \dot{\mathbf{x}} + \alpha h \ge 0
+\text{CBF constraint:} \quad \nabla h \cdot \dot{\boldsymbol{x}} + \alpha h \ge 0
 $$
 
 In the linearised MPC context this becomes an affine constraint in `u`:
@@ -284,7 +284,7 @@ For large swarms (> 6 drones), replace pairwise constraints with
 position set is its BVC, computed once per control step:
 
 $$
-\mathcal{BVC}_i = \{ \mathbf{p} : \|\mathbf{p} - \mathbf{p}_i\| \le \|\mathbf{p} - \mathbf{p}_j\| - r_{\min},\; \forall\, j \ne i \}
+\mathcal{BVC}_i = \{ \boldsymbol{p} : \|\boldsymbol{p} - \boldsymbol{p}_i\| \le \|\boldsymbol{p} - \boldsymbol{p}_j\| - r_{\min},\; \forall\, j \ne i \}
 $$
 
 This reduces the number of constraints from O(N²) to O(N), maintaining
@@ -392,11 +392,11 @@ A disturbance observer estimates external forces (wind, payload imbalance)
 and feeds them back into the reference acceleration:
 
 $$
-\hat{d}_{k+1} = \hat{d}_k + L\,(\mathbf{a}_{\text{measured}} - \mathbf{a}_{\text{predicted}})
+\hat{d}_{k+1} = \hat{d}_k + L\,(\boldsymbol{a}_{\text{measured}} - \boldsymbol{a}_{\text{predicted}})
 $$
 
-where $\mathbf{a}_{\text{predicted}} = \mathbf{u}_k + \hat{d}_k$ (control + estimated disturbance)
-and $\mathbf{a}_{\text{measured}} = (\mathbf{v}_k - \mathbf{v}_{k-1}) / \Delta t$ (from IMU/EKF).
+where $\boldsymbol{a}_{\text{predicted}} = \boldsymbol{u}_k + \hat{d}_k$ (control + estimated disturbance)
+and $\boldsymbol{a}_{\text{measured}} = (\boldsymbol{v}_k - \boldsymbol{v}_{k-1}) / \Delta t$ (from IMU/EKF).
 
 The observer gain $L \in (0, 1)$ trades off noise rejection vs. disturbance
 tracking speed.  $L = 0.05$ is conservative for a 1.5 kg quad.

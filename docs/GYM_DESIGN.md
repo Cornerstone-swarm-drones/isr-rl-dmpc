@@ -59,12 +59,12 @@ env = make_env('MARLDMPCEnv-v0', num_drones=4)
 Each drone receives its own **40-dimensional local observation** vector:
 
 $$
-\mathbf{obs}^{(i)} \in \mathbb{R}^{40}
+\boldsymbol{obs}^{(i)} \in \mathbb{R}^{40}
 $$
 
 | Indices | Component | Dim | Description |
 | :--- | :--- | :--- | :--- |
-| 0–10 | Own DMPC state | 11 | $[\mathbf{p}(3), \mathbf{v}(3), \mathbf{a}(3), \psi, \dot{\psi}]$ |
+| 0–10 | Own DMPC state | 11 | $[\boldsymbol{p}(3), \boldsymbol{v}(3), \boldsymbol{a}(3), \psi, \dot{\psi}]$ |
 | 11–13 | Reference position | 3 | Current waypoint $p_\text{ref}$ |
 | 14–16 | Reference velocity | 3 | $v_\text{ref}$ |
 | 17–19 | Tracking error | 3 | $e_p = p - p_\text{ref}$ |
@@ -73,9 +73,9 @@ $$
 | 29 | Battery level | 1 | Normalised [0, 1] |
 | 30 | Health | 1 | Structural health [0, 1] |
 | 31–33 | Last applied control | 3 | Previous $u^{(i)}$ |
-| 34–36 | ADMM primal residual | 3 | $\|z_i - v\|$ per axis |
+| 34–36 | ADMM primal residual | 3 | $\lVert z_i - v\rVert$ per axis |
 | 37 | DMPC solve time | 1 | Normalised last QP solve time |
-| 38 | Collision margin | 1 | $\min_j\|p^{(i)}-p^{(j)}\| - r_\min$ (norm.) |
+| 38 | Collision margin | 1 | $\min_j\lVert p^{(i)}-p^{(j)}\rVert - r_\min$ (norm.) |
 | 39 | Mission progress | 1 | $t / T_\max$ |
 
 **Gymnasium space:**
@@ -92,14 +92,14 @@ observation_space = spaces.Box(
 Each drone's action is a **14-dimensional vector of multiplicative cost scale factors**:
 
 $$
-\mathbf{a}^{(i)} = [q_s(0..10),\ r_s(0..2)] \in [0.1,\ 10.0]^{14}
+\boldsymbol{a}^{(i)} = [q_s(0..10),\ r_s(0..2)] \in [0.1,\ 10.0]^{14}
 $$
 
 These are applied to the DMPC base cost matrices:
 
 $$
-Q_\text{eff}^{(i)} = Q \odot \mathrm{diag}(\mathbf{q}_s^{(i)}), \qquad
-R_\text{eff}^{(i)} = R \odot \mathrm{diag}(\mathbf{r}_s^{(i)})
+Q_\text{eff}^{(i)} = Q \odot \mathrm{diag}(\boldsymbol{q}_s^{(i)}), \qquad
+R_\text{eff}^{(i)} = R \odot \mathrm{diag}(\boldsymbol{r}_s^{(i)})
 $$
 
 **Gymnasium space:**
@@ -121,10 +121,10 @@ $$
 
 | Component | Formula | Weight |
 | :--- | :--- | :--- |
-| Tracking | $\exp(-0.1\|\mathbf{e}_p\|^2) - 1$ | 5.0 |
-| Formation | $-\text{mean}(\|\Delta\mathbf{p}_{ij} - \mathbf{d}_{ij}\|)$ over neighbours | 2.0 |
-| Safety | $\sum_j\min(0, \|\mathbf{p}_i-\mathbf{p}_j\| - r_{\min})$ | 10.0 |
-| Efficiency | $-\|\mathbf{u}^{(i)}\|^2$ | 0.1 |
+| Tracking | $\exp(-0.1\lVert\boldsymbol{e}_p\rVert^2) - 1$ | 5.0 |
+| Formation | $-\text{mean}(\lVert\Delta\boldsymbol{p}_{ij} - \boldsymbol{d}_{ij}\rVert)$ over neighbours | 2.0 |
+| Safety | $\sum_j\min(0, \lVert\boldsymbol{p}_i-\boldsymbol{p}_j\rVert - r_{\min})$ | 10.0 |
+| Efficiency | $-\lVert\boldsymbol{u}^{(i)}\rVert^2$ | 0.1 |
 
 The centralised critic during training uses the sum of all agents' rewards to
 compute a global value estimate.
@@ -137,7 +137,7 @@ compute a global value estimate.
    for `admm_iters` iterations → each drone's DMPC solves its QP → physics
    simulator advances by `dt = 0.02 s`.
 1. **Termination:** Episode ends after `mission_duration` steps, or if any
-   drone collision occurs ($\|\mathbf{p}_i - \mathbf{p}_j\| < 0.5\,r_{\min}$).
+   drone collision occurs ($\|\boldsymbol{p}_i - \boldsymbol{p}_j\| < 0.5\,r_{\min}$).
 
 ## Physics Simulator
 
