@@ -1,377 +1,202 @@
-# Gymnasium Environment Design
+# MARL Gymnasium Environment Design
 
-This document describes the design of the ISR-DMPC Gymnasium environment, including observation and action spaces, reward structure, and simulation details.
+This document describes the design of the **MARLDMPCEnv** Gymnasium environment
+used to train and evaluate the MAPPO policy that adaptively tunes DMPC cost
+parameters for multi-drone ISR missions.
 
 ## Table of Contents
 
 - [Overview](#overview)
-- [ISRGridEnv](#isrgridenv)
-- [Observation Space](#observation-space)
-- [Action Space](#action-space)
+- [MARLDMPCEnv](#marldmpcenv)
+- [Observation Space (40-D per agent)](#observation-space-40-d-per-agent)
+- [Action Space (14-D per agent)](#action-space-14-d-per-agent)
 - [Reward Structure](#reward-structure)
 - [Episode Dynamics](#episode-dynamics)
 - [Physics Simulator](#physics-simulator)
-- [Vectorized Environment](#vectorized-environment)
-- [Mission Scenarios](#mission-scenarios)
+- [Training with MAPPO](#training-with-mappo)
 - [Usage Examples](#usage-examples)
 
 ## Overview
 
-The `ISRGridEnv` class implements a Gymnasium-compatible environment for evaluating multi-drone DMPC controllers in ISR missions. It wraps a 6-DOF physics simulator and provides a structured observation-action interface compatible with standard RL algorithm libraries for offline algorithm validation.
+`MARLDMPCEnv` is a Gymnasium-compatible **multi-agent environment** for training
+MAPPO to dynamically tune the cost parameters of a DMPC swarm controller.  Each
+agent (drone) receives a 40-dimensional local observation and outputs a 14-dimensional
+action (Q and R scale vectors).  The DMPC then solves the resulting QP at 50 Hz,
+and ADMM enforces consensus across drones.
 
-**File:** `src/isr_rl_dmpc/gym_env/isr_env.py`
+**File:** `src/isr_rl_dmpc/gym_env/marl_env.py`
 
-## ISRGridEnv
+The environment follows the **Centralised Training / Decentralised Execution (CTDE)**
+paradigm: during training a centralised critic observes the joint state of all
+drones; during execution each drone's actor conditions only on its local observation.
+
+## MARLDMPCEnv
 
 ### Constructor
 
 ```python
-env = ISRGridEnv(
-    num_drones=10,       # Number of drones in swarm
-    max_targets=5,       # Maximum number of targets
-    grid_size=(20, 20),  # Mission grid dimensions (cells)
-    mission_duration=500, # Episode length (steps = 10s at 50Hz)
-    render_mode=None,    # 'human', 'rgb_array', or None
+from isr_rl_dmpc.gym_env import MARLDMPCEnv
+
+env = MARLDMPCEnv(
+    num_drones=4,            # Number of drones (agents)
+    max_targets=3,           # Maximum number of tracked targets
+    mission_duration=1000,   # Episode length (steps at 50 Hz)
+    admm_iters=5,            # ADMM iterations per control step
+    render_mode=None,        # 'human', 'rgb_array', or None
 )
 ```
 
 ### Registration
 
-The environment can also be created via the factory function:
-
 ```python
 from isr_rl_dmpc.gym_env import make_env
 
-# Single environment
-env = make_env('ISRGridEnv-v0', num_drones=10, max_targets=5)
-
-# Vectorized environment (parallel training)
-vec_env = make_env('ISRGridEnv-v0', num_envs=4, num_drones=10)
+env = make_env('MARLDMPCEnv-v0', num_drones=4)
 ```
 
-## Observation Space
+## Observation Space (40-D per agent)
 
-The observation is a `Dict` space with four components:
-
-### `swarm` — Drone States
+Each drone receives its own **40-dimensional local observation** vector:
 
 ```
-Shape: (num_drones, 18)
-Type:  float32
-Range: (-inf, inf)
+obs^(i) ∈ R^40
 ```
 
-Each drone's 18-dimensional state vector:
+| Indices | Component | Dim | Description |
+|---------|-----------|-----|-------------|
+| 0–10 | Own DMPC state | 11 | [p(3), v(3), a(3), ψ, ψ̇] |
+| 11–13 | Reference position | 3 | Current waypoint p_ref |
+| 14–16 | Reference velocity | 3 | v_ref |
+| 17–19 | Tracking error | 3 | e_p = p − p_ref |
+| 20–25 | Nearest neighbour relative state | 6 | [Δp(3), Δv(3)] to closest drone |
+| 26–28 | Mean swarm offset | 3 | p̄_neighbours − p^(i) |
+| 29 | Battery level | 1 | Normalised [0, 1] |
+| 30 | Health | 1 | Structural health [0, 1] |
+| 31–33 | Last applied control | 3 | Previous u^(i) |
+| 34–36 | ADMM primal residual | 3 | ‖z_i − v‖ per axis |
+| 37 | DMPC solve time | 1 | Normalised last QP solve time |
+| 38 | Collision margin | 1 | min_j‖p^(i)−p^(j)‖ − r_min (norm.) |
+| 39 | Mission progress | 1 | t / T_max |
 
-| Index | Field | Dimensions | Units | Description |
-|---|---|---|---|---|
-| 0–2 | Position | 3 | m | [x, y, z] world coordinates |
-| 3–5 | Velocity | 3 | m/s | [vx, vy, vz] linear velocity |
-| 6–8 | Acceleration | 3 | m/s² | [ax, ay, az] linear acceleration |
-| 9–12 | Quaternion | 4 | — | [qw, qx, qy, qz] unit quaternion |
-| 13–15 | Angular Velocity | 3 | rad/s | [ωx, ωy, ωz] body rates |
-| 16 | Battery Energy | 1 | Wh | Available energy |
-| 17 | Health | 1 | — | Structural health [0, 1] |
+**Gymnasium space:**
 
-### `targets` — Target States
-
-```
-Shape: (max_targets, 12)
-Type:  float32
-Range: (-inf, inf)
-```
-
-Each target's 12-dimensional state vector:
-
-| Index | Field | Dimensions | Units | Description |
-|---|---|---|---|---|
-| 0–2 | Position | 3 | m | [x, y, z] world coordinates |
-| 3–5 | Velocity | 3 | m/s | [vx, vy, vz] linear velocity |
-| 6–8 | Acceleration | 3 | m/s² | [ax, ay, az] linear acceleration |
-| 9 | Yaw Angle | 1 | rad | Heading [0, 2π) |
-| 10 | Yaw Rate | 1 | rad/s | Heading rate of change |
-| 11 | (Reserved) | 1 | — | Padding for alignment |
-
-### `environment` — Grid Coverage and Mission State
-
-```
-Shape: (grid_cells + 4,)
-Type:  float32
-Range: [0, 1]
+```python
+observation_space = spaces.Box(
+    low=-np.inf, high=np.inf,
+    shape=(40,), dtype=np.float32
+)
 ```
 
-| Index | Field | Description |
-|---|---|---|
-| 0 to K-1 | Coverage Map | Binary (0/1) coverage status per grid cell |
-| K | Mission Progress | `step / mission_duration` |
-| K+1 | Coverage Ratio | Mean of coverage map |
-| K+2 | Threat Level | Aggregate threat (placeholder) |
-| K+3 | Energy Efficiency | Aggregate efficiency (placeholder) |
+## Action Space (14-D per agent)
 
-Where `K = grid_size[0] × grid_size[1]` (default: 400 cells for 20×20 grid).
-
-### `adjacency` — Formation Adjacency Matrix
+Each drone's action is a **14-dimensional vector of multiplicative cost scale factors**:
 
 ```
-Shape: (num_drones, num_drones)
-Type:  float32
-Range: [0, 1]
+a^(i) = [q_s(0..10), r_s(0..2)]  ∈ [0.1, 10.0]^14
 ```
 
-Weighted adjacency matrix where `adjacency[i, j] = 1/distance(i, j)` if drones i and j are within 500 m, else 0. Diagonal entries are 0.
-
-## Action Space
+These are applied to the DMPC base cost matrices:
 
 ```
-Shape: (num_drones, 4)
-Type:  float32
-Range: [0, 1]
+Q_eff^(i) = Q ⊙ diag(q_s^(i))
+R_eff^(i) = R ⊙ diag(r_s^(i))
 ```
 
-Motor PWM commands for each drone's 4 rotors. Values are clipped to [0, 1]:
+**Gymnasium space:**
 
-| Index | Description |
-|---|---|
-| 0 | Motor 1 PWM (front-left) |
-| 1 | Motor 2 PWM (front-right) |
-| 2 | Motor 3 PWM (rear-left) |
-| 3 | Motor 4 PWM (rear-right) |
-
-PWM values of 0.5 correspond approximately to hover thrust.
+```python
+action_space = spaces.Box(
+    low=0.1, high=10.0,
+    shape=(14,), dtype=np.float32
+)
+```
 
 ## Reward Structure
 
-The reward is a scalar value computed by the `RewardShaper` class, combining 4 weighted components:
-
-### Components
-
-| Component | Weight | Range | Description |
-|---|---|---|---|
-| Coverage (`r_cov`) | `w_coverage = 1.0` | [0, ∞) | Reward for newly covered grid cells |
-| Energy (`r_eng`) | `w_energy = 0.5` | (-∞, 0] | Penalty for energy consumption |
-| Safety (`r_safe`) | `w_safety = 10.0` | (-∞, 0] | Penalty for collisions and geofence violations |
-| Threat (`r_threat`) | `w_threat = 2.0` | [0, ∞) | Reward for successful threat engagement |
-
-### Reward Formula
+Each agent receives a scalar reward per step:
 
 ```
-r_total = w_cov × r_cov + w_eng × r_eng + w_safe × r_safe + w_threat × r_threat
+r^(i) = w_track * r_track + w_form * r_form + w_safe * r_safe + w_eff * r_eff
 ```
 
-### Configurable Weights
+| Component | Formula | Weight |
+|-----------|---------|--------|
+| Tracking | `exp(-0.1 * ‖e_p‖²) − 1` | 5.0 |
+| Formation | `−mean(‖Δp_ij − d_ij‖)` over neighbours | 2.0 |
+| Safety | `sum(min(0, ‖p_i−p_j‖ − r_min))` | 10.0 |
+| Efficiency | `−‖u^(i)‖²` | 0.1 |
 
-Reward weights can be set via `config/default_config.yaml`:
-
-```yaml
-learning:
-  weight_coverage: 10.0
-  weight_energy: 5.0
-  weight_collision: -100.0
-  weight_target_engagement: 20.0
-  weight_formation: 2.0
-```
+The centralised critic during training uses the sum of all agents' rewards to
+compute a global value estimate.
 
 ## Episode Dynamics
 
-### Reset
-
-On `env.reset()`:
-1. Step counter resets to 0
-2. Coverage map resets to all zeros
-3. Drones are placed in a grid formation across the mission area
-4. Targets are spawned at random positions with random types (friendly, hostile, neutral)
-5. Simulator state is reinitialized
-
-### Step
-
-On `env.step(action)`:
-1. Actions are clipped to [0, 1]
-2. Simulator advances one physics step (6-DOF dynamics)
-3. Coverage map is updated based on drone positions and sensor footprints
-4. Reward is computed from all 5 components
-5. Termination is checked (max steps or all drones inactive)
-
-### Termination Conditions
-
-| Condition | Type |
-|---|---|
-| `step_count >= mission_duration` | Terminated |
-| All drones inactive (battery depleted or destroyed) | Terminated |
-
-### Info Dictionary
-
-The `info` dict returned by `step()` contains:
-
-| Key | Type | Description |
-|---|---|---|
-| `step` | int | Current step number |
-| `coverage` | float | Coverage ratio [0, 1] |
-| `active_drones` | int | Number of active drones |
-| `total_drones` | int | Total drones in swarm |
-| `collisions` | int | Collision count |
-| `geofence_violations` | int | Geofence violation count |
-| `avg_battery` | float | Average battery energy |
-| `wind` | array | Current wind vector |
+1. **Reset:** Drones initialised in a random formation within the mission area.
+   MAPPO action initialised to all-ones (identity scaling of Q and R).
+2. **Step:** MAPPO outputs `(q_scale, r_scale)` per drone → ADMM consensus runs
+   for `admm_iters` iterations → each drone's DMPC solves its QP → physics
+   simulator advances by `dt = 0.02 s`.
+3. **Termination:** Episode ends after `mission_duration` steps, or if any
+   drone collision occurs (`‖p_i − p_j‖ < 0.5 * r_min`).
 
 ## Physics Simulator
 
-**File:** `src/isr_rl_dmpc/gym_env/simulator.py`
+The environment wraps the same 6-DOF `EnvironmentSimulator` used by the ROS2
+node, ensuring sim-to-real consistency:
 
-The `EnvironmentSimulator` provides realistic 6-DOF rigid body dynamics.
+- **Drone:** hector\_quadrotor airframe (mass 1.477 kg, J = diag(0.01152, 0.01152, 0.02180) kg·m²)
+- **Aerodynamics:** Linear drag (c_d = 0.22), hover thrust compensation
+- **Wind:** Dryden turbulence model (configurable intensity)
+- **Battery:** First-order discharge model
+- **Collisions:** Elastic rebound with penalty reward signal
 
-### Drone Physics
-
-- 4-motor quadrotor with individual thrust control
-- Gravity, drag, and motor dynamics
-- Battery depletion model based on thrust and time
-- Collision detection (drone-drone and drone-geofence)
-- Dryden wind turbulence model
-
-### Drone Specifications
-
-Two drone types are defined in `config/drone_specs.yaml`:
-
-| Spec | Reconnaissance | Interceptor |
-|---|---|---|
-| Mass | 1.2 kg | 2.5 kg |
-| Max Velocity | 15 m/s | 30 m/s |
-| Max Acceleration | 8 m/s² | 15 m/s² |
-| Battery | 6000 mAh | 8000 mAh |
-| Endurance | 35 min | 20 min |
-| Rotors | 4 | 4 |
-
-### Target Physics
-
-- Constant velocity or constant acceleration motion models
-- Target types: unknown, friendly, hostile, neutral
-- Configurable velocity and heading
-
-### Wind Model
-
-Dryden wind turbulence with configurable intensity. Wind affects drone dynamics as external disturbances.
-
-## Vectorized Environment
-
-The `VectorEnv` class wraps multiple `ISRGridEnv` instances for parallel training:
+## Training with MAPPO
 
 ```python
-from isr_rl_dmpc.gym_env import make_env
+from stable_baselines3 import PPO
+from isr_rl_dmpc.gym_env import MARLDMPCEnv
+from isr_rl_dmpc.agents import MAPPOAgent
 
-vec_env = make_env('ISRGridEnv-v0', num_envs=4, num_drones=10)
+env = MARLDMPCEnv(num_drones=4)
 
-# Reset all environments
-observations = vec_env.reset()
+agent = MAPPOAgent(
+    env=env,
+    policy='MlpPolicy',
+    learning_rate=3e-4,
+    n_steps=2048,
+    batch_size=256,
+    n_epochs=10,
+    gamma=0.99,
+    gae_lambda=0.95,
+    clip_range=0.2,
+    ent_coef=0.01,
+    tensorboard_log='logs/mappo_dmpc',
+)
 
-# Step all environments
-actions = np.random.uniform(0, 1, size=(4, 10, 4))
-observations, rewards, dones, infos = vec_env.step(actions)
+agent.learn(total_timesteps=1_000_000)
+agent.save('models/mappo_dmpc_v1')
 ```
 
-`VectorEnv` provides:
-- Batch `reset()` and `step()` across all environments
-- Stacked dict observations
-- Array rewards and done flags
-- Rendering of the first environment
+Or using the training script:
 
-## Mission Scenarios
-
-Three pre-defined scenarios are available in `config/mission_scenarios.yaml`:
-
-### Area Surveillance
-
-```yaml
-area_surveillance:
-  area_size: [500.0, 500.0]
-  num_drones: 4
-  num_targets: 0
-  coverage_goal: 0.95
-  max_duration: 1800.0
-  formation_type: "grid"
-  revisit_interval: 60.0
-```
-
-### Threat Response
-
-```yaml
-threat_response:
-  area_size: [300.0, 300.0]
-  num_drones: 6
-  num_targets: 3
-  coverage_goal: 0.80
-  max_duration: 600.0
-  formation_type: "wedge"
-  threat_level: "high"
-```
-
-### Search and Track
-
-```yaml
-search_and_track:
-  area_size: [800.0, 800.0]
-  num_drones: 5
-  num_targets: 4
-  coverage_goal: 0.90
-  max_duration: 1200.0
-  formation_type: "line"
-  search_pattern: "expanding_square"
+```bash
+python scripts/train_mappo.py --config config/mappo_config.yaml
 ```
 
 ## Usage Examples
 
-### Basic DMPC Mission Loop
-
 ```python
-from isr_rl_dmpc.gym_env import ISRGridEnv
-from isr_rl_dmpc.agents import DMPCAgent
-import numpy as np
+# Evaluate a trained MAPPO policy
+from isr_rl_dmpc.gym_env import MARLDMPCEnv
+from isr_rl_dmpc.agents import MAPPOAgent
 
-env = ISRGridEnv(num_drones=4, max_targets=2)
-obs, info = env.reset()
+env = MARLDMPCEnv(num_drones=4, render_mode='human')
+agent = MAPPOAgent.load('models/mappo_dmpc_v1', env=env)
 
-agent = DMPCAgent()
-
-for episode in range(10):
-    obs, info = env.reset()
-    done = False
-    total_reward = 0
-
-    while not done:
-        action = agent.act(obs)
-        next_obs, reward, terminated, truncated, info = env.step(action)
-        done = terminated or truncated
-        obs = next_obs
-        total_reward += reward
-
-    print(f"Episode {episode}: reward={total_reward:.2f}, coverage={info['coverage']:.2%}")
-```
-
-### Evaluating the DMPC Agent
-
-```python
-obs, info = env.reset()
-done = False
-
-while not done:
-    action = agent.act(obs)
-    obs, reward, terminated, truncated, info = env.step(action)
-    done = terminated or truncated
-
-print(f"Final coverage: {info['coverage']:.2%}")
-print(f"Collisions: {info['collisions']}")
-```
-
-### Rendering
-
-```python
-# Text output (human mode)
-env = ISRGridEnv(render_mode='human')
-env.reset()
-env.step(action)
-env.render()
-# Output: Step:    1 | Drones: 4/4 | Coverage: 25.00% | Collisions:   0 | Battery: 4990 J
-
-# RGB array (for video recording)
-env = ISRGridEnv(render_mode='rgb_array')
-env.reset()
-img = env.render()  # Returns (100, 100, 3) uint8 array
+obs, _ = env.reset()
+for _ in range(1000):
+    actions, _ = agent.predict(obs, deterministic=True)
+    obs, rewards, terminated, truncated, info = env.step(actions)
+    if terminated or truncated:
+        obs, _ = env.reset()
 ```
