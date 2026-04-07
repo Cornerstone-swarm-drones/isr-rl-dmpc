@@ -183,7 +183,9 @@ Assigns drones to tasks (waypoints, targets, coverage zones) using the Hungarian
 
 The Hungarian algorithm solves the assignment problem minimising total cost:
 
-$$\min_{X} \sum_i \sum_j C[i,j] \cdot X[i,j] \quad \text{s.t. each drone assigned exactly one task}$$
+$$
+\min_{X} \sum_i \sum_j C[i,j] \cdot X[i,j] \quad \text{s.t. each drone assigned exactly one task}
+$$
 
 where `C[i,j]` is the cost of assigning drone `i` to task `j`.
 
@@ -307,7 +309,9 @@ drones with fixed LQR-tuned gains.
 
 ### Control Law
 
-$$\boldsymbol{\tau} = -K_{p,\text{att}}\,\mathbf{e}_R - K_{d,\text{att}}\,\mathbf{e}_\omega + \boldsymbol{\omega} \times (J\boldsymbol{\omega})$$
+$$
+\boldsymbol{\tau} = -K_{p,\text{att}}\,\mathbf{e}_R - K_{d,\text{att}}\,\mathbf{e}_\omega + \boldsymbol{\omega} \times (J\boldsymbol{\omega})
+$$
 
 where $\mathbf{e}_R = \frac{1}{2}\mathrm{vex}(R_d^\top R - R^\top R_d)$, $K_{p,\text{att}} = 4.5$, $K_{d,\text{att}} = 1.5$.
 
