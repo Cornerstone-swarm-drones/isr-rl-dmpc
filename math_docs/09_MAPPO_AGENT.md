@@ -55,14 +55,14 @@ During **training**, a centralised critic $V_\phi$ observes the **joint state**
 of all $N$ drones (full observability), reducing gradient variance:
 
 $$
-V_\phi(\mathbf{s}) = V_\phi\bigl(\mathbf{o}_1, \ldots, \mathbf{o}_N\bigr)
+V_\phi(\boldsymbol{s}) = V_\phi\bigl(\boldsymbol{o}_1, \ldots, \boldsymbol{o}_N\bigr)
 $$
 
 During **execution**, each drone's actor $\pi_\theta^{(i)}$ conditions only on its
-own **local observation** $\mathbf{o}^{(i)}$ (partial observability):
+own **local observation** $\boldsymbol{o}^{(i)}$ (partial observability):
 
 $$
-\mathbf{a}^{(i)} \sim \pi_\theta\bigl(\cdot \mid \mathbf{o}^{(i)}\bigr)
+\boldsymbol{a}^{(i)} \sim \pi_\theta\bigl(\cdot \mid \boldsymbol{o}^{(i)}\bigr)
 $$
 
 A **shared** actor network (same $\theta$ for all drones) is used, which
@@ -75,21 +75,21 @@ exploits permutation symmetry and reduces the number of parameters.
 Each drone receives a 40-dimensional local observation vector:
 
 $$
-\mathbf{o}^{(i)} \in \mathbb{R}^{40}
+\boldsymbol{o}^{(i)} \in \mathbb{R}^{40}
 $$
 
 | Indices | Component | Dim | Description |
 | :--- | :--- | :--- | :--- |
-| 0–10 | Own DMPC state | 11 | $[\mathbf{p}, \mathbf{v}, \mathbf{a}, \psi, \dot\psi]$ |
-| 11–13 | Reference position | 3 | Current waypoint $\mathbf{p}^{\text{ref}}$ |
-| 14–16 | Reference velocity | 3 | $\mathbf{v}^{\text{ref}}$ |
-| 17–19 | Tracking error | 3 | $\mathbf{e}_p = \mathbf{p} - \mathbf{p}^{\text{ref}}$ |
-| 20–25 | Nearest neighbour relative state | 6 | $[\Delta\mathbf{p}, \Delta\mathbf{v}]$ to closest drone |
-| 26–28 | Mean swarm position offset | 3 | $\bar{\mathbf{p}}_{\mathcal{N}} - \mathbf{p}^{(i)}$ |
+| 0–10 | Own DMPC state | 11 | $[\boldsymbol{p}, \boldsymbol{v}, \boldsymbol{a}, \psi, \dot\psi]$ |
+| 11–13 | Reference position | 3 | Current waypoint $\boldsymbol{p}^{\text{ref}}$ |
+| 14–16 | Reference velocity | 3 | $\boldsymbol{v}^{\text{ref}}$ |
+| 17–19 | Tracking error | 3 | $\boldsymbol{e}_p = \boldsymbol{p} - \boldsymbol{p}^{\text{ref}}$ |
+| 20–25 | Nearest neighbour relative state | 6 | $[\Delta\boldsymbol{p}, \Delta\boldsymbol{v}]$ to closest drone |
+| 26–28 | Mean swarm position offset | 3 | $\bar{\boldsymbol{p}}_{\mathcal{N}} - \boldsymbol{p}^{(i)}$ |
 | 29 | Battery level | 1 | Normalised $[0, 1]$ |
 | 30 | Health | 1 | Structural health $[0, 1]$ |
-| 31–33 | Last applied control | 3 | Previous $\mathbf{u}^{(i)}$ |
-| 34–36 | ADMM residual | 3 | Primal residual $\lVert\mathbf{z}_i - \mathbf{v}\rVert$ per axis |
+| 31–33 | Last applied control | 3 | Previous $\boldsymbol{u}^{(i)}$ |
+| 34–36 | ADMM residual | 3 | Primal residual $\lVert\boldsymbol{z}_i - \boldsymbol{v}\rVert$ per axis |
 | 37 | DMPC solve time | 1 | Normalised last QP solve time |
 | 38 | Collision margin | 1 | Min neighbour distance minus $r_{\min}$ (normalised) |
 | 39 | Mission progress | 1 | $t / T_{\max}$ |
@@ -101,24 +101,24 @@ $$
 The action is a 14-dimensional vector of multiplicative cost scale factors:
 
 $$
-\mathbf{a}^{(i)} = \bigl[\underbrace{q_{s,0}, \ldots, q_{s,10}}_{\mathbf{q}_s \in \mathbb{R}^{11}},\;
-  \underbrace{r_{s,0}, r_{s,1}, r_{s,2}}_{\mathbf{r}_s \in \mathbb{R}^{3}}\bigr]
+\boldsymbol{a}^{(i)} = \bigl[\underbrace{q_{s,0}, \ldots, q_{s,10}}_{\boldsymbol{q}_s \in \mathbb{R}^{11}},\;
+  \underbrace{r_{s,0}, r_{s,1}, r_{s,2}}_{\boldsymbol{r}_s \in \mathbb{R}^{3}}\bigr]
 \in [0.1,\;10.0]^{14}
 $$
 
 These are passed to the DMPC as:
 
 $$
-Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\mathbf{q}_s^{(i)}), \qquad
-R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\mathbf{r}_s^{(i)})
+Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\boldsymbol{q}_s^{(i)}), \qquad
+R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\boldsymbol{r}_s^{(i)})
 $$
 
 The actor network outputs a mean $\boldsymbol{\mu}_a$ and log-std
 $\log\boldsymbol{\sigma}_a$; actions are sampled from
 
 $$
-\mathbf{a}^{(i)} = \mathrm{clip}\!\bigl(\boldsymbol{\mu}_a + \boldsymbol{\sigma}_a \odot \boldsymbol{\varepsilon},\;0.1,\;10.0\bigr),
-  \quad \boldsymbol{\varepsilon} \sim \mathcal{N}(\mathbf{0}, I)
+\boldsymbol{a}^{(i)} = \mathrm{clip}\!\bigl(\boldsymbol{\mu}_a + \boldsymbol{\sigma}_a \odot \boldsymbol{\varepsilon},\;0.1,\;10.0\bigr),
+  \quad \boldsymbol{\varepsilon} \sim \mathcal{N}(\boldsymbol{0}, I)
 $$
 
 ---
@@ -134,7 +134,7 @@ $$
 ### Tracking Reward
 
 $$
-r_{\text{track}} = \exp\!\bigl(-\alpha\,\|\mathbf{e}_p\|^2\bigr) - 1,
+r_{\text{track}} = \exp\!\bigl(-\alpha\,\|\boldsymbol{e}_p\|^2\bigr) - 1,
 \quad \alpha = 0.1
 $$
 
@@ -144,22 +144,22 @@ Exponential shaping gives dense gradients near the reference.
 
 $$
 r_{\text{form}} = -\frac{1}{|\mathcal{N}(i)|} \sum_{j \in \mathcal{N}(i)}
-  \bigl\|\mathbf{p}^{(i)} - \mathbf{p}^{(j)} - \mathbf{d}_{ij}\bigr\|
+  \bigl\|\boldsymbol{p}^{(i)} - \boldsymbol{p}^{(j)} - \boldsymbol{d}_{ij}\bigr\|
 $$
 
-where $\mathbf{d}_{ij}$ is the desired relative position in the target formation.
+where $\boldsymbol{d}_{ij}$ is the desired relative position in the target formation.
 
 ### Safety Penalty
 
 $$
 r_{\text{safe}} = \sum_{j \in \mathcal{N}(i)}
-  \min\!\bigl(0,\; \|\mathbf{p}^{(i)} - \mathbf{p}^{(j)}\| - r_{\min}\bigr)
+  \min\!\bigl(0,\; \|\boldsymbol{p}^{(i)} - \boldsymbol{p}^{(j)}\| - r_{\min}\bigr)
 $$
 
 ### Efficiency Reward
 
 $$
-r_{\text{eff}} = -\|\mathbf{u}^{(i)}\|^2
+r_{\text{eff}} = -\|\boldsymbol{u}^{(i)}\|^2
 $$
 
 Penalises unnecessarily large control commands.
@@ -187,7 +187,7 @@ The gradient is:
 
 $$
 \nabla_\theta J(\theta) = \mathbb{E}\!\left[
-  \sum_{t} \nabla_\theta \log \pi_\theta(\mathbf{a}_t \mid \mathbf{o}_t)\; \hat{A}_t
+  \sum_{t} \nabla_\theta \log \pi_\theta(\boldsymbol{a}_t \mid \boldsymbol{o}_t)\; \hat{A}_t
 \right]
 $$
 
@@ -201,7 +201,7 @@ MAPPO modifies standard PPO by using a **centralised value function** that
 conditions on the concatenated observations of all agents:
 
 $$
-\hat{A}_t^{(i)} = r_t^{(i)} + \gamma\, V_\phi\bigl(\mathbf{o}_{t+1}^{(1:N)}\bigr) - V_\phi\bigl(\mathbf{o}_t^{(1:N)}\bigr)
+\hat{A}_t^{(i)} = r_t^{(i)} + \gamma\, V_\phi\bigl(\boldsymbol{o}_{t+1}^{(1:N)}\bigr) - V_\phi\bigl(\boldsymbol{o}_t^{(1:N)}\bigr)
 $$
 
 This global critic significantly reduces advantage variance compared to a
@@ -229,7 +229,7 @@ $$
 where the **TD residual** is:
 
 $$
-\delta_t = r_t + \gamma\, V_\phi(\mathbf{o}_{t+1}) - V_\phi(\mathbf{o}_t)
+\delta_t = r_t + \gamma\, V_\phi(\boldsymbol{o}_{t+1}) - V_\phi(\boldsymbol{o}_t)
 $$
 
 | Parameter | Value | Effect |
@@ -253,8 +253,8 @@ $$
 where the **importance sampling ratio** is:
 
 $$
-\rho_t(\theta) = \frac{\pi_\theta(\mathbf{a}_t \mid \mathbf{o}_t)}
-  {\pi_{\theta_{\text{old}}}(\mathbf{a}_t \mid \mathbf{o}_t)}
+\rho_t(\theta) = \frac{\pi_\theta(\boldsymbol{a}_t \mid \boldsymbol{o}_t)}
+  {\pi_{\theta_{\text{old}}}(\boldsymbol{a}_t \mid \boldsymbol{o}_t)}
 $$
 
 The clip parameter $\epsilon = 0.2$ is the default.
@@ -267,7 +267,7 @@ An entropy bonus prevents premature collapse to a deterministic policy:
 
 $$
 \mathcal{L}^{\text{ENT}}(\theta) = \mathbb{E}_t\!\left[
-  \mathcal{H}\bigl[\pi_\theta(\cdot \mid \mathbf{o}_t)\bigr]
+  \mathcal{H}\bigl[\pi_\theta(\cdot \mid \boldsymbol{o}_t)\bigr]
 \right]
 $$
 
@@ -284,7 +284,7 @@ $$
 \mathcal{L}(\theta) = \mathcal{L}^{\text{CLIP}}(\theta) - c_1\, \mathcal{L}^{\text{VF}}(\phi) + c_2\, \mathcal{L}^{\text{ENT}}(\theta)
 $$
 
-where $\mathcal{L}^{\text{VF}} = \mathbb{E}_t[(V_\phi(\mathbf{o}_t) - V_t^{\text{target}})^2]$
+where $\mathcal{L}^{\text{VF}} = \mathbb{E}_t[(V_\phi(\boldsymbol{o}_t) - V_t^{\text{target}})^2]$
 is the value function loss, $c_1 = 0.5$, $c_2 = 0.01$.
 
 ---

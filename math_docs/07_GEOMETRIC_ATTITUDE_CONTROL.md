@@ -22,7 +22,7 @@
 ## 1. Overview
 
 The Attitude Controller (Module 8) translates DMPC acceleration commands
-$\mathbf{u} = [a_x, a_y, a_z]$ into motor thrust commands $[T_1, T_2, T_3, T_4]$.
+$\boldsymbol{u} = [a_x, a_y, a_z]$ into motor thrust commands $[T_1, T_2, T_3, T_4]$.
 
 The control architecture is a **cascade PD loop**:
 
@@ -41,14 +41,14 @@ All control gains are fixed at construction time (no online adaptation).
 ### Translational Dynamics
 
 $$
-m\,\ddot{\mathbf{p}} = f_{\text{total}}\,R\,\mathbf{e}_3 - m\,g\,\mathbf{e}_3
+m\,\ddot{\boldsymbol{p}} = f_{\text{total}}\,R\,\boldsymbol{e}_3 - m\,g\,\boldsymbol{e}_3
 $$
 
 where:
 - $m$ — mass (default 1.0 kg; hector\_quadrotor uses 1.477 kg)
 - $f_{\text{total}} = T_1 + T_2 + T_3 + T_4$ — total thrust
 - $R \in \mathrm{SO}(3)$ — rotation matrix (body → world)
-- $\mathbf{e}_3 = [0, 0, 1]^\top$
+- $\boldsymbol{e}_3 = [0, 0, 1]^\top$
 - $g = 9.81\;\text{m/s}^2$
 
 ### Rotational Dynamics (Euler's Equation)
@@ -73,31 +73,31 @@ $$
 ## 3. Quaternion Kinematics
 
 The rotation matrix $R$ is parameterised by the unit quaternion
-$\mathbf{q} = [q_w, q_x, q_y, q_z]^\top$ (scalar-first convention).
+$\boldsymbol{q} = [q_w, q_x, q_y, q_z]^\top$ (scalar-first convention).
 
 ### Quaternion to Rotation Matrix
 
 Using Rodriguez' formula:
 
 $$
-R = (q_w^2 - \mathbf{q}_v^\top \mathbf{q}_v)\,I_3 + 2\,\mathbf{q}_v\,\mathbf{q}_v^\top + 2\,q_w\,[\mathbf{q}_v]_\times
+R = (q_w^2 - \boldsymbol{q}_v^\top \boldsymbol{q}_v)\,I_3 + 2\,\boldsymbol{q}_v\,\boldsymbol{q}_v^\top + 2\,q_w\,[\boldsymbol{q}_v]_\times
 $$
 
-where $\mathbf{q}_v = [q_x, q_y, q_z]^\top$ and $[\mathbf{q}_v]_\times$ is the skew-symmetric
+where $\boldsymbol{q}_v = [q_x, q_y, q_z]^\top$ and $[\boldsymbol{q}_v]_\times$ is the skew-symmetric
 cross-product matrix:
 
 $$
-[\mathbf{q}_v]_\times = \begin{bmatrix} 0 & -q_z & q_y \\ q_z & 0 & -q_x \\ -q_y & q_x & 0 \end{bmatrix}
+[\boldsymbol{q}_v]_\times = \begin{bmatrix} 0 & -q_z & q_y \\ q_z & 0 & -q_x \\ -q_y & q_x & 0 \end{bmatrix}
 $$
 
 ### Quaternion Kinematics Equation
 
 $$
-\dot{\mathbf{q}} = \tfrac{1}{2}\,\mathbf{q} \otimes [0, \boldsymbol{\omega}]^\top
-= \frac{1}{2} \begin{bmatrix} 0 & -\omega_x & -\omega_y & -\omega_z \\ \omega_x & 0 & \omega_z & -\omega_y \\ \omega_y & -\omega_z & 0 & \omega_x \\ \omega_z & \omega_y & -\omega_x & 0 \end{bmatrix} \mathbf{q}
+\dot{\boldsymbol{q}} = \tfrac{1}{2}\,\boldsymbol{q} \otimes [0, \boldsymbol{\omega}]^\top
+= \frac{1}{2} \begin{bmatrix} 0 & -\omega_x & -\omega_y & -\omega_z \\ \omega_x & 0 & \omega_z & -\omega_y \\ \omega_y & -\omega_z & 0 & \omega_x \\ \omega_z & \omega_y & -\omega_x & 0 \end{bmatrix} \boldsymbol{q}
 $$
 
-The quaternion must always satisfy the unit-norm constraint $\|\mathbf{q}\| = 1$.
+The quaternion must always satisfy the unit-norm constraint $\|\boldsymbol{q}\| = 1$.
 
 ---
 
@@ -118,7 +118,7 @@ R_e = R_d^\top R \quad \text{(relative rotation: } R_d\text{-frame to }R\text{-f
 $$
 
 $$
-\mathbf{e}_R = \tfrac{1}{2}\mathrm{vex}(R_e - R_e^\top) \in \mathbb{R}^3
+\boldsymbol{e}_R = \tfrac{1}{2}\mathrm{vex}(R_e - R_e^\top) \in \mathbb{R}^3
   \quad \text{(attitude error vector)}
 $$
 
@@ -137,7 +137,7 @@ def attitude_error(self, R, R_d):
 ### Angular Velocity Error
 
 $$
-\mathbf{e}_\omega = \boldsymbol{\omega} - R^\top R_d\,\boldsymbol{\omega}_d
+\boldsymbol{e}_\omega = \boldsymbol{\omega} - R^\top R_d\,\boldsymbol{\omega}_d
 $$
 
 where $\boldsymbol{\omega}_d$ is the desired angular velocity (zero for stationary hover).
@@ -146,16 +146,16 @@ where $\boldsymbol{\omega}_d$ is the desired angular velocity (zero for stationa
 
 ## 5. Position and Velocity Error
 
-The outer (position) loop computes a desired acceleration $\mathbf{a}_{\text{des}}$ from the
+The outer (position) loop computes a desired acceleration $\boldsymbol{a}_{\text{des}}$ from the
 DMPC reference:
 
 $$
-\mathbf{e}_p = \mathbf{p} - \mathbf{p}_{\text{ref}}, \qquad
-\mathbf{e}_v = \mathbf{v} - \mathbf{v}_{\text{ref}}
+\boldsymbol{e}_p = \boldsymbol{p} - \boldsymbol{p}_{\text{ref}}, \qquad
+\boldsymbol{e}_v = \boldsymbol{v} - \boldsymbol{v}_{\text{ref}}
 $$
 
 $$
-\mathbf{a}_{\text{des}} = \mathbf{a}_{\text{ref}} - K_{p,\text{pos}}\,\mathbf{e}_p - K_{d,\text{pos}}\,\mathbf{e}_v
+\boldsymbol{a}_{\text{des}} = \boldsymbol{a}_{\text{ref}} - K_{p,\text{pos}}\,\boldsymbol{e}_p - K_{d,\text{pos}}\,\boldsymbol{e}_v
 $$
 
 ### Desired Thrust Direction
@@ -163,17 +163,17 @@ $$
 From Newton's second law, the total thrust vector in the world frame must be:
 
 $$
-\mathbf{f}_{\text{des}} = m\,(\mathbf{a}_{\text{des}} + g\,\mathbf{e}_3)
+\boldsymbol{f}_{\text{des}} = m\,(\boldsymbol{a}_{\text{des}} + g\,\boldsymbol{e}_3)
 $$
 
 The desired body z-axis (thrust direction) is:
 
 $$
-\mathbf{b}_{3,\text{des}} = \mathbf{f}_{\text{des}} / \|\mathbf{f}_{\text{des}}\|
+\boldsymbol{b}_{3,\text{des}} = \boldsymbol{f}_{\text{des}} / \|\boldsymbol{f}_{\text{des}}\|
 $$
 
 This is combined with a desired yaw angle $\psi_{\text{des}}$ to form the full desired
-rotation matrix $R_d$ (via the Gram-Schmidt process on $\mathbf{b}_{1,\text{des}}$ and $\mathbf{b}_{3,\text{des}}$).
+rotation matrix $R_d$ (via the Gram-Schmidt process on $\boldsymbol{b}_{1,\text{des}}$ and $\boldsymbol{b}_{3,\text{des}}$).
 
 ---
 
@@ -182,7 +182,7 @@ rotation matrix $R_d$ (via the Gram-Schmidt process on $\mathbf{b}_{1,\text{des}
 ### Torque Command (Geometric PD)
 
 $$
-\boldsymbol{\tau} = -K_{p,\text{att}}\,\mathbf{e}_R - K_{d,\text{att}}\,\mathbf{e}_\omega + \boldsymbol{\omega} \times (J\,\boldsymbol{\omega})
+\boldsymbol{\tau} = -K_{p,\text{att}}\,\boldsymbol{e}_R - K_{d,\text{att}}\,\boldsymbol{e}_\omega + \boldsymbol{\omega} \times (J\,\boldsymbol{\omega})
 $$
 
 The feed-forward gyroscopic term $\boldsymbol{\omega} \times (J\,\boldsymbol{\omega})$ compensates
@@ -191,7 +191,7 @@ for Coriolis and centrifugal effects, improving tracking at high angular rates.
 ### Total Thrust
 
 $$
-f_{\text{total}} = \mathbf{f}_{\text{des}} \cdot (R\,\mathbf{e}_3)
+f_{\text{total}} = \boldsymbol{f}_{\text{des}} \cdot (R\,\boldsymbol{e}_3)
   \quad \text{(project desired force onto body z-axis)}
 $$
 

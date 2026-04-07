@@ -30,7 +30,7 @@ trajectory.
 
 **ADMM (Alternating Direction Method of Multipliers)** enforces consensus
 among the local sub-problems by iteratively driving each drone's local
-decision variable $\mathbf{z}_i$ toward a global consensus variable $\mathbf{v}$
+decision variable $\boldsymbol{z}_i$ toward a global consensus variable $\boldsymbol{v}$
 that satisfies all shared constraints.
 
 ADMM is particularly suited to this setting because:
@@ -48,23 +48,23 @@ ADMM is particularly suited to this setting because:
 Define the **shared reference trajectory** as:
 
 $$
-\mathbf{v} = \frac{1}{N}\sum_{i=1}^{N} \mathbf{z}_i
+\boldsymbol{v} = \frac{1}{N}\sum_{i=1}^{N} \boldsymbol{z}_i
 $$
 
-where $\mathbf{z}_i \in \mathbb{R}^{d}$ is drone $i$'s local copy of the
+where $\boldsymbol{z}_i \in \mathbb{R}^{d}$ is drone $i$'s local copy of the
 consensus variable (e.g., the reference position at the next time step, or
 the planned collision margin).
 
 ### Global Consensus Problem
 
 $$
-\min_{\mathbf{z}_1, \ldots, \mathbf{z}_N} \;
-  \sum_{i=1}^{N} f_i(\mathbf{z}_i)
+\min_{\boldsymbol{z}_1, \ldots, \boldsymbol{z}_N} \;
+  \sum_{i=1}^{N} f_i(\boldsymbol{z}_i)
 \quad \text{s.t.} \quad
-  \mathbf{z}_i = \mathbf{v} \quad \forall\, i
+  \boldsymbol{z}_i = \boldsymbol{v} \quad \forall\, i
 $$
 
-where $f_i(\mathbf{z}_i)$ is drone $i$'s local cost (the DMPC objective
+where $f_i(\boldsymbol{z}_i)$ is drone $i$'s local cost (the DMPC objective
 restricted to the shared variable subspace).
 
 ---
@@ -72,28 +72,28 @@ restricted to the shared variable subspace).
 ## 3. Dual Decomposition
 
 Introduce Lagrange multipliers $\boldsymbol{\mu}_i$ for each consensus
-constraint $\mathbf{z}_i = \mathbf{v}$.  The **augmented Lagrangian** is:
+constraint $\boldsymbol{z}_i = \boldsymbol{v}$.  The **augmented Lagrangian** is:
 
 $$
-\mathcal{L}_\rho(\mathbf{z}_1,\ldots,\mathbf{z}_N,\, \mathbf{v},\,
+\mathcal{L}_\rho(\boldsymbol{z}_1,\ldots,\boldsymbol{z}_N,\, \boldsymbol{v},\,
   \boldsymbol{\mu}_1,\ldots,\boldsymbol{\mu}_N)
 = \sum_{i=1}^{N} \Bigl[
-    f_i(\mathbf{z}_i)
-    + \boldsymbol{\mu}_i^\top (\mathbf{z}_i - \mathbf{v})
-    + \frac{\rho}{2} \|\mathbf{z}_i - \mathbf{v}\|^2
+    f_i(\boldsymbol{z}_i)
+    + \boldsymbol{\mu}_i^\top (\boldsymbol{z}_i - \boldsymbol{v})
+    + \frac{\rho}{2} \|\boldsymbol{z}_i - \boldsymbol{v}\|^2
   \Bigr]
 $$
 
-The quadratic penalty $\frac{\rho}{2}\|\mathbf{z}_i - \mathbf{v}\|^2$ with
+The quadratic penalty $\frac{\rho}{2}\|\boldsymbol{z}_i - \boldsymbol{v}\|^2$ with
 $\rho > 0$ improves convergence speed compared to pure Lagrangian methods.
 
 ### Scaled Form
 
-Introducing the scaled dual variable $\mathbf{y}_i = \boldsymbol{\mu}_i / \rho$,
+Introducing the scaled dual variable $\boldsymbol{y}_i = \boldsymbol{\mu}_i / \rho$,
 the augmented Lagrangian simplifies to:
 
 $$
-\mathcal{L}_\rho = \sum_{i=1}^{N} \left[ f_i(\mathbf{z}_i) + \frac{\rho}{2} \|\mathbf{z}_i - \mathbf{v} + \mathbf{y}_i\|^2 \right] + \text{const}
+\mathcal{L}_\rho = \sum_{i=1}^{N} \left[ f_i(\boldsymbol{z}_i) + \frac{\rho}{2} \|\boldsymbol{z}_i - \boldsymbol{v} + \boldsymbol{y}_i\|^2 \right] + \text{const}
 $$
 
 ---
@@ -107,7 +107,7 @@ ADMM minimises $\mathcal{L}_\rho$ by alternating between three update steps.
 Each drone $i$ solves its local sub-problem independently:
 
 $$
-\mathbf{z}_i^{k+1} \leftarrow \arg\min_{\mathbf{z}_i} \left[ f_i(\mathbf{z}_i) + \frac{\rho}{2} \|\mathbf{z}_i - \mathbf{v}^k + \mathbf{y}_i^k\|^2 \right]
+\boldsymbol{z}_i^{k+1} \leftarrow \arg\min_{\boldsymbol{z}_i} \left[ f_i(\boldsymbol{z}_i) + \frac{\rho}{2} \|\boldsymbol{z}_i - \boldsymbol{v}^k + \boldsymbol{y}_i^k\|^2 \right]
 $$
 
 For the DMPC setting, $f_i$ is a convex QP; adding the quadratic proximal
@@ -115,12 +115,12 @@ term keeps the problem convex and strongly convex (hence uniquely solvable).
 
 ### Step 2 — Global v-update (closed form)
 
-The $\mathbf{v}$-update is the **unweighted average** of all local solutions
+The $\boldsymbol{v}$-update is the **unweighted average** of all local solutions
 plus the scaled duals:
 
 $$
-\mathbf{v}^{k+1} \leftarrow \frac{1}{N} \sum_{i=1}^{N}
-  \bigl(\mathbf{z}_i^{k+1} + \mathbf{y}_i^k\bigr)
+\boldsymbol{v}^{k+1} \leftarrow \frac{1}{N} \sum_{i=1}^{N}
+  \bigl(\boldsymbol{z}_i^{k+1} + \boldsymbol{y}_i^k\bigr)
 $$
 
 This has an $O(N)$ closed-form solution — no additional optimisation is needed.
@@ -128,7 +128,7 @@ This has an $O(N)$ closed-form solution — no additional optimisation is needed
 ### Step 3 — Dual update
 
 $$
-\mathbf{y}_i^{k+1} \leftarrow \mathbf{y}_i^k + \mathbf{z}_i^{k+1} - \mathbf{v}^{k+1}
+\boldsymbol{y}_i^{k+1} \leftarrow \boldsymbol{y}_i^k + \boldsymbol{z}_i^{k+1} - \boldsymbol{v}^{k+1}
 $$
 
 The dual variables accumulate the residual between each drone's local solution
@@ -145,13 +145,13 @@ Define the **primal residual** (consensus violation) and **dual residual**
 
 $$
 r_{\text{prim}}^k = \frac{1}{\sqrt{N}} \left\|
-  \begin{bmatrix} \mathbf{z}_1^k - \mathbf{v}^k \\ \vdots \\
-    \mathbf{z}_N^k - \mathbf{v}^k \end{bmatrix}
+  \begin{bmatrix} \boldsymbol{z}_1^k - \boldsymbol{v}^k \\ \vdots \\
+    \boldsymbol{z}_N^k - \boldsymbol{v}^k \end{bmatrix}
 \right\|
 $$
 
 $$
-r_{\text{dual}}^k = \rho \sqrt{N}\,\|\mathbf{v}^k - \mathbf{v}^{k-1}\|
+r_{\text{dual}}^k = \rho \sqrt{N}\,\|\boldsymbol{v}^k - \boldsymbol{v}^{k-1}\|
 $$
 
 ### Convergence Theorem (Boyd et al. 2011)
@@ -160,7 +160,7 @@ For any $\rho > 0$, if all $f_i$ are **closed, proper, and convex**:
 
 1. **Primal residual converges:** $r_{\text{prim}}^k \to 0$ as $k \to \infty$.
 1. **Dual residual converges:** $r_{\text{dual}}^k \to 0$ as $k \to \infty$.
-1. **Objective converges:** $\sum_i f_i(\mathbf{z}_i^k) \to p^*$ (optimal value).
+1. **Objective converges:** $\sum_i f_i(\boldsymbol{z}_i^k) \to p^*$ (optimal value).
 
 The convergence rate is **linear** (geometric decrease) for strongly convex
 $f_i$, matching the QP structure of the DMPC sub-problems.
@@ -170,7 +170,7 @@ $f_i$, matching the QP structure of the DMPC sub-problems.
 The error satisfies:
 
 $$
-\|\mathbf{z}^k - \mathbf{z}^*\|^2 \le C \cdot \beta^k, \quad \beta \in (0, 1)
+\|\boldsymbol{z}^k - \boldsymbol{z}^*\|^2 \le C \cdot \beta^k, \quad \beta \in (0, 1)
 $$
 
 where $C$ depends on the initial condition and $\beta$ depends on $\rho$ and
@@ -186,11 +186,11 @@ $10^{-3}$ m in the swarm configuration.
 Iteration stops when both residuals fall below absolute and relative tolerances:
 
 $$
-r_{\text{prim}}^k \le \varepsilon_{\text{prim}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}} \max\!\bigl(\|\mathbf{z}^k\|,\, \|\mathbf{v}^k\|\bigr)
+r_{\text{prim}}^k \le \varepsilon_{\text{prim}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}} \max\!\bigl(\|\boldsymbol{z}^k\|,\, \|\boldsymbol{v}^k\|\bigr)
 $$
 
 $$
-r_{\text{dual}}^k \le \varepsilon_{\text{dual}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}}\,\rho \|\mathbf{y}^k\|
+r_{\text{dual}}^k \le \varepsilon_{\text{dual}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}}\,\rho \|\boldsymbol{y}^k\|
 $$
 
 with default tolerances $\varepsilon_{\text{abs}} = \varepsilon_{\text{rel}} = 10^{-3}$.
@@ -233,7 +233,7 @@ for ADMM iteration k in range(max_admm_iters):
 The DMPC cost is augmented by the proximal term:
 
 $$
-J_{\text{ADMM}}^{(i)} = J_{\text{DMPC}}^{(i)}(\mathbf{z}_i) + \frac{\rho}{2}\|\mathbf{z}_i - \mathbf{v} + \mathbf{y}_i\|^2
+J_{\text{ADMM}}^{(i)} = J_{\text{DMPC}}^{(i)}(\boldsymbol{z}_i) + \frac{\rho}{2}\|\boldsymbol{z}_i - \boldsymbol{v} + \boldsymbol{y}_i\|^2
 $$
 
 This additional quadratic term is added to the QP objective in CVXPY as a
@@ -249,8 +249,8 @@ ADMM enforces a **shared minimum-separation constraint** by including it in
 the consensus variable:
 
 $$
-\mathbf{v}_{\text{sep}} = \frac{1}{|\mathcal{E}|} \sum_{(i,j) \in \mathcal{E}}
-  \bigl(\mathbf{p}_i - \mathbf{p}_j\bigr)
+\boldsymbol{v}_{\text{sep}} = \frac{1}{|\mathcal{E}|} \sum_{(i,j) \in \mathcal{E}}
+  \bigl(\boldsymbol{p}_i - \boldsymbol{p}_j\bigr)
 $$
 
 The corresponding consensus constraint ensures that no pair of drones
@@ -259,8 +259,8 @@ if each individual DMPC sub-problem relaxes this constraint.
 
 ### Communication Requirements
 
-ADMM requires drones to share their local variable $\mathbf{z}_i$ at each
-iteration.  For $d$-dimensional $\mathbf{z}_i$ and $K$ iterations:
+ADMM requires drones to share their local variable $\boldsymbol{z}_i$ at each
+iteration.  For $d$-dimensional $\boldsymbol{z}_i$ and $K$ iterations:
 
 - **Bandwidth per step:** $N \times K \times d \times 4$ bytes
 - **Default (N=4, K=5, d=3):** 240 bytes / control step (≪ 1 kbit/s)
@@ -268,7 +268,7 @@ iteration.  For $d$-dimensional $\mathbf{z}_i$ and $K$ iterations:
 ### Robustness to Communication Failures
 
 If drone $j$ fails to respond within one ADMM iteration, the consensus
-update uses the last known $\mathbf{z}_j$.  The ADMM primal residual then
+update uses the last known $\boldsymbol{z}_j$.  The ADMM primal residual then
 reflects the stale estimate, and the dual update naturally discounts the
 contribution of the missing drone over subsequent iterations.
 

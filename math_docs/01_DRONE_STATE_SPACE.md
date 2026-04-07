@@ -37,20 +37,20 @@ The 18-D state is the full physical state tracked by the Extended Kalman Filters
 ## 2. DMPC State Vector (11-D)
 
 $$
-\mathbf{x} = \bigl[p_x,\; p_y,\; p_z,\; v_x,\; v_y,\; v_z,\;
+\boldsymbol{x} = \bigl[p_x,\; p_y,\; p_z,\; v_x,\; v_y,\; v_z,\;
   a_x,\; a_y,\; a_z,\; \psi,\; \dot\psi\bigr]^\top \in \mathbb{R}^{11}
 $$
 
 | Indices | Symbol | Units | Description |
 | :--- | :--- | :--- | :--- |
-| 0–2 | $\mathbf{p}$ | m | Position in world frame |
-| 3–5 | $\mathbf{v}$ | m/s | Linear velocity |
-| 6–8 | $\mathbf{a}$ | m/s² | Linear acceleration |
+| 0–2 | $\boldsymbol{p}$ | m | Position in world frame |
+| 3–5 | $\boldsymbol{v}$ | m/s | Linear velocity |
+| 6–8 | $\boldsymbol{a}$ | m/s² | Linear acceleration |
 | 9 | $\psi$ | rad | Yaw angle |
 | 10 | $\dot\psi$ | rad/s | Yaw rate |
 
-The translational sub-state $[\mathbf{p}, \mathbf{v}, \mathbf{a}] \in \mathbb{R}^9$ is
-**controllable** via the acceleration input $\mathbf{u} = [a_x, a_y, a_z]^\top \in \mathbb{R}^3$.
+The translational sub-state $[\boldsymbol{p}, \boldsymbol{v}, \boldsymbol{a}] \in \mathbb{R}^9$ is
+**controllable** via the acceleration input $\boldsymbol{u} = [a_x, a_y, a_z]^\top \in \mathbb{R}^3$.
 The yaw sub-state $[\psi, \dot\psi]$ is regulated independently by the geometric
 attitude controller (Module 8).
 
@@ -66,7 +66,7 @@ over the prediction horizon, giving smoother trajectories.
 ## 3. Estimation State Vector (18-D)
 
 $$
-\mathbf{x}_{\text{est}} = \bigl[
+\boldsymbol{x}_{\text{est}} = \bigl[
   p_x,\; p_y,\; p_z,\;
   v_x,\; v_y,\; v_z,\;
   a_x,\; a_y,\; a_z,\;
@@ -86,7 +86,7 @@ $\omega_z$ for index 10).
 ## 4. Target State Vector (11-D)
 
 $$
-\mathbf{x}_{\text{tgt}} = \bigl[p_x,\; p_y,\; p_z,\;
+\boldsymbol{x}_{\text{tgt}} = \bigl[p_x,\; p_y,\; p_z,\;
   v_x,\; v_y,\; v_z,\;
   a_x,\; a_y,\; a_z,\;
   \psi,\; \dot\psi\bigr]^\top \in \mathbb{R}^{11}
@@ -103,26 +103,26 @@ A quadrotor's translational dynamics in the world frame, neglecting drag and
 disturbances, are:
 
 $$
-\ddot{\mathbf{p}} = \frac{T}{m} R\, \mathbf{e}_3 - g\, \mathbf{e}_3
+\ddot{\boldsymbol{p}} = \frac{T}{m} R\, \boldsymbol{e}_3 - g\, \boldsymbol{e}_3
 $$
 
 where:
-- $\mathbf{p} \in \mathbb{R}^3$ — position
+- $\boldsymbol{p} \in \mathbb{R}^3$ — position
 - $T$ — total thrust (N)
 - $m$ — vehicle mass (1.477 kg for hector\_quadrotor)
 - $R \in \mathrm{SO}(3)$ — rotation matrix (body → world)
-- $\mathbf{e}_3 = [0, 0, 1]^\top$ — unit z-vector
+- $\boldsymbol{e}_3 = [0, 0, 1]^\top$ — unit z-vector
 - $g = 9.81\;\text{m/s}^2$
 
-For small angles (near-hover), $R\mathbf{e}_3 \approx \mathbf{e}_3$ and the net body
-thrust minus gravity cancels.  The **commanded acceleration** $\mathbf{u} \in \mathbb{R}^3$ is:
+For small angles (near-hover), $R\boldsymbol{e}_3 \approx \boldsymbol{e}_3$ and the net body
+thrust minus gravity cancels.  The **commanded acceleration** $\boldsymbol{u} \in \mathbb{R}^3$ is:
 
 $$
-\mathbf{u} = \ddot{\mathbf{p}}_{\text{cmd}} = \mathbf{a}_{\text{des}}
+\boldsymbol{u} = \ddot{\boldsymbol{p}}_{\text{cmd}} = \boldsymbol{a}_{\text{des}}
 $$
 
 The attitude controller (Module 8) inverts the thrust to realise the desired
-translational acceleration; the DMPC only generates $\mathbf{u} = [a_x, a_y, a_z]^\top$.
+translational acceleration; the DMPC only generates $\boldsymbol{u} = [a_x, a_y, a_z]^\top$.
 
 ---
 
@@ -131,27 +131,27 @@ translational acceleration; the DMPC only generates $\mathbf{u} = [a_x, a_y, a_z
 The continuous-time triple-integrator model
 
 $$
-\dot{\mathbf{p}} = \mathbf{v}, \qquad
-\dot{\mathbf{v}} = \mathbf{a}, \qquad
-\dot{\mathbf{a}} = \mathbf{u}
+\dot{\boldsymbol{p}} = \boldsymbol{v}, \qquad
+\dot{\boldsymbol{v}} = \boldsymbol{a}, \qquad
+\dot{\boldsymbol{a}} = \boldsymbol{u}
 $$
 
 is discretised with Euler forward integration at step $\Delta t$:
 
 $$
-\mathbf{p}[k{+}1] = \mathbf{p}[k] + \Delta t\;\mathbf{v}[k]
+\boldsymbol{p}[k{+}1] = \boldsymbol{p}[k] + \Delta t\;\boldsymbol{v}[k]
 $$
 
 $$
-\mathbf{v}[k{+}1] = \mathbf{v}[k] + \Delta t\;\mathbf{a}[k]
+\boldsymbol{v}[k{+}1] = \boldsymbol{v}[k] + \Delta t\;\boldsymbol{a}[k]
 $$
 
 $$
-\mathbf{a}[k{+}1] = \mathbf{a}[k] + \Delta t\;\mathbf{u}[k]
+\boldsymbol{a}[k{+}1] = \boldsymbol{a}[k] + \Delta t\;\boldsymbol{u}[k]
 $$
 
-Written compactly as $\mathbf{x}[k{+}1] = A\,\mathbf{x}[k] + B\,\mathbf{u}[k]$
-using the 9-D translational sub-state $[\mathbf{p}, \mathbf{v}, \mathbf{a}]$.
+Written compactly as $\boldsymbol{x}[k{+}1] = A\,\boldsymbol{x}[k] + B\,\boldsymbol{u}[k]$
+using the 9-D translational sub-state $[\boldsymbol{p}, \boldsymbol{v}, \boldsymbol{a}]$.
 
 ---
 
@@ -180,13 +180,13 @@ where $I_3$ is the $3 \times 3$ identity matrix.
 
 | Block | Rows | Cols | Meaning |
 | :--- | :--- | :--- | :--- |
-| $A[0{:}3,\;3{:}6] = \Delta t\,I_3$ | position | velocity | $\mathbf{p} \mathrel{+}= \Delta t\,\mathbf{v}$ |
-| $A[3{:}6,\;6{:}9] = \Delta t\,I_3$ | velocity | acceleration | $\mathbf{v} \mathrel{+}= \Delta t\,\mathbf{a}$ |
+| $A[0{:}3,\;3{:}6] = \Delta t\,I_3$ | position | velocity | $\boldsymbol{p} \mathrel{+}= \Delta t\,\boldsymbol{v}$ |
+| $A[3{:}6,\;6{:}9] = \Delta t\,I_3$ | velocity | acceleration | $\boldsymbol{v} \mathrel{+}= \Delta t\,\boldsymbol{a}$ |
 | $A[9,\;10] = \Delta t$ | yaw | yaw-rate | $\psi \mathrel{+}= \Delta t\,\dot\psi$ |
-| $B[6{:}9,\;0{:}3] = \Delta t\,I_3$ | acceleration | input | $\mathbf{a} \mathrel{+}= \Delta t\,\mathbf{u}$ |
+| $B[6{:}9,\;0{:}3] = \Delta t\,I_3$ | acceleration | input | $\boldsymbol{a} \mathrel{+}= \Delta t\,\boldsymbol{u}$ |
 
 The yaw dynamics in $A[9{:}11,\;9{:}11]$ form a $2 \times 2$ integrator; yaw is not
-driven by the translational input $\mathbf{u}$, so $B[9{:}11,\;:] = 0$.
+driven by the translational input $\boldsymbol{u}$, so $B[9{:}11,\;:] = 0$.
 
 ### Python code (from `dmpc_controller.py`)
 
@@ -211,7 +211,7 @@ $$
 \begin{bmatrix} \psi[k] \\ \dot\psi[k] \end{bmatrix}
 $$
 
-Because the translational control input $\mathbf{u}$ does not appear in these
+Because the translational control input $\boldsymbol{u}$ does not appear in these
 equations, yaw is uncontrollable from the DMPC perspective.  Yaw is instead
 regulated by the geometric attitude controller through a separate torque command $\tau_\psi$.
 
@@ -230,7 +230,7 @@ $$
 $$
 
 has rank 9.  This follows because the triple-integrator chain
-$\mathbf{p} \leftarrow \mathbf{v} \leftarrow \mathbf{a} \leftarrow \mathbf{u}$
+$\boldsymbol{p} \leftarrow \boldsymbol{v} \leftarrow \boldsymbol{a} \leftarrow \boldsymbol{u}$
 is in Brunovsky canonical form, which is always controllable for any $\Delta t > 0$.
 
 **Implication:** There exists a stabilising LQR gain $K$ such that the

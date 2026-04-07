@@ -57,11 +57,11 @@ math_docs/                           src/isr_rl_dmpc/
 
 | Symbol | Meaning |
 | :--- | :--- |
-| $\mathbf{x}$ | State vector |
-| $\mathbf{u}$ | Control (input) vector |
+| $\boldsymbol{x}$ | State vector |
+| $\boldsymbol{u}$ | Control (input) vector |
 | $A, B$ | Discrete-time system matrices |
 | $Q, R, P$ | LQR / MPC cost matrices |
-| $\mathbf{q}_s, \mathbf{r}_s$ | MAPPO-output Q and R scale vectors |
+| $\boldsymbol{q}_s, \boldsymbol{r}_s$ | MAPPO-output Q and R scale vectors |
 | $P_{\text{cov}}$ | Covariance matrix (estimation context) |
 | $K$ | Kalman gain or LQR gain (context-dependent) |
 | $N$ | MPC prediction horizon |

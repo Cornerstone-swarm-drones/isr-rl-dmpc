@@ -25,7 +25,7 @@
 
 Given:
 - A mission area defined by a polygon $\mathcal{B} \subset \mathbb{R}^2$ (a set of boundary vertices)
-- A swarm of $n$ drones with positions $\mathbf{p}_1, \ldots, \mathbf{p}_n \in \mathbb{R}^2$
+- A swarm of $n$ drones with positions $\boldsymbol{p}_1, \ldots, \boldsymbol{p}_n \in \mathbb{R}^2$
 - A grid resolution $r$ (metres per cell side)
 - A sensor coverage radius $\rho_s$ (metres)
 
@@ -57,17 +57,17 @@ $$
 
 A cell with vertices $\{(x_i, y_j), (x_{i+1}, y_j), (x_{i+1}, y_{j+1}), (x_i, y_{j+1})\}$
 is included in the mission if its **centroid**
-$\mathbf{c} = \left(\frac{x_i + x_{i+1}}{2},\; \frac{y_j + y_{j+1}}{2}\right)$
+$\boldsymbol{c} = \left(\frac{x_i + x_{i+1}}{2},\; \frac{y_j + y_{j+1}}{2}\right)$
 lies inside the mission boundary polygon $\mathcal{B}$.
 
 ### Point-in-Polygon Test
 
-Membership $\mathbf{c} \in \mathcal{B}$ is decided by `GeometryOps.point_in_polygon(c, B)`, which
+Membership $\boldsymbol{c} \in \mathcal{B}$ is decided by `GeometryOps.point_in_polygon(c, B)`, which
 uses the **ray-casting algorithm**:
 
-> Cast a horizontal ray from $\mathbf{c}$ to $(+\infty,\, c_y)$.
+> Cast a horizontal ray from $\boldsymbol{c}$ to $(+\infty,\, c_y)$.
 > Count the number of boundary edges it crosses.
-> $\mathbf{c} \in \mathcal{B} \iff$ crossing count is odd.
+> $\boldsymbol{c} \in \mathcal{B} \iff$ crossing count is odd.
 
 This runs in $O(|\mathcal{B}|)$ per point and is robust to non-convex polygons.
 
@@ -91,8 +91,8 @@ in which cells are visited.  Higher priority → visited earlier in the mission.
 The priority decreases exponentially with distance from the area centre:
 
 $$
-\mathbf{c}_{\text{area}} = \mathrm{mean}(\mathcal{B}), \qquad
-d_c = \|\mathbf{c} - \mathbf{c}_{\text{area}}\|, \qquad
+\boldsymbol{c}_{\text{area}} = \mathrm{mean}(\mathcal{B}), \qquad
+d_c = \|\boldsymbol{c} - \boldsymbol{c}_{\text{area}}\|, \qquad
 s = \|\max(\mathcal{B}) - \min(\mathcal{B})\|
 $$
 
@@ -116,7 +116,7 @@ applied in priority-sorted order:
 1. For each cell $c$ (in priority order):
 
 $$
-j^* = \arg\min_{j=1,\ldots,n} \|\mathbf{c}_{\text{center}} - \mathbf{p}_j[:2]\|, \qquad
+j^* = \arg\min_{j=1,\ldots,n} \|\boldsymbol{c}_{\text{center}} - \boldsymbol{p}_j[:2]\|, \qquad
 \text{Assign } c \to \text{drone } j^*
 $$
 
@@ -145,7 +145,7 @@ Three path strategies are implemented:
 
 A **greedy tour** starting from the drone's current position:
 
-> $\text{remaining} = \{c_1, \ldots, c_k\}$, $\;\text{path} = []$, $\;\text{current} = \mathbf{p}_{\text{start}}$
+> $\text{remaining} = \{c_1, \ldots, c_k\}$, $\;\text{path} = []$, $\;\text{current} = \boldsymbol{p}_{\text{start}}$
 >
 > While $\text{remaining} \ne \emptyset$:
 > $c^* = \arg\min_{c \in \text{remaining}} \|c.\text{center} - \text{current}\|$
@@ -184,11 +184,11 @@ useful when early coverage of the centre is critical.
 
 ## 6. Mission Time Estimation
 
-Given a waypoint sequence $W = [\mathbf{w}_0, \mathbf{w}_1, \ldots, \mathbf{w}_{k-1}]$ with hover time $h$
+Given a waypoint sequence $W = [\boldsymbol{w}_0, \boldsymbol{w}_1, \ldots, \boldsymbol{w}_{k-1}]$ with hover time $h$
 per waypoint and drone cruise speed $v$:
 
 $$
-L = \sum_{i=0}^{k-2} \|\mathbf{w}_{i+1} - \mathbf{w}_i\|
+L = \sum_{i=0}^{k-2} \|\boldsymbol{w}_{i+1} - \boldsymbol{w}_i\|
   \quad \text{(total path length)}
 $$
 

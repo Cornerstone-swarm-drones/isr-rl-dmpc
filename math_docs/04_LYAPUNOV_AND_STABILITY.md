@@ -27,13 +27,13 @@
 The stability analysis focuses on the controllable part of the state:
 
 $$
-\mathbf{x}_c = [\mathbf{p}(3),\; \mathbf{v}(3),\; \mathbf{a}(3)]^\top \in \mathbb{R}^9
+\boldsymbol{x}_c = [\boldsymbol{p}(3),\; \boldsymbol{v}(3),\; \boldsymbol{a}(3)]^\top \in \mathbb{R}^9
 $$
 
 Discrete-time dynamics:
 
 $$
-\mathbf{x}_c[k{+}1] = A_9\,\mathbf{x}_c[k] + B_9\,\mathbf{u}[k]
+\boldsymbol{x}_c[k{+}1] = A_9\,\boldsymbol{x}_c[k] + B_9\,\boldsymbol{u}[k]
 $$
 
 where $A_9$ and $B_9$ are the $9 \times 9$ and $9 \times 3$ sub-matrices of the full
@@ -42,17 +42,17 @@ where $A_9$ and $B_9$ are the $9 \times 9$ and $9 \times 3$ sub-matrices of the 
 ### Yaw Decoupling
 
 The yaw sub-state $[\psi, \dot\psi]$ (indices 9–10) is uncontrollable from the
-translational input $\mathbf{u}$.  Yaw stability is analysed separately as it is
+translational input $\boldsymbol{u}$.  Yaw stability is analysed separately as it is
 regulated by the geometric attitude controller (Module 8).  The two sub-systems
 are therefore treated as decoupled.
 
 ### Error Dynamics
 
-Let $\mathbf{e}_k = \mathbf{x}_c[k] - \mathbf{x}_{\text{ref}}[k]$ be the tracking error.
+Let $\boldsymbol{e}_k = \boldsymbol{x}_c[k] - \boldsymbol{x}_{\text{ref}}[k]$ be the tracking error.
 Under the optimal DMPC control the error satisfies approximately:
 
 $$
-\mathbf{e}[k{+}1] \approx A_{\text{cl}}\,\mathbf{e}[k],
+\boldsymbol{e}[k{+}1] \approx A_{\text{cl}}\,\boldsymbol{e}[k],
 \quad A_{\text{cl}} = A_9 - B_9\,K_{\text{LQR}}
 $$
 
@@ -67,7 +67,7 @@ near the terminal set.
 Use the LQR optimal value function:
 
 $$
-V(\mathbf{e}) = \mathbf{e}^\top P\, \mathbf{e}
+V(\boldsymbol{e}) = \boldsymbol{e}^\top P\, \boldsymbol{e}
 $$
 
 where $P \succ 0$ is the unique symmetric positive-definite solution to the DARE:
@@ -81,7 +81,7 @@ $$
 **Condition 1 — Positive Definiteness:**
 
 $$
-V(\mathbf{e}) > 0 \quad \forall\, \mathbf{e} \ne \mathbf{0}; \qquad V(\mathbf{0}) = 0
+V(\boldsymbol{e}) > 0 \quad \forall\, \boldsymbol{e} \ne \boldsymbol{0}; \qquad V(\boldsymbol{0}) = 0
 $$
 
 This holds since $P \succ 0$.
@@ -91,10 +91,10 @@ This holds since $P \succ 0$.
 Under the LQR gain $K = (R + B^\top P B)^{-1} B^\top P A$:
 
 $$
-\Delta V = V(A_{\text{cl}}\,\mathbf{e}) - V(\mathbf{e})
-= \mathbf{e}^\top (A_{\text{cl}}^\top P A_{\text{cl}} - P)\,\mathbf{e}
-= -\mathbf{e}^\top (Q + K^\top R K)\,\mathbf{e}
-< 0 \quad \forall\, \mathbf{e} \ne \mathbf{0}
+\Delta V = V(A_{\text{cl}}\,\boldsymbol{e}) - V(\boldsymbol{e})
+= \boldsymbol{e}^\top (A_{\text{cl}}^\top P A_{\text{cl}} - P)\,\boldsymbol{e}
+= -\boldsymbol{e}^\top (Q + K^\top R K)\,\boldsymbol{e}
+< 0 \quad \forall\, \boldsymbol{e} \ne \boldsymbol{0}
 $$
 
 The last inequality follows because $Q \succ 0$ and $K^\top R K \succeq 0$.
@@ -110,8 +110,8 @@ Define the stability margin as:
 
 $$
 \text{margin} = 1 - \max\!\left\{
-  \frac{\mathbf{e}^\top (A_{\text{cl}}^\top P A_{\text{cl}} - P)\,\mathbf{e}}
-    {\mathbf{e}^\top P\,\mathbf{e}} : \mathbf{e} \ne \mathbf{0}
+  \frac{\boldsymbol{e}^\top (A_{\text{cl}}^\top P A_{\text{cl}} - P)\,\boldsymbol{e}}
+    {\boldsymbol{e}^\top P\,\boldsymbol{e}} : \boldsymbol{e} \ne \boldsymbol{0}
 \right\}
 $$
 
@@ -150,7 +150,7 @@ All eigenvalues satisfy $|\lambda_i| < 1$; the spectral radius $\rho \approx 0.9
 The tracking error norm satisfies the bound:
 
 $$
-\|\mathbf{e}[k]\| \le C\,\rho^k\,\|\mathbf{e}[0]\|
+\|\boldsymbol{e}[k]\| \le C\,\rho^k\,\|\boldsymbol{e}[0]\|
 $$
 
 For $\rho \approx 0.983$, errors halve every:
@@ -165,22 +165,22 @@ $$
 
 ### Definition
 
-The closed-loop system with disturbance $\mathbf{w}[k]$:
+The closed-loop system with disturbance $\boldsymbol{w}[k]$:
 
 $$
-\mathbf{e}[k{+}1] = A_{\text{cl}}\,\mathbf{e}[k] + \mathbf{w}[k]
+\boldsymbol{e}[k{+}1] = A_{\text{cl}}\,\boldsymbol{e}[k] + \boldsymbol{w}[k]
 $$
 
 is **Input-to-State Stable (ISS)** if there exist class-$\mathcal{KL}$ function
 $\beta$ and class-$\mathcal{K}$ function $\gamma$ such that:
 
 $$
-\|\mathbf{e}[t]\| \le \beta(\|\mathbf{e}[0]\|,\, t) + \gamma\!\left(\sup_{0 \le s \le t} \|\mathbf{w}[s]\|\right)
+\|\boldsymbol{e}[t]\| \le \beta(\|\boldsymbol{e}[0]\|,\, t) + \gamma\!\left(\sup_{0 \le s \le t} \|\boldsymbol{w}[s]\|\right)
 $$
 
 ### ISS Gain Bound
 
-For the quadratic Lyapunov function $V(\mathbf{e}) = \mathbf{e}^\top P\,\mathbf{e}$:
+For the quadratic Lyapunov function $V(\boldsymbol{e}) = \boldsymbol{e}^\top P\,\boldsymbol{e}$:
 
 $$
 \gamma_{\text{iss}} = \sqrt{\frac{\lambda_{\max}(P)}{\lambda_{\min}(P)}}
@@ -194,7 +194,7 @@ A finite ISS gain exists because $\rho < 1$ (Schur stability confirmed above).
 For steady-state tracking error below bound $\varepsilon$:
 
 $$
-\|\mathbf{w}\|_{\max} = \varepsilon \cdot
+\|\boldsymbol{w}\|_{\max} = \varepsilon \cdot
   \frac{\lambda_{\min}(Q + K^\top R K)}{\lambda_{\max}(P)}
 $$
 
@@ -219,52 +219,52 @@ $$
 For drones $i$ and $j$, define the safety function:
 
 $$
-h_{ij}(\mathbf{x}) = \|\mathbf{p}_i - \mathbf{p}_j\|^2 - r_{\min}^2
+h_{ij}(\boldsymbol{x}) = \|\boldsymbol{p}_i - \boldsymbol{p}_j\|^2 - r_{\min}^2
 $$
 
-The **safe set** is $\mathcal{C} = \{\mathbf{x} : h_{ij}(\mathbf{x}) \ge 0\;\forall\,(i,j)\}$.
+The **safe set** is $\mathcal{C} = \{\boldsymbol{x} : h_{ij}(\boldsymbol{x}) \ge 0\;\forall\,(i,j)\}$.
 
 ### Discrete-Time CBF Condition
 
 A discrete-time CBF requires:
 
 $$
-h_{ij}(\mathbf{x}[k{+}1]) - h_{ij}(\mathbf{x}[k]) \ge -\alpha\,h_{ij}(\mathbf{x}[k])
+h_{ij}(\boldsymbol{x}[k{+}1]) - h_{ij}(\boldsymbol{x}[k]) \ge -\alpha\,h_{ij}(\boldsymbol{x}[k])
 $$
 
 for some $\alpha \in (0, 1]$.  This is equivalent to:
 
 $$
-h_{ij}(\mathbf{x}[k{+}1]) \ge (1 - \alpha)\,h_{ij}(\mathbf{x}[k])
+h_{ij}(\boldsymbol{x}[k{+}1]) \ge (1 - \alpha)\,h_{ij}(\boldsymbol{x}[k])
 $$
 
-$\alpha = 1$ gives the strongest condition: $h_{ij}(\mathbf{x}[k{+}1]) \ge 0$, i.e. the
+$\alpha = 1$ gives the strongest condition: $h_{ij}(\boldsymbol{x}[k{+}1]) \ge 0$, i.e. the
 constraint must be satisfied at every time step.
 
 ### CBF as an Affine Control Constraint
 
 Linearising $h_{ij}$ around the current position yields an affine constraint
-in the control $\mathbf{u}$:
+in the control $\boldsymbol{u}$:
 
-Let $\boldsymbol{\delta} = \mathbf{p}_i - \mathbf{p}_j$,
+Let $\boldsymbol{\delta} = \boldsymbol{p}_i - \boldsymbol{p}_j$,
 $h = \|\boldsymbol{\delta}\|^2 - r_{\min}^2$.
 
 $$
 \text{Linearised CBF:} \quad
-2\,\boldsymbol{\delta}^\top (\mathbf{v} + B_{\text{pos}}\,\mathbf{u}) + \alpha\,h \ge 0
+2\,\boldsymbol{\delta}^\top (\boldsymbol{v} + B_{\text{pos}}\,\boldsymbol{u}) + \alpha\,h \ge 0
 $$
 
 $$
-\Longrightarrow \quad -2\,\boldsymbol{\delta}^\top B_{\text{pos}}\,\mathbf{u}
-\le 2\,\boldsymbol{\delta}^\top \mathbf{v} + \alpha\,h
+\Longrightarrow \quad -2\,\boldsymbol{\delta}^\top B_{\text{pos}}\,\boldsymbol{u}
+\le 2\,\boldsymbol{\delta}^\top \boldsymbol{v} + \alpha\,h
 $$
 
 where $B_{\text{pos}} = B[0{:}3,\;:]$ extracts the position rows of $B$.
 
 ### Forward Invariance Theorem
 
-If $h_{ij}(\mathbf{x}_0) \ge 0$ and the CBF constraint is enforced at every step,
-then by induction $h_{ij}(\mathbf{x}_k) \ge 0$ for all $k \ge 0$ — the swarm
+If $h_{ij}(\boldsymbol{x}_0) \ge 0$ and the CBF constraint is enforced at every step,
+then by induction $h_{ij}(\boldsymbol{x}_k) \ge 0$ for all $k \ge 0$ — the swarm
 remains in the safe set.
 
 ### Parameter `cbf_alpha`
@@ -280,16 +280,16 @@ to 1.0 enforce the barrier more aggressively (better safety, less manoeuvrabilit
 
 **Theorem (Rawlings & Mayne, 2019):** Let the DMPC be equipped with:
 
-1. Terminal cost $V_f(\mathbf{e}) = \mathbf{e}^\top P\,\mathbf{e}$ (DARE solution).
-1. Terminal set $\Omega_f = \{\mathbf{e} : \mathbf{e}^\top P\,\mathbf{e} \le c\}$ (LQR-invariant ellipsoid).
-1. Terminal control law $\mathbf{u}_f = -K\,\mathbf{e}$.
+1. Terminal cost $V_f(\boldsymbol{e}) = \boldsymbol{e}^\top P\,\boldsymbol{e}$ (DARE solution).
+1. Terminal set $\Omega_f = \{\boldsymbol{e} : \boldsymbol{e}^\top P\,\boldsymbol{e} \le c\}$ (LQR-invariant ellipsoid).
+1. Terminal control law $\boldsymbol{u}_f = -K\,\boldsymbol{e}$.
 
 If the problem is **feasible at time $t = 0$**, it remains feasible for all $t > 0$.
 
 *Proof sketch:*  
-At time $t{+}1$, the shifted trajectory $\{\tilde{\mathbf{x}}_k\} = \{\mathbf{x}_{k+1}, \ldots, \mathbf{x}_N, A_{\text{cl}}\mathbf{x}_N\}$
+At time $t{+}1$, the shifted trajectory $\{\tilde{\boldsymbol{x}}_k\} = \{\boldsymbol{x}_{k+1}, \ldots, \boldsymbol{x}_N, A_{\text{cl}}\boldsymbol{x}_N\}$
 is a feasible candidate solution (it satisfies all constraints, and
-$A_{\text{cl}}\mathbf{x}_N \in \Omega_f$ by invariance of $\Omega_f$ under $A_{\text{cl}}$).
+$A_{\text{cl}}\boldsymbol{x}_N \in \Omega_f$ by invariance of $\Omega_f$ under $A_{\text{cl}}$).
 
 ### Invariance of Terminal Set
 
@@ -325,7 +325,7 @@ treated as fixed obstacles.  This introduces a coupling error due to the
 one-step communication delay $\tau$:
 
 $$
-\|\mathbf{p}_j(t) - \hat{\mathbf{p}}_j(t)\| \le v_{\max} \cdot \tau
+\|\boldsymbol{p}_j(t) - \hat{\boldsymbol{p}}_j(t)\| \le v_{\max} \cdot \tau
 $$
 
 For $v_{\max} = 20\;\text{m/s}$ and $\tau = 0.02\;\text{s}$ (50 Hz ROS2 loop), the
@@ -349,10 +349,10 @@ control step.
 The formation controller uses the consensus protocol:
 
 $$
-\mathbf{v}_i \leftarrow \mathbf{v}_i + \varepsilon \sum_{j \in \mathcal{N}(i)} (\mathbf{x}_j - \mathbf{x}_i - \mathbf{d}_{ij})
+\boldsymbol{v}_i \leftarrow \boldsymbol{v}_i + \varepsilon \sum_{j \in \mathcal{N}(i)} (\boldsymbol{x}_j - \boldsymbol{x}_i - \boldsymbol{d}_{ij})
 $$
 
-where $\mathbf{d}_{ij}$ is the desired relative position.  Convergence is governed
+where $\boldsymbol{d}_{ij}$ is the desired relative position.  Convergence is governed
 by the **graph Laplacian** $L$ (see [05_FORMATION_CONSENSUS.md](05_FORMATION_CONSENSUS.md)).
 For any connected graph, all non-zero eigenvalues of $L$ are positive, guaranteeing
 convergence of the formation error to zero.
