@@ -27,12 +27,10 @@ Given:
 
 Find a one-to-one assignment `σ: tasks → drones` that minimises total cost:
 
-```
-min   Σᵢ C[i, σ(i)]
-σ
-
-s.t.  σ is a bijection (each task assigned to exactly one drone)
-```
+$$
+\min_{\sigma} \; \sum_i C[i,\, \sigma(i)]
+\quad \text{s.t.} \quad \sigma \text{ is a bijection (each task to exactly one drone)}
+$$
 
 This is the **Linear Assignment Problem (LAP)** — a combinatorial optimisation
 problem on a bipartite graph.
@@ -41,87 +39,81 @@ problem on a bipartite graph.
 
 ## 2  Cost Matrix Construction
 
-The cost of assigning task τᵢ to drone dⱼ is a weighted sum of five factors:
+The cost of assigning task $\tau_i$ to drone $d_j$ is a weighted sum of five factors:
 
-```
-C[i, j] = 0.30 × c_dist
-         + 0.20 × c_fuel
-         + 0.20 × c_load
-         + 0.15 × c_sensor
-         − 0.15 × bonus_priority
-```
+$$
+C[i,j] = 0.30\,c_{\text{dist}}
+  + 0.20\,c_{\text{fuel}}
+  + 0.20\,c_{\text{load}}
+  + 0.15\,c_{\text{sensor}}
+  - 0.15\,b_{\text{priority}}
+$$
 
 ### Distance Cost
 
-```
-dist   = ‖τᵢ.position − dⱼ.position‖
-c_dist = dist / 1000                    (normalised to ≈ 0–2 for 1 km range)
-```
-
-Closer drones are preferred (lower cost).
+$$
+d_{ij} = \|\tau_i.\mathbf{p} - d_j.\mathbf{p}\|, \qquad
+c_{\text{dist}} = d_{ij} / 1000 \quad \text{(normalised to } {\approx}\,[0,2] \text{ for 1 km range)}
+$$
 
 ### Fuel Cost
 
-```
-c_fuel = (100 − dⱼ.fuel_remaining) / 100    ∈ [0, 1]
-```
+$$
+c_{\text{fuel}} = (100 - d_j.\text{fuel}) / 100 \in [0, 1]
+$$
 
 Drones with more fuel are preferred.
 
 ### Task Load Cost
 
-```
-c_load = dⱼ.current_load    ∈ [0, 1]
-```
-
-Less-loaded drones are preferred.
+$$
+c_{\text{load}} = d_j.\text{current\_load} \in [0, 1]
+$$
 
 ### Sensor Capability Cost
 
-```
-available = |{s : s ∈ τᵢ.required_sensors ∩ dⱼ.sensors}|
-c_sensor  = 1 − available / |τᵢ.required_sensors|    ∈ [0, 1]
-```
+$$
+c_{\text{sensor}} = 1 - \frac{|\tau_i.\text{required} \cap d_j.\text{sensors}|}{|\tau_i.\text{required}|} \in [0, 1]
+$$
 
-Drones that have all required sensors get `c_sensor = 0`.
+Drones that have all required sensors get $c_{\text{sensor}} = 0$.
 
 ### Priority Bonus
 
-```
-bonus_priority = τᵢ.priority    ∈ [0, 1]
-```
-
-Higher-priority tasks receive a cost reduction, making them more attractive.
+$$
+b_{\text{priority}} = \tau_i.\text{priority} \in [0, 1]
+$$
 
 ### Feasibility Check
 
 If the travel time plus task duration exceeds the drone's endurance, the
 assignment is marked **infeasible**:
 
-```
-travel_time = dist / dⱼ.max_speed
-total_time  = travel_time + τᵢ.estimated_duration
+$$
+t_{\text{travel}} = d_{ij} / d_j.v_{\max}, \qquad
+t_{\text{total}} = t_{\text{travel}} + \tau_i.\text{duration}
+$$
 
-if total_time > dⱼ.endurance:
-    C[i, j] = 1e6    (penalty = infeasible)
-```
+$$
+\text{if } t_{\text{total}} > d_j.\text{endurance} \Rightarrow C[i,j] = 10^6 \quad \text{(infeasible)}
+$$
 
 ---
 
 ## 3  The Assignment Problem
 
-The cost matrix C defines a **weighted bipartite graph**:
+The cost matrix $C$ defines a **weighted bipartite graph**:
 - Left nodes: tasks
 - Right nodes: drones
-- Edge weight: cost C[i, j]
+- Edge weight: cost $C[i, j]$
 
 A **perfect matching** is a set of edges in which every task and every drone
 appears exactly once.  The minimum-cost perfect matching is the optimal
 assignment.
 
-For a square n×n matrix, there are n! possible matchings; exhaustive
-search is infeasible for n > 12.  The **Hungarian algorithm** finds the
-optimal matching in O(n³) time.
+For a square $n \times n$ matrix, there are $n!$ possible matchings; exhaustive
+search is infeasible for $n > 12$.  The **Hungarian algorithm** finds the
+optimal matching in $O(n^3)$ time.
 
 ---
 

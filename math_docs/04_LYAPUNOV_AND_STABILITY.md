@@ -26,34 +26,35 @@
 
 The stability analysis focuses on the controllable part of the state:
 
-```
-x_c = [p(3), v(3), a(3)] ∈ ℝ⁹
-```
+$$
+\mathbf{x}_c = [\mathbf{p}(3),\; \mathbf{v}(3),\; \mathbf{a}(3)]^\top \in \mathbb{R}^9
+$$
 
 Discrete-time dynamics:
 
-```
-x_c[k+1] = A₉ x_c[k] + B₉ u[k]
-```
+$$
+\mathbf{x}_c[k{+}1] = A_9\,\mathbf{x}_c[k] + B_9\,\mathbf{u}[k]
+$$
 
-where A₉ and B₉ are the 9×9 and 9×3 sub-matrices of the full 11-D A, B
-matrices (see [01_DRONE_STATE_SPACE.md](01_DRONE_STATE_SPACE.md)).
+where $A_9$ and $B_9$ are the $9 \times 9$ and $9 \times 3$ sub-matrices of the full
+11-D $A$, $B$ matrices (see [01_DRONE_STATE_SPACE.md](01_DRONE_STATE_SPACE.md)).
 
 ### Yaw Decoupling
 
-The yaw sub-state `[ψ, ψ̇]` (indices 9–10) is uncontrollable from the
-translational input **u**.  Yaw stability is analysed separately as it is
-regulated by the geometric attitude controller (Module 8).  The two
-sub-systems are therefore treated as decoupled.
+The yaw sub-state $[\psi, \dot\psi]$ (indices 9–10) is uncontrollable from the
+translational input $\mathbf{u}$.  Yaw stability is analysed separately as it is
+regulated by the geometric attitude controller (Module 8).  The two sub-systems
+are therefore treated as decoupled.
 
 ### Error Dynamics
 
-Let `e_k = x_c[k] − x_ref[k]` be the tracking error.  Under the optimal
-DMPC control the error satisfies approximately:
+Let $\mathbf{e}_k = \mathbf{x}_c[k] - \mathbf{x}_{\text{ref}}[k]$ be the tracking error.
+Under the optimal DMPC control the error satisfies approximately:
 
-```
-e[k+1] ≈ A_cl e[k]   where  A_cl = A₉ − B₉ K_LQR
-```
+$$
+\mathbf{e}[k{+}1] \approx A_{\text{cl}}\,\mathbf{e}[k],
+\quad A_{\text{cl}} = A_9 - B_9\,K_{\text{LQR}}
+$$
 
 near the terminal set.
 
@@ -65,51 +66,54 @@ near the terminal set.
 
 Use the LQR optimal value function:
 
-```
-V(e) = eᵀ P e
-```
+$$
+V(\mathbf{e}) = \mathbf{e}^\top P\, \mathbf{e}
+$$
 
-where **P ≻ 0** is the unique symmetric positive-definite solution to the
-DARE:
+where $P \succ 0$ is the unique symmetric positive-definite solution to the DARE:
 
-```
-P = Q + Aᵀ P A − Aᵀ P B (R + Bᵀ P B)⁻¹ Bᵀ P A
-```
+$$
+P = Q + A^\top P A - A^\top P B\,(R + B^\top P B)^{-1} B^\top P A
+$$
 
 ### Conditions for Asymptotic Stability
 
 **Condition 1 — Positive Definiteness:**
 
-```
-V(e) > 0  ∀ e ≠ 0  (holds since P ≻ 0)
-V(0) = 0
-```
+$$
+V(\mathbf{e}) > 0 \quad \forall\, \mathbf{e} \ne \mathbf{0}; \qquad V(\mathbf{0}) = 0
+$$
+
+This holds since $P \succ 0$.
 
 **Condition 2 — Monotone Decrease:**
 
-Under the LQR gain `K = (R + BᵀPB)⁻¹ BᵀPA`:
+Under the LQR gain $K = (R + B^\top P B)^{-1} B^\top P A$:
 
-```
-ΔV = V(A_cl e) − V(e)
-   = eᵀ (A_clᵀ P A_cl − P) e
-   = −eᵀ (Q + Kᵀ R K) e
-   < 0   ∀ e ≠ 0
-```
+$$
+\Delta V = V(A_{\text{cl}}\,\mathbf{e}) - V(\mathbf{e})
+= \mathbf{e}^\top (A_{\text{cl}}^\top P A_{\text{cl}} - P)\,\mathbf{e}
+= -\mathbf{e}^\top (Q + K^\top R K)\,\mathbf{e}
+< 0 \quad \forall\, \mathbf{e} \ne \mathbf{0}
+$$
 
-The last inequality follows because `Q ≻ 0` and `Kᵀ R K ≽ 0`.
+The last inequality follows because $Q \succ 0$ and $K^\top R K \succeq 0$.
 
 **Conclusion:** The LQR-closed-loop translational dynamics are **globally
 asymptotically stable**.  The DMPC controller inherits this stability guarantee
-within the terminal set Ω_f via the terminal cost (see
+within the terminal set $\Omega_f$ via the terminal cost (see
 [Section 6](#6-recursive-feasibility)).
 
 ### Stability Margin
 
 Define the stability margin as:
 
-```
-margin = 1 − max{eᵀ (A_clᵀ P A_cl − P) e / (eᵀ P e) : e ≠ 0}
-```
+$$
+\text{margin} = 1 - \max\!\left\{
+  \frac{\mathbf{e}^\top (A_{\text{cl}}^\top P A_{\text{cl}} - P)\,\mathbf{e}}
+    {\mathbf{e}^\top P\,\mathbf{e}} : \mathbf{e} \ne \mathbf{0}
+\right\}
+$$
 
 Typical value with default parameters: **margin ≈ 0.017**.
 
@@ -119,8 +123,8 @@ Typical value with default parameters: **margin ≈ 0.017**.
 
 ### Closed-Loop Eigenvalues
 
-The DMPC is asymptotically stable if and only if all eigenvalues of A_cl
-satisfy `|λᵢ| < 1` (Schur stability).
+The DMPC is asymptotically stable if and only if all eigenvalues of $A_{\text{cl}}$
+satisfy $|\lambda_i| < 1$ (Schur stability).
 
 **Computation:**
 
@@ -131,29 +135,29 @@ eigs  = np.linalg.eigvals(A_cl)
 rho   = np.max(np.abs(eigs))   # spectral radius
 ```
 
-**Typical result** (default Q = I₉, R = 0.1·I₃, Δt = 0.02 s):
+**Typical result** (default $Q = I_9$, $R = 0.1 I_3$, $\Delta t = 0.02\;\text{s}$):
 
-| Mode | |λᵢ| |
-|------|---------|
+| Mode | $|\lambda_i|$ |
+|------|----------------|
 | Position convergence | ≈ 0.942 |
 | Velocity convergence | ≈ 0.983 |
 | Acceleration convergence | ≈ 0.942 |
 
-All eigenvalues satisfy `|λᵢ| < 1`; the spectral radius ρ ≈ 0.983.
+All eigenvalues satisfy $|\lambda_i| < 1$; the spectral radius $\rho \approx 0.983$.
 
 ### Convergence Rate
 
 The tracking error norm satisfies the bound:
 
-```
-‖e[k]‖ ≤ C ρᵏ ‖e[0]‖
-```
+$$
+\|\mathbf{e}[k]\| \le C\,\rho^k\,\|\mathbf{e}[0]\|
+$$
 
-For ρ ≈ 0.983, errors halve every:
+For $\rho \approx 0.983$, errors halve every:
 
-```
-k_{1/2} = ln(2) / (−ln ρ) ≈ 40 steps = 0.8 s  at 50 Hz
-```
+$$
+k_{1/2} = \frac{\ln 2}{-\ln \rho} \approx 40\;\text{steps} = 0.8\;\text{s at 50 Hz}
+$$
 
 ---
 
@@ -161,38 +165,41 @@ k_{1/2} = ln(2) / (−ln ρ) ≈ 40 steps = 0.8 s  at 50 Hz
 
 ### Definition
 
-The closed-loop system with disturbance `d[k]`:
+The closed-loop system with disturbance $\mathbf{w}[k]$:
 
-```
-e[k+1] = A_cl e[k] + w[k],   w = disturbance
-```
+$$
+\mathbf{e}[k{+}1] = A_{\text{cl}}\,\mathbf{e}[k] + \mathbf{w}[k]
+$$
 
-is **Input-to-State Stable (ISS)** if there exist class-KL function β and
-class-K function γ such that:
+is **Input-to-State Stable (ISS)** if there exist class-$\mathcal{KL}$ function
+$\beta$ and class-$\mathcal{K}$ function $\gamma$ such that:
 
-```
-‖e[t]‖ ≤ β(‖e[0]‖, t) + γ(sup_{0≤s≤t} ‖w[s]‖)
-```
+$$
+\|\mathbf{e}[t]\| \le \beta(\|\mathbf{e}[0]\|,\, t)
+  + \gamma\!\left(\sup_{0 \le s \le t} \|\mathbf{w}[s]\|\right)
+$$
 
 ### ISS Gain Bound
 
-For the quadratic Lyapunov function `V(e) = eᵀ P e`:
+For the quadratic Lyapunov function $V(\mathbf{e}) = \mathbf{e}^\top P\,\mathbf{e}$:
 
-```
-γ_iss = sqrt(λ_max(P) / λ_min(P))  ×  ‖A_cl‖₂ / (1 − ρ)
-```
+$$
+\gamma_{\text{iss}} = \sqrt{\frac{\lambda_{\max}(P)}{\lambda_{\min}(P)}}
+  \cdot \frac{\|A_{\text{cl}}\|_2}{1 - \rho}
+$$
 
-A finite ISS gain exists because ρ < 1 (Schur stability confirmed above).
+A finite ISS gain exists because $\rho < 1$ (Schur stability confirmed above).
 
 ### Maximum Tolerable Disturbance
 
-For steady-state tracking error below bound ε:
+For steady-state tracking error below bound $\varepsilon$:
 
-```
-‖w‖_max = ε · λ_min(Q + KᵀRK) / λ_max(P)
-```
+$$
+\|\mathbf{w}\|_{\max} = \varepsilon \cdot
+  \frac{\lambda_{\min}(Q + K^\top R K)}{\lambda_{\max}(P)}
+$$
 
-**Typical result:** With ε = 1 m the system tolerates disturbances up to
+**Typical result:** With $\varepsilon = 1\;\text{m}$ the system tolerates disturbances up to
 ≈ 1.3 mm/s² acceleration noise — consistent with typical IMU noise levels.
 
 ### Disturbance Sources
@@ -210,57 +217,61 @@ For steady-state tracking error below bound ε:
 
 ### Safety Function
 
-For drones **i** and **j**, define the safety function:
+For drones $i$ and $j$, define the safety function:
 
-```
-h_{ij}(x) = ‖p_i − p_j‖² − r_min²
-```
+$$
+h_{ij}(\mathbf{x}) = \|\mathbf{p}_i - \mathbf{p}_j\|^2 - r_{\min}^2
+$$
 
-The **safe set** is `C = { x : h_{ij}(x) ≥ 0 ∀ (i,j) }`.
+The **safe set** is $\mathcal{C} = \{\mathbf{x} : h_{ij}(\mathbf{x}) \ge 0\;\forall\,(i,j)\}$.
 
 ### Discrete-Time CBF Condition
 
 A discrete-time CBF requires:
 
-```
-h_{ij}(x[k+1]) − h_{ij}(x[k]) ≥ −α h_{ij}(x[k])
-```
+$$
+h_{ij}(\mathbf{x}[k{+}1]) - h_{ij}(\mathbf{x}[k]) \ge -\alpha\,h_{ij}(\mathbf{x}[k])
+$$
 
-for some `α ∈ (0, 1]`.  This is equivalent to:
+for some $\alpha \in (0, 1]$.  This is equivalent to:
 
-```
-h_{ij}(x[k+1]) ≥ (1 − α) h_{ij}(x[k])
-```
+$$
+h_{ij}(\mathbf{x}[k{+}1]) \ge (1 - \alpha)\,h_{ij}(\mathbf{x}[k])
+$$
 
-**α = 1** gives the strongest condition: `h_{ij}(x[k+1]) ≥ 0`, i.e. the
+$\alpha = 1$ gives the strongest condition: $h_{ij}(\mathbf{x}[k{+}1]) \ge 0$, i.e. the
 constraint must be satisfied at every time step.
 
 ### CBF as an Affine Control Constraint
 
-Linearising `h_{ij}` around the current position yields an affine constraint
-in the control `u`:
+Linearising $h_{ij}$ around the current position yields an affine constraint
+in the control $\mathbf{u}$:
 
-```
-Let δ = p_i − p_j,  h = ‖δ‖² − r_min²
+Let $\boldsymbol{\delta} = \mathbf{p}_i - \mathbf{p}_j$,
+$h = \|\boldsymbol{\delta}\|^2 - r_{\min}^2$.
 
-Linearised CBF: 2 δᵀ (v + B_pos u) + α h ≥ 0
+$$
+\text{Linearised CBF:} \quad
+2\,\boldsymbol{\delta}^\top (\mathbf{v} + B_{\text{pos}}\,\mathbf{u}) + \alpha\,h \ge 0
+$$
 
-→  −2 δᵀ B_pos u ≤ 2 δᵀ v + α h
-```
+$$
+\Longrightarrow \quad -2\,\boldsymbol{\delta}^\top B_{\text{pos}}\,\mathbf{u}
+\le 2\,\boldsymbol{\delta}^\top \mathbf{v} + \alpha\,h
+$$
 
-where `B_pos = B[0:3, :]` extracts the position rows of B.
+where $B_{\text{pos}} = B[0{:}3,\;:]$ extracts the position rows of $B$.
 
 ### Forward Invariance Theorem
 
-If `h_{ij}(x_0) ≥ 0` and the CBF constraint is enforced at every step, then
-by induction `h_{ij}(x_k) ≥ 0` for all `k ≥ 0` — the swarm remains in the
-safe set.
+If $h_{ij}(\mathbf{x}_0) \ge 0$ and the CBF constraint is enforced at every step,
+then by induction $h_{ij}(\mathbf{x}_k) \ge 0$ for all $k \ge 0$ — the swarm
+remains in the safe set.
 
 ### Parameter `cbf_alpha`
 
 `config/dmpc_config.yaml` exposes `stability.cbf_alpha = 0.3`.  Values closer
-to 1.0 enforce the barrier more aggressively (better safety, less
-manoeuvrability).
+to 1.0 enforce the barrier more aggressively (better safety, less manoeuvrability).
 
 ---
 
@@ -270,39 +281,39 @@ manoeuvrability).
 
 **Theorem (Rawlings & Mayne, 2019):** Let the DMPC be equipped with:
 
-1. Terminal cost `V_f(e) = eᵀ P e` (DARE solution).
-2. Terminal set `Ω_f = { e : eᵀ P e ≤ c }` (LQR-invariant ellipsoid).
-3. Terminal control law `u_f = −K e`.
+1. Terminal cost $V_f(\mathbf{e}) = \mathbf{e}^\top P\,\mathbf{e}$ (DARE solution).
+2. Terminal set $\Omega_f = \{\mathbf{e} : \mathbf{e}^\top P\,\mathbf{e} \le c\}$ (LQR-invariant ellipsoid).
+3. Terminal control law $\mathbf{u}_f = -K\,\mathbf{e}$.
 
-If the problem is **feasible at time t = 0**, it remains feasible for all
-t > 0.
+If the problem is **feasible at time $t = 0$**, it remains feasible for all $t > 0$.
 
 *Proof sketch:*  
-At time **t+1**, the shifted trajectory `{x̃_k} = {x_k+1, …, x_N, A_cl x_N}`
+At time $t{+}1$, the shifted trajectory $\{\tilde{\mathbf{x}}_k\} = \{\mathbf{x}_{k+1}, \ldots, \mathbf{x}_N, A_{\text{cl}}\mathbf{x}_N\}$
 is a feasible candidate solution (it satisfies all constraints, and
-`A_cl x_N ∈ Ω_f` by invariance of Ω_f under A_cl).
+$A_{\text{cl}}\mathbf{x}_N \in \Omega_f$ by invariance of $\Omega_f$ under $A_{\text{cl}}$).
 
 ### Invariance of Terminal Set
 
 The LQR-invariant ellipsoid satisfies:
 
-```
-A_cl^T P A_cl ≺ P   ⟺   A_cl maps Ω_f into Ω_f
-```
+$$
+A_{\text{cl}}^\top P A_{\text{cl}} \prec P
+\quad \Longleftrightarrow \quad A_{\text{cl}} \text{ maps } \Omega_f \text{ into } \Omega_f
+$$
 
 Numerically verified by checking:
 
-```
-λ_max( P⁻¹ A_clᵀ P A_cl ) < 1
-```
+$$
+\lambda_{\max}\!\bigl(P^{-1} A_{\text{cl}}^\top P A_{\text{cl}}\bigr) < 1
+$$
 
 ### Feasibility and Collision Constraints
 
 Collision constraints can break feasibility if a neighbour enters the minimum
 separation radius at the start of a time step.  This is prevented by:
 
-1. The formation controller (Module 2) maintaining a minimum gap > r_min.
-2. The DMPC constraint tightening factor 0.9 × r_min providing a buffer zone.
+1. The formation controller (Module 2) maintaining a minimum gap $> r_{\min}$.
+2. The DMPC constraint tightening factor $0.9 \times r_{\min}$ providing a buffer zone.
 
 ---
 
@@ -312,27 +323,41 @@ separation radius at the start of a time step.  This is prevented by:
 
 Each drone's DMPC is solved **independently**; neighbours' positions are
 treated as fixed obstacles.  This introduces a coupling error due to the
-one-step communication delay τ:
+one-step communication delay $\tau$:
 
-```
-‖p_j(t) − p̂_j(t)‖ ≤ v_max · τ
-```
+$$
+\|\mathbf{p}_j(t) - \hat{\mathbf{p}}_j(t)\| \le v_{\max} \cdot \tau
+$$
 
-For `v_max = 20 m/s` and `τ = 0.02 s` (50 Hz ROS2 loop), the coupling error
-is bounded by **0.4 m** — well inside the 5 m collision radius.
+For $v_{\max} = 20\;\text{m/s}$ and $\tau = 0.02\;\text{s}$ (50 Hz ROS2 loop), the
+coupling error is bounded by **0.4 m** — well inside the 5 m collision radius.
+
+### ADMM Consensus Stability
+
+The ADMM layer (see [10_ADMM_CONSENSUS.md](10_ADMM_CONSENSUS.md)) ensures that
+all local DMPC solutions converge to a globally consistent reference.  The
+ADMM primal residual decays geometrically:
+
+$$
+r_{\text{prim}}^k \le C \cdot \beta^k, \quad \beta \in (0, 1)
+$$
+
+providing a quantitative bound on inter-drone trajectory disagreement at each
+control step.
 
 ### Formation Consensus Stability
 
 The formation controller uses the consensus protocol:
 
-```
-v_i ← v_i + ε Σ_{j ∈ 𝒩(i)} (x_j − x_i − d_{ij})
-```
+$$
+\mathbf{v}_i \leftarrow \mathbf{v}_i
+  + \varepsilon \sum_{j \in \mathcal{N}(i)}
+    (\mathbf{x}_j - \mathbf{x}_i - \mathbf{d}_{ij})
+$$
 
-where `d_{ij}` is the desired relative position.  The convergence of this
-protocol is governed by the **graph Laplacian L** of the communication graph
-(see [05_FORMATION_CONSENSUS.md](05_FORMATION_CONSENSUS.md)).  For any
-connected graph, all non-zero eigenvalues of L are positive, guaranteeing
+where $\mathbf{d}_{ij}$ is the desired relative position.  Convergence is governed
+by the **graph Laplacian** $L$ (see [05_FORMATION_CONSENSUS.md](05_FORMATION_CONSENSUS.md)).
+For any connected graph, all non-zero eigenvalues of $L$ are positive, guaranteeing
 convergence of the formation error to zero.
 
 ---
