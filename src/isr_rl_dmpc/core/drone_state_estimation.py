@@ -85,13 +85,17 @@ class PositionVelocityEKF:
         
         # Kalman gain
         S = H @ self.P @ H.T + R
-        K = self.P @ H.T @ np.linalg.inv(S + 1e-9 * np.eye(6))
-        
-        # Update state and covariance
+        K = self.P @ H.T @ np.linalg.solve(S + 1e-9 * np.eye(6), np.eye(6))
+
+        # Update state
         self.x = self.x + K @ y
-        self.P = (np.eye(6) - K @ H) @ self.P
-        
-        # Ensure positive definite
+
+        # Joseph-form covariance update for numerical stability:
+        # P = (I − KH) P (I − KH)ᵀ + K R Kᵀ
+        I_KH = np.eye(6) - K @ H
+        self.P = I_KH @ self.P @ I_KH.T + K @ R @ K.T
+
+        # Ensure covariance remains positive definite
         self.P = (self.P + self.P.T) / 2
     
     def get_state(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -246,17 +250,20 @@ class DroneStateEstimator:
     
     def __init__(self, dt: float = 0.02):
         self.dt = dt
-        
+
         # Three specialized filters
         self.pv_filter = PositionVelocityEKF(dt)
         self.att_filter = AttitudeEKF(dt)
         self.av_filter = AngularVelocityFilter(dt)
-        
+
+        # Last world-frame acceleration from IMU (used for DroneState output)
+        self.last_accel_world: np.ndarray = np.zeros(3)
+
         # Direct measurements
         self.battery = 5000.0  # Wh
         self.health = 1.0      # normalized [0, 1]
         self.max_battery = 5000.0
-        
+
         # State history for diagnostics
         self.state_history = []
         self.covariance_history = []
@@ -275,12 +282,15 @@ class DroneStateEstimator:
             # Rotate acceleration from body to world frame
             accel_world = QuaternionOps.rotate_vector(self.att_filter.q, imu_accel)
             accel_world[2] -= 9.81  # Remove gravity
-            
+
+            # Store for use in get_drone_state()
+            self.last_accel_world = accel_world.copy()
+
             # Update all filters
             self.pv_filter.predict(accel_world)
             self.att_filter.predict(imu_gyro)
             self.av_filter.predict(imu_gyro)
-            
+
             # Update battery (simple discharge model)
             self.battery = max(0, self.battery - power_draw * self.dt / 3600)
             
@@ -368,14 +378,11 @@ class DroneStateEstimator:
         pos, vel = self.pv_filter.get_state()
         q = self.att_filter.get_state()
         omega = self.av_filter.get_state()
-        
-        # Get acceleration from PV filter state
-        accel_world = self.pv_filter.x[3:6]
-        
+
         return DroneState(
             position=pos,
             velocity=vel,
-            acceleration=accel_world,
+            acceleration=self.last_accel_world.copy(),
             quaternion=q,
             angular_velocity=omega,
             battery_energy=self.battery,
