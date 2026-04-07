@@ -1,6 +1,6 @@
 # Module Specifications
 
-Detailed specifications for each of the 9 core modules in the ISR-DMPC system.
+Detailed specifications for each of the 10 core modules in the ISR-RL-DMPC system.
 
 ## Table of Contents
 
@@ -10,9 +10,11 @@ Detailed specifications for each of the 9 core modules in the ISR-DMPC system.
 - [Module 4: Classification Engine](#module-4-classification-engine)
 - [Module 5: Threat Assessor](#module-5-threat-assessor)
 - [Module 6: Task Allocator](#module-6-task-allocator)
-- [Module 7: DMPC Controller](#module-7-dmpc-controller)
-- [Module 8: Attitude Controller](#module-8-attitude-controller)
-- [Module 9: DMPC Analytics](#module-9-dmpc-analytics)
+- [Module 7: ADMM Consensus](#module-7-admm-consensus)
+- [Module 8: DMPC Controller](#module-8-dmpc-controller)
+- [Module 9: Attitude Controller](#module-9-attitude-controller)
+- [Module 10: DMPC Analytics](#module-10-dmpc-analytics)
+- [MAPPO Agent](#mappo-agent)
 
 ---
 
@@ -179,25 +181,68 @@ Assigns drones to tasks (waypoints, targets, coverage zones) using the Hungarian
 
 ### Algorithm
 
-The Hungarian algorithm solves the assignment problem by minimizing total cost:
+The Hungarian algorithm solves the assignment problem minimising total cost:
 
-```
-minimize  Σ_i Σ_j C[i,j] × X[i,j]
-subject to  each drone assigned exactly one task
-            each task assigned at most one drone
-```
+$$\min_{X} \sum_i \sum_j C[i,j] \cdot X[i,j] \quad \text{s.t. each drone assigned exactly one task}$$
 
-Where `C[i,j]` is the cost of assigning drone `i` to task `j` (typically Euclidean distance or energy cost).
+where `C[i,j]` is the cost of assigning drone `i` to task `j`.
 
 ---
 
-## Module 7: DMPC Controller
+## Module 7: ADMM Consensus
+
+**File:** `src/isr_rl_dmpc/modules/admm_consensus.py`
+
+### Purpose
+
+Enforces inter-drone consensus on shared reference trajectories and collision
+margins by iteratively solving the ADMM sub-problems.  This ensures that the
+local DMPC solutions of individual drones are globally consistent.
+
+### Key Classes
+
+| Class | Description |
+|---|---|
+| `ADMMConsensus` | Main ADMM coordinator: z/v/dual updates |
+
+### Configuration
+
+| Parameter | Source | Default | Description |
+|---|---|---|---|
+| `rho` | `dmpc_config.yaml` | `1.0` | ADMM penalty parameter |
+| `max_iter` | `dmpc_config.yaml` | `10` | Max ADMM iterations per step |
+| `eps_abs` | `dmpc_config.yaml` | `1e-3` | Absolute primal/dual tolerance |
+
+### ADMM Update Cycle (per control step)
+
+```
+for k in range(max_admm_iters):
+    # 1. Local QP solve (each drone, parallelisable)
+    z_i = argmin { J_DMPC(z_i) + (rho/2)*‖z_i − v + y_i‖² }
+
+    # 2. Global average
+    v = mean([z_i + y_i for all i])
+
+    # 3. Dual update
+    y_i += z_i − v
+
+    if primal_residual < eps and dual_residual < eps:
+        break
+```
+
+See [math_docs/10_ADMM_CONSENSUS.md](../math_docs/10_ADMM_CONSENSUS.md) for the full derivation.
+
+---
+
+## Module 8: DMPC Controller
 
 **File:** `src/isr_rl_dmpc/modules/dmpc_controller.py`
 
 ### Purpose
 
-Implements pure Distributed Model Predictive Control using CVXPY/OSQP convex optimisation with a DARE-computed LQR terminal cost.
+Implements MARL-adaptive Distributed Model Predictive Control using CVXPY/OSQP
+with dynamically scaled cost matrices provided by the MAPPO agent and a
+DARE-computed LQR terminal cost.
 
 ### Key Classes
 
@@ -216,28 +261,34 @@ Implements pure Distributed Model Predictive Control using CVXPY/OSQP convex opt
 | `collision_radius` | `dmpc_config.yaml` | `5.0 m` | Minimum safe separation |
 | `solver_timeout` | `dmpc_config.yaml` | `10 ms` | OSQP time budget per solve |
 
-### Control Architecture
+### MARL-Adaptive Control Architecture
 
 ```
-State x(t) → DMPC QP (CVXPY/OSQP)
-              ├── Cost:        Σ ‖e_k‖²_Q + ‖u_k‖²_R  +  ‖e_N‖²_P
-              ├── Dynamics:    x_{k+1} = A x_k + B u_k
-              ├── Saturation:  ‖u_k‖ ≤ u_max
-              └── Collision:   ‖p_k − p_j‖ ≥ r_min
-                       │
-                       ▼
-              Optimal acceleration u*(t)
+MAPPO action (q_scale, r_scale) per drone
+         │
+         ▼
+Q_eff = Q ⊙ diag(q_scale),  R_eff = R ⊙ diag(r_scale)
+         │
+         ▼
+ADMM consensus variable v
+         │
+         ▼
+DMPC QP (CVXPY/OSQP):
+  Cost:     Σ ‖e_k‖²_Q_eff + ‖u_k‖²_R_eff  +  ‖e_N‖²_P
+  Dynamics: x_{k+1} = A x_k + B u_k
+  Saturation: ‖u_k‖ ≤ u_max
+  Collision:  ‖p_k − p_j‖ ≥ r_min
+         │
+         ▼
+  Optimal acceleration u*(t)
 ```
 
-Terminal cost matrix **P** is pre-computed offline from the
-Discrete Algebraic Riccati Equation (DARE) using
-`compute_lqr_terminal_cost()`.  See
-[math_docs/03_DMPC_FORMULATION.md](../math_docs/03_DMPC_FORMULATION.md)
-for the full derivation.
+Terminal cost $P$ is pre-computed from the DARE.
+See [math_docs/03_DMPC_FORMULATION.md](../math_docs/03_DMPC_FORMULATION.md).
 
 ---
 
-## Module 8: Attitude Controller
+## Module 9: Attitude Controller
 
 **File:** `src/isr_rl_dmpc/modules/attitude_controller.py`
 
@@ -256,39 +307,29 @@ drones with fixed LQR-tuned gains.
 
 ### Control Law
 
-The geometric controller computes torques to track desired attitudes on SO(3):
+$$\boldsymbol{\tau} = -K_{p,\text{att}}\,\mathbf{e}_R - K_{d,\text{att}}\,\mathbf{e}_\omega + \boldsymbol{\omega} \times (J\boldsymbol{\omega})$$
 
-```
-τ = −Kp_att · e_R − Kd_att · e_ω + ω × (J ω)
-```
+where $\mathbf{e}_R = \frac{1}{2}\operatorname{vex}(R_d^\top R - R^\top R_d)$, $K_{p,\text{att}} = 4.5$, $K_{d,\text{att}} = 1.5$.
 
-Where:
-- `e_R` — Attitude error vector on SO(3) (½ vec(R_dᵀR − RᵀR_d))
-- `e_ω` — Angular velocity error
-- `Kp_att = 4.5`, `Kd_att = 1.5` — Fixed proportional and derivative gains
-- `J` — Inertia matrix
-
-See [math_docs/07_GEOMETRIC_ATTITUDE_CONTROL.md](../math_docs/07_GEOMETRIC_ATTITUDE_CONTROL.md)
-for the full derivation.
+See [math_docs/07_GEOMETRIC_ATTITUDE_CONTROL.md](../math_docs/07_GEOMETRIC_ATTITUDE_CONTROL.md).
 
 ---
 
-## Module 9: DMPC Analytics
+## Module 10: DMPC Analytics
 
 **File:** `src/isr_rl_dmpc/modules/learning_module.py`
 
 ### Purpose
 
-Lightweight analytics collector for the pure DMPC controller.  Records
-per-step statistics, computes performance metrics, and provides parameter
-sensitivity estimates.  No neural networks or online learning are involved.
+Lightweight analytics collector for the MARL-DMPC controller.  Records
+per-step statistics, computes performance metrics, and logs to TensorBoard.
 
 ### Key Classes
 
 | Class | Description |
 |---|---|
 | `DMPCAnalytics` | Accumulates step records and computes metrics |
-| `StepRecord` | Single DMPC step record (state, control, solve time, error) |
+| `StepRecord` | Single DMPC step record (state, control, solve time, ADMM residual) |
 
 ### Tracked Metrics
 
@@ -296,13 +337,15 @@ sensitivity estimates.  No neural networks or online learning are involved.
 Per-step:
   - tracking_error  = ‖x − x_ref‖
   - solve_time      = wall-clock OSQP solve duration (s)
+  - admm_residual   = ADMM primal residual ‖z_i − v‖
   - objective       = QP objective value at solution
+  - q_scale / r_scale = MAPPO actions at this step
 
 Aggregate:
   - RMSE tracking error
   - Mean / max solve time
   - Solver success rate
-  - Parameter sensitivity via finite-difference Jacobians
+  - ADMM convergence rate
 ```
 
 ### Persistence
@@ -311,3 +354,37 @@ Aggregate:
 analytics.save("logs/mission_analytics.npz")
 analytics = DMPCAnalytics.load("logs/mission_analytics.npz")
 ```
+
+---
+
+## MAPPO Agent
+
+**File:** `src/isr_rl_dmpc/agents/mappo_agent.py`
+
+### Purpose
+
+Implements the **Multi-Agent Proximal Policy Optimization (MAPPO)** policy
+that dynamically tunes DMPC cost parameters at runtime.  Uses Stable-Baselines3
+PPO with a centralised critic (CTDE).
+
+### Key Classes
+
+| Class | Description |
+|---|---|
+| `MAPPOAgent` | Wraps SB3 PPO; exposes `act(obs)` → `(q_scale, r_scale)` per drone |
+
+### Input / Output
+
+| | Shape | Description |
+|---|---|---|
+| Input (per drone) | `(40,)` | Local observation (see GYM_DESIGN.md) |
+| Output (per drone) | `(14,)` | `[q_scale(11), r_scale(3)]` ∈ [0.1, 10.0] |
+
+### Architecture
+
+| Network | Layers | Input → Output |
+|---|---|---|
+| Actor $\pi_\theta$ | Linear(40→256) → ReLU → Linear(256→256) → ReLU → Linear(256→28) | 40-D obs → 14-D mean + 14-D log-std |
+| Critic $V_\phi$ | Linear(N×40→256) → ReLU → Linear(256→256) → ReLU → Linear(256→1) | joint obs → scalar value |
+
+See [math_docs/09_MAPPO_AGENT.md](../math_docs/09_MAPPO_AGENT.md) for full PPO/GAE derivations.

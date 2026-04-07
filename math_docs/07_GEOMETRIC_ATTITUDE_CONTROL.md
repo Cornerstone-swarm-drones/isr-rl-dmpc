@@ -40,81 +40,66 @@ All control gains are fixed at construction time (no online adaptation).
 
 ### Translational Dynamics
 
-```
-m p̈ = f_total e₃ R − m g e₃
-```
+$$
+m\,\ddot{\mathbf{p}} = f_{\text{total}}\,R\,\mathbf{e}_3 - m\,g\,\mathbf{e}_3
+$$
 
 where:
-- `m` — mass (default 1.0 kg; hector_quadrotor uses 1.477 kg)
-- `f_total = T₁ + T₂ + T₃ + T₄` — total thrust
-- `R ∈ SO(3)` — rotation matrix (body → world)
-- `e₃ = [0, 0, 1]ᵀ`
-- `g = 9.81 m/s²`
+- $m$ — mass (default 1.0 kg; hector\_quadrotor uses 1.477 kg)
+- $f_{\text{total}} = T_1 + T_2 + T_3 + T_4$ — total thrust
+- $R \in \mathrm{SO}(3)$ — rotation matrix (body → world)
+- $\mathbf{e}_3 = [0, 0, 1]^\top$
+- $g = 9.81\;\text{m/s}^2$
 
 ### Rotational Dynamics (Euler's Equation)
 
-```
-J ω̇ = τ − ω × (J ω)
-```
+$$
+J\,\dot{\boldsymbol{\omega}} = \boldsymbol{\tau} - \boldsymbol{\omega} \times (J\,\boldsymbol{\omega})
+$$
 
 where:
-- `J ∈ ℝ³ˣ³` — inertia tensor (diagonal for symmetric quad)
-- `ω ∈ ℝ³` — angular velocity in body frame (rad/s)
-- `τ ∈ ℝ³` — net torque in body frame (N·m)
+- $J \in \mathbb{R}^{3 \times 3}$ — inertia tensor (diagonal for symmetric quad)
+- $\boldsymbol{\omega} \in \mathbb{R}^3$ — angular velocity in body frame (rad/s)
+- $\boldsymbol{\tau} \in \mathbb{R}^3$ — net torque in body frame (N·m)
 
 Default inertia (`DroneParameters.__post_init__`):
 
-```
-J = diag(0.0083, 0.0083, 0.0166)   kg·m²
-```
+$$
+J = \operatorname{diag}(0.0083,\; 0.0083,\; 0.0166)\;\text{kg·m}^2
+$$
 
 ---
 
 ## 3  Quaternion Kinematics
 
-The rotation matrix R is parameterised by the unit quaternion
-`q = [q_w, q_x, q_y, q_z]ᵀ` (scalar-first convention).
+The rotation matrix $R$ is parameterised by the unit quaternion
+$\mathbf{q} = [q_w, q_x, q_y, q_z]^\top$ (scalar-first convention).
 
 ### Quaternion to Rotation Matrix
 
-```
-R = I + 2q_w [q_v]× + 2 [q_v]×²
-```
+Using Rodriguez' formula:
 
-where `q_v = [q_x, q_y, q_z]ᵀ` and `[q_v]×` is the 3×3 skew-symmetric
+$$
+R = (q_w^2 - \mathbf{q}_v^\top \mathbf{q}_v)\,I_3
+  + 2\,\mathbf{q}_v\,\mathbf{q}_v^\top
+  + 2\,q_w\,[\mathbf{q}_v]_\times
+$$
+
+where $\mathbf{q}_v = [q_x, q_y, q_z]^\top$ and $[\mathbf{q}_v]_\times$ is the skew-symmetric
 cross-product matrix:
 
-```
-[q_v]× = [  0   −q_z   q_y ]
-          [  q_z   0   −q_x ]
-          [ −q_y  q_x   0  ]
-```
-
-Equivalently, using Rodriguez' formula:
-
-```
-R = (q_w² − q_vᵀ q_v) I₃ + 2 q_v q_vᵀ + 2 q_w [q_v]×
-```
-
-The implementation delegates to `scipy.spatial.transform.Rotation` for
-numerical accuracy.
+$$
+[\mathbf{q}_v]_\times = \begin{bmatrix} 0 & -q_z & q_y \\ q_z & 0 & -q_x \\ -q_y & q_x & 0 \end{bmatrix}
+$$
 
 ### Quaternion Kinematics Equation
 
-```
-q̇ = ½ q ⊗ [0, ω]ᵀ
-```
+$$
+\dot{\mathbf{q}} = \tfrac{1}{2}\,\mathbf{q} \otimes [0, \boldsymbol{\omega}]^\top
+= \frac{1}{2} \begin{bmatrix} 0 & -\omega_x & -\omega_y & -\omega_z \\ \omega_x & 0 & \omega_z & -\omega_y \\ \omega_y & -\omega_z & 0 & \omega_x \\ \omega_z & \omega_y & -\omega_x & 0 \end{bmatrix} \mathbf{q}
+$$
 
-Expanded to matrix form:
-
-```
-[q̇_w]   ½ [  0    −ω_x  −ω_y  −ω_z ] [q_w]
-[q̇_x] =   [ ω_x    0     ω_z  −ω_y ] [q_x]
-[q̇_y]     [ ω_y  −ω_z    0     ω_x ] [q_y]
-[q̇_z]     [ ω_z   ω_y  −ω_x    0   ] [q_z]
-```
-
-The quaternion must always satisfy the unit-norm constraint `‖q‖ = 1`.
+The quaternion must always satisfy the unit-norm constraint $\|\mathbf{q}\| = 1$.
 
 ---
 
@@ -128,21 +113,18 @@ SO(3) is globally defined and avoids these issues.
 
 ### Attitude Error Vector
 
-Given current rotation matrix **R** and desired rotation matrix **R_d**:
+Given current rotation matrix $R$ and desired rotation matrix $R_d$:
 
-```
-R_e = R_dᵀ R              (relative rotation: R_d-frame to R-frame)
+$$
+R_e = R_d^\top R \quad \text{(relative rotation: } R_d\text{-frame to }R\text{-frame)}
+$$
 
-e_R = ½ vex(R_e − R_eᵀ)  (attitude error vector, ∈ ℝ³)
-```
+$$
+\mathbf{e}_R = \tfrac{1}{2}\operatorname{vex}(R_e - R_e^\top) \in \mathbb{R}^3
+  \quad \text{(attitude error vector)}
+$$
 
-where `vex(·)` extracts the axial vector from a skew-symmetric matrix:
-
-```
-vex([  0   −a₃   a₂ ]) = [a₁, a₂, a₃]ᵀ
-    [  a₃   0   −a₁ ]
-    [ −a₂   a₁   0  ]
-```
+where $\operatorname{vex}(\cdot)$ extracts the axial vector from a skew-symmetric matrix.
 
 In code:
 
@@ -156,42 +138,44 @@ def attitude_error(self, R, R_d):
 
 ### Angular Velocity Error
 
-```
-e_ω = ω − Rᵀ R_d ω_d
-```
+$$
+\mathbf{e}_\omega = \boldsymbol{\omega} - R^\top R_d\,\boldsymbol{\omega}_d
+$$
 
-where `ω_d` is the desired angular velocity (zero for stationary hover).
+where $\boldsymbol{\omega}_d$ is the desired angular velocity (zero for stationary hover).
 
 ---
 
 ## 5  Position and Velocity Error
 
-The outer (position) loop computes a desired acceleration `a_des` from the
+The outer (position) loop computes a desired acceleration $\mathbf{a}_{\text{des}}$ from the
 DMPC reference:
 
-```
-e_p = p − p_ref     (position error)
-e_v = v − v_ref     (velocity error)
+$$
+\mathbf{e}_p = \mathbf{p} - \mathbf{p}_{\text{ref}}, \qquad
+\mathbf{e}_v = \mathbf{v} - \mathbf{v}_{\text{ref}}
+$$
 
-a_des = a_ref − Kp_pos · e_p − Kd_pos · e_v
-```
+$$
+\mathbf{a}_{\text{des}} = \mathbf{a}_{\text{ref}} - K_{p,\text{pos}}\,\mathbf{e}_p - K_{d,\text{pos}}\,\mathbf{e}_v
+$$
 
 ### Desired Thrust Direction
 
 From Newton's second law, the total thrust vector in the world frame must be:
 
-```
-f_des = m (a_des + g e₃)
-```
+$$
+\mathbf{f}_{\text{des}} = m\,(\mathbf{a}_{\text{des}} + g\,\mathbf{e}_3)
+$$
 
 The desired body z-axis (thrust direction) is:
 
-```
-b₃_des = f_des / ‖f_des‖
-```
+$$
+\mathbf{b}_{3,\text{des}} = \mathbf{f}_{\text{des}} / \|\mathbf{f}_{\text{des}}\|
+$$
 
-This is combined with a desired yaw angle ψ_des to form the full desired
-rotation matrix R_d (via the Gram-Schmidt process on b₁_des and b₃_des).
+This is combined with a desired yaw angle $\psi_{\text{des}}$ to form the full desired
+rotation matrix $R_d$ (via the Gram-Schmidt process on $\mathbf{b}_{1,\text{des}}$ and $\mathbf{b}_{3,\text{des}}$).
 
 ---
 
@@ -199,23 +183,28 @@ rotation matrix R_d (via the Gram-Schmidt process on b₁_des and b₃_des).
 
 ### Torque Command (Geometric PD)
 
-```
-τ = −Kp_att · e_R − Kd_att · e_ω + ω × (J ω)
-```
+$$
+\boldsymbol{\tau} = -K_{p,\text{att}}\,\mathbf{e}_R - K_{d,\text{att}}\,\mathbf{e}_\omega
+  + \boldsymbol{\omega} \times (J\,\boldsymbol{\omega})
+$$
 
-The feed-forward gyroscopic term `ω × (J ω)` compensates for Coriolis and
-centrifugal effects, improving tracking at high angular rates.
+The feed-forward gyroscopic term $\boldsymbol{\omega} \times (J\,\boldsymbol{\omega})$ compensates
+for Coriolis and centrifugal effects, improving tracking at high angular rates.
 
 ### Total Thrust
 
-```
-f_total = f_des · (R e₃)    (project desired force onto body z-axis)
-f_total = max(f_total, 0)   (thrust cannot be negative)
-```
+$$
+f_{\text{total}} = \mathbf{f}_{\text{des}} \cdot (R\,\mathbf{e}_3)
+  \quad \text{(project desired force onto body z-axis)}
+$$
+
+$$
+f_{\text{total}} \leftarrow \max(f_{\text{total}},\; 0) \quad \text{(thrust cannot be negative)}
+$$
 
 ### Control Output
 
-The attitude loop outputs `[f_total, τ_x, τ_y, τ_z]` which is then mapped to
+The attitude loop outputs $[f_{\text{total}}, \tau_x, \tau_y, \tau_z]$ which is then mapped to
 individual motor thrusts via the motor mixing matrix.
 
 ---
@@ -223,30 +212,31 @@ individual motor thrusts via the motor mixing matrix.
 ## 7  Motor Mixing (X-Quad)
 
 For an **X-configuration quadrotor** (motors at ±45° from the longitudinal
-axis), the relationship between individual motor thrusts `[T₁, T₂, T₃, T₄]`
-and body-frame wrench `[F, τ_x, τ_y, τ_z]` is:
+axis), the relationship between individual motor thrusts $[T_1, T_2, T_3, T_4]$
+and body-frame wrench $[F, \tau_x, \tau_y, \tau_z]$ is:
 
-```
-[ F  ]   [ k_f   k_f   k_f   k_f  ] [T₁]
-[ τ_x ] = [ −k_f·L  k_f·L  k_f·L  −k_f·L] [T₂]
-[ τ_y ]   [ k_f·L  k_f·L  −k_f·L  −k_f·L] [T₃]
-[ τ_z ]   [ −k_d  k_d   −k_d   k_d  ] [T₄]
-```
+$$
+\begin{bmatrix} F \\ \tau_x \\ \tau_y \\ \tau_z \end{bmatrix}
+= \begin{bmatrix}
+  k_f & k_f & k_f & k_f \\
+  -k_f L & k_f L & k_f L & -k_f L \\
+  k_f L & k_f L & -k_f L & -k_f L \\
+  -k_d & k_d & -k_d & k_d
+\end{bmatrix}
+\begin{bmatrix} T_1 \\ T_2 \\ T_3 \\ T_4 \end{bmatrix}
+$$
 
 where:
-- `k_f` — thrust coefficient (N/(rad/s)²)
-- `k_d` — drag–torque coefficient (N·m/(rad/s)²)
-- `L = arm_length / √2` — effective moment arm (m)
+- $k_f$ — thrust coefficient (N/(rad/s)²)
+- $k_d$ — drag–torque coefficient (N·m/(rad/s)²)
+- $L = \ell / \sqrt{2}$ — effective moment arm ($\ell$ = arm length)
 
-The **mixing matrix M** maps thrusts to wrench; the inverse maps wrench to
-thrusts:
+The **mixing matrix** $M$ maps thrusts to wrench; the inverse maps wrench to thrusts:
 
-```
-[T₁]       [ F  ]
-[T₂] = M⁻¹ [ τ_x]
-[T₃]       [ τ_y]
-[T₄]       [ τ_z]
-```
+$$
+\begin{bmatrix} T_1 \\ T_2 \\ T_3 \\ T_4 \end{bmatrix}
+= M^{-1} \begin{bmatrix} F \\ \tau_x \\ \tau_y \\ \tau_z \end{bmatrix}
+$$
 
 M is square and invertible for the X-configuration.  Individual thrusts are
 clipped to `[0, T_max]` to respect motor saturation.

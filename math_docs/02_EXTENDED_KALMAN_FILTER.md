@@ -57,197 +57,206 @@ The (Extended) Kalman Filter alternates between two steps:
 
 ### Predict Step
 
-Given process model `f(x)` and process noise covariance **Q**:
+Given process model $f(\mathbf{x})$ and process noise covariance $Q$:
 
-```
-x̂⁻[k] = f(x̂[k-1], u)            (propagate mean)
-P⁻[k]  = F P[k-1] Fᵀ + Q         (propagate covariance)
-```
+$$
+\hat{\mathbf{x}}^-[k] = f(\hat{\mathbf{x}}[k{-}1],\, \mathbf{u})
+  \quad \text{(propagate mean)}
+$$
 
-where **F** = ∂f/∂x is the Jacobian of the process model.
-For linear models f(x) = Ax, F = A exactly.
+$$
+P^-[k] = F\,P[k{-}1]\,F^\top + Q
+  \quad \text{(propagate covariance)}
+$$
+
+where $F = \partial f / \partial \mathbf{x}$ is the Jacobian of the process model.
+For linear models $f(\mathbf{x}) = A\mathbf{x}$, $F = A$ exactly.
 
 ### Update Step
 
-Given measurement model `h(x)`, measurement **z**, and noise covariance **R_meas**:
+Given measurement model $h(\mathbf{x})$, measurement $\mathbf{z}$, and noise covariance $R_{\text{meas}}$:
 
-```
-ŷ  = z − h(x̂⁻)                   (innovation)
-S  = H P⁻ Hᵀ + R_meas            (innovation covariance)
-K  = P⁻ Hᵀ S⁻¹                   (Kalman gain)
+$$
+\hat{\mathbf{y}} = \mathbf{z} - h(\hat{\mathbf{x}}^-)
+  \quad \text{(innovation)}
+$$
 
-x̂  = x̂⁻ + K ŷ                    (corrected mean)
-P   = (I − KH) P⁻                 (corrected covariance)
-```
+$$
+S = H\,P^-\,H^\top + R_{\text{meas}}
+  \quad \text{(innovation covariance)}
+$$
 
-where **H** = ∂h/∂x is the measurement Jacobian.
+$$
+K = P^-\,H^\top S^{-1}
+  \quad \text{(Kalman gain)}
+$$
 
-**Key property:** The Kalman gain **K** optimally weights the prior estimate
-against the new measurement based on their respective uncertainties (P⁻ and R_meas).
+$$
+\hat{\mathbf{x}} = \hat{\mathbf{x}}^- + K\,\hat{\mathbf{y}}
+  \quad \text{(corrected mean)}
+$$
+
+$$
+P = (I - KH)\,P^-
+  \quad \text{(corrected covariance)}
+$$
+
+where $H = \partial h / \partial \mathbf{x}$ is the measurement Jacobian.
+
+**Key property:** The Kalman gain $K$ optimally weights the prior estimate
+against the new measurement based on their respective uncertainties ($P^-$ and $R_{\text{meas}}$).
 
 ---
 
 ## 3  Drone State Estimation (18-D)
 
-The full 18-D drone state `[p(3), v(3), a(3), q(4), ω(3), E(1), h(1)]` is
-estimated by three specialised sub-filters fused inside `DroneStateEstimator`.
+The full 18-D drone state $[\mathbf{p}(3), \mathbf{v}(3), \mathbf{a}(3), \mathbf{q}(4), \boldsymbol{\omega}(3), E(1), h(1)]$
+is estimated by three specialised sub-filters fused inside `DroneStateEstimator`.
 
 ### 3.1  Position/Velocity EKF (6-D)
 
-**State:** `x_pv = [p_x, p_y, p_z, v_x, v_y, v_z]ᵀ ∈ ℝ⁶`
+**State:** $\mathbf{x}_{pv} = [p_x, p_y, p_z, v_x, v_y, v_z]^\top \in \mathbb{R}^6$
 
 #### Process Model (Euler integration)
 
-The IMU accelerometer provides body-frame acceleration `a_body`.  After
-rotating to the world frame (`a_world = R(q) a_body − g e₃`):
+The IMU accelerometer provides body-frame acceleration $\mathbf{a}_{\text{body}}$.
+After rotating to the world frame ($\mathbf{a}_{\text{world}} = R(\mathbf{q})\,\mathbf{a}_{\text{body}} - g\,\mathbf{e}_3$):
 
-```
-p[k+1] = p[k] + Δt v[k] + ½ Δt² a_world
-v[k+1] = v[k] + Δt a_world
-```
+$$
+\mathbf{p}[k{+}1] = \mathbf{p}[k] + \Delta t\,\mathbf{v}[k] + \tfrac{1}{2}\Delta t^2\,\mathbf{a}_{\text{world}}
+$$
+
+$$
+\mathbf{v}[k{+}1] = \mathbf{v}[k] + \Delta t\,\mathbf{a}_{\text{world}}
+$$
 
 State transition matrix:
 
-```
-F_pv = [ I₃   ΔtI₃ ] ∈ ℝ⁶ˣ⁶
-       [  0    I₃  ]
-```
+$$
+F_{pv} = \begin{bmatrix} I_3 & \Delta t\,I_3 \\ 0 & I_3 \end{bmatrix} \in \mathbb{R}^{6 \times 6}
+$$
 
 Covariance prediction:
 
-```
-P⁻ = F_pv P F_pvᵀ + Q_pv
-```
-
-where `Q_pv` reflects position drift and velocity uncertainty.
+$$
+P^- = F_{pv}\,P\,F_{pv}^\top + Q_{pv}
+$$
 
 #### GPS Update
 
-Full-state GPS measurement `z = [p_GPS; v_GPS] ∈ ℝ⁶`:
+Full-state GPS measurement $\mathbf{z} = [\mathbf{p}_{\text{GPS}};\; \mathbf{v}_{\text{GPS}}] \in \mathbb{R}^6$:
 
-```
-H_gps = I₆
+$$
+H_{\text{gps}} = I_6, \qquad
+R_{\text{gps}} = \operatorname{diag}(\sigma_p^2, \sigma_p^2, \sigma_p^2, \sigma_v^2, \sigma_v^2, \sigma_v^2)
+$$
 
-R_gps = diag(σ_pos², σ_pos², σ_pos², σ_vel², σ_vel², σ_vel²)
-```
-
-Default noise: `σ_pos = 5.0 m`,  `σ_vel = 1.0 m/s`.
-
-Innovation and update follow the standard Kalman equations above.
+Default noise: $\sigma_p = 5.0\;\text{m}$, $\sigma_v = 1.0\;\text{m/s}$.
 
 ### 3.2  Attitude EKF — Quaternion (4-D)
 
-**State:** `q = [q_w, q_x, q_y, q_z]ᵀ` (unit quaternion, scalar-first)
+**State:** $\mathbf{q} = [q_w, q_x, q_y, q_z]^\top$ (unit quaternion, scalar-first)
 
 #### Quaternion Kinematics
 
 The quaternion derivative is:
 
-```
-q̇ = ½ q ⊗ [0, ω]ᵀ
-```
+$$
+\dot{\mathbf{q}} = \tfrac{1}{2}\,\mathbf{q} \otimes [0, \boldsymbol{\omega}]^\top
+$$
 
-where `⊗` is the quaternion product and `ω ∈ ℝ³` is the gyro reading.
+where $\otimes$ is the quaternion product and $\boldsymbol{\omega} \in \mathbb{R}^3$ is the gyro reading.
 
 Discrete-time prediction (first-order):
 
-```
-q[k+1] = q[k] + ½ Ω(ω) q[k] Δt
-q[k+1] ← q[k+1] / ‖q[k+1]‖    (renormalise)
-```
+$$
+\mathbf{q}[k{+}1] = \mathbf{q}[k] + \tfrac{1}{2}\,\Omega(\boldsymbol{\omega})\,\mathbf{q}[k]\,\Delta t
+$$
 
-where `Ω(ω)` is the 4×4 skew-symmetric matrix:
+$$
+\mathbf{q}[k{+}1] \leftarrow \mathbf{q}[k{+}1] / \|\mathbf{q}[k{+}1]\|
+  \quad \text{(renormalise)}
+$$
 
-```
-Ω(ω) = [  0  −ω_x  −ω_y  −ω_z ]
-        [ ω_x   0    ω_z  −ω_y ]
-        [ ω_y  −ω_z   0    ω_x ]
-        [ ω_z   ω_y  −ω_x   0  ]
-```
+where $\Omega(\boldsymbol{\omega})$ is the $4 \times 4$ skew-symmetric matrix:
+
+$$
+\Omega(\boldsymbol{\omega}) = \begin{bmatrix}
+  0 & -\omega_x & -\omega_y & -\omega_z \\
+  \omega_x & 0 & \omega_z & -\omega_y \\
+  \omega_y & -\omega_z & 0 & \omega_x \\
+  \omega_z & \omega_y & -\omega_x & 0
+\end{bmatrix}
+$$
 
 #### Accelerometer Correction (roll/pitch)
 
-When approximately static, the accelerometer points in the direction of
-gravity.  The expected direction is `ĝ = [0, 0, 1]ᵀ` (up in world frame).
-
 Roll/pitch correction via cross-product error:
 
-```
-e = a_norm × ĝ
-Δq = k_a [0, e]
-q ← normalise(q + Δq)
-```
+$$
+\mathbf{e} = \mathbf{a}_{\text{norm}} \times \hat{\mathbf{g}}, \qquad
+\Delta\mathbf{q} = k_a\,[0, \mathbf{e}], \qquad
+\mathbf{q} \leftarrow \operatorname{normalise}(\mathbf{q} + \Delta\mathbf{q})
+$$
 
-where `k_a = 0.01` is the accelerometer correction gain.
+where $k_a = 0.01$ is the accelerometer correction gain.
 
 #### Magnetometer Correction (yaw)
 
-Expected magnetic north direction: `m_expected = [1, 0, 0]ᵀ`.
+$$
+\mathbf{e} = \mathbf{m}_{\text{norm}} \times \mathbf{m}_{\text{expected}}, \qquad
+\Delta\mathbf{q} = k_m\,[0, \mathbf{e}], \qquad
+\mathbf{q} \leftarrow \operatorname{normalise}(\mathbf{q} + \Delta\mathbf{q})
+$$
 
-```
-e = m_norm × m_expected
-Δq = k_m [0, e]
-q ← normalise(q + Δq)
-```
-
-where `k_m = 0.01` is the magnetometer correction gain.
+where $k_m = 0.01$ is the magnetometer correction gain.
 
 ### 3.3  Angular Velocity Filter (3-D)
 
 A simple bias-subtraction model with low-pass bias estimation:
 
-```
-ω_est[k]  = ω_gyro[k] − b[k]
+$$
+\hat{\boldsymbol{\omega}}[k] = \boldsymbol{\omega}_{\text{gyro}}[k] - \mathbf{b}[k]
+$$
 
-b[k+1] = (1−α) b[k] + α ω_gyro[k]   (when stationary, α = 0.1)
-```
-
-The bias `b` accounts for gyroscope temperature drift and is estimated
-during stationary calibration before flight.
+$$
+\mathbf{b}[k{+}1] = (1-\alpha)\,\mathbf{b}[k] + \alpha\,\boldsymbol{\omega}_{\text{gyro}}[k]
+  \quad (\text{stationary calibration, } \alpha = 0.1)
+$$
 
 ### 3.4  Battery and Health (2-D direct)
 
 **Battery** is modelled as a first-order discharge:
 
-```
-E[k+1] = max(0,  E[k] − P_draw Δt / 3600)
-```
+$$
+E[k{+}1] = \max(0,\; E[k] - P_{\text{draw}}\,\Delta t / 3600)
+$$
 
-where `P_draw` is the power draw in Watts.  A fuel-gauge update applies
-an α-filter to fuse the on-board measurement:
+A fuel-gauge update applies an $\alpha$-filter to fuse the on-board measurement:
 
-```
-E ← (1−α) E + α E_measured,   α = 0.5
-```
+$$
+E \leftarrow (1-\alpha)\,E + \alpha\,E_{\text{measured}}, \quad \alpha = 0.5
+$$
 
-**Health** is a direct measurement (motor diagnostics) clipped to [0, 1].
+**Health** is a direct measurement (motor diagnostics) clipped to $[0, 1]$.
 
 ---
 
 ## 4  Target Tracking EKF (11-D)
 
-**State:** `x_tgt = [p(3), v(3), a(3), ψ, ψ̇]ᵀ ∈ ℝ¹¹`
+**State:** $\mathbf{x}_{\text{tgt}} = [\mathbf{p}(3), \mathbf{v}(3), \mathbf{a}(3), \psi, \dot\psi]^\top \in \mathbb{R}^{11}$
 
 This mirrors the DMPC drone state and uses the same triple-integrator
 dynamics (Section 6 of `01_DRONE_STATE_SPACE.md`).
 
 #### Process Model
 
-```
-F_tgt = A₁₁   (same matrix as DMPC A matrix)
-Q_tgt = diag(process noise for each state component)
-```
+$$
+F_{\text{tgt}} = A_{11} \quad \text{(same matrix as DMPC } A \text{ matrix)}
+$$
 
-#### Measurement Jacobians
-
-Non-linear measurement models require the Jacobian H to be computed at the
-current state estimate `x̂`.  See [Section 5](#5-multi-sensor-measurement-models) for each sensor type.
-
-#### Multiple Targets
-
-One EKF instance is maintained per tracked target.  Targets are created when
-a new detection cannot be associated with any existing track, and deleted when
-the covariance exceeds a health threshold (indicating track loss).
+Non-linear measurement models require the Jacobian $H$ to be computed at the
+current state estimate $\hat{\mathbf{x}}$.  See [Section 5](#5-multi-sensor-measurement-models).
 
 ---
 
@@ -255,65 +264,56 @@ the covariance exceeds a health threshold (indicating track loss).
 
 ### 5.1  GPS / RTK
 
-Applied to the drone's own position/velocity EKF (Section 3.1 above).
-
-```
-h_GPS(x) = [p_x, p_y, p_z, v_x, v_y, v_z]ᵀ
-H_GPS = I₆
-```
+$$
+h_{\text{GPS}}(\mathbf{x}) = [p_x, p_y, p_z, v_x, v_y, v_z]^\top, \qquad H_{\text{GPS}} = I_6
+$$
 
 ### 5.2  Radar (4-D)
 
-Radar measures range, range-rate, azimuth, and elevation from sensor position `s`:
+Radar measures range, range-rate, azimuth, and elevation from sensor position $\mathbf{s}$:
 
-```
-δ = p_tgt − s         (relative position vector)
-r = ‖δ‖              (range)
-ṙ = δᵀ v / r         (range-rate via radial projection)
-az = atan2(δ_y, δ_x) (azimuth angle)
-el = asin(δ_z / r)   (elevation angle)
+$$
+\boldsymbol{\delta} = \mathbf{p}_{\text{tgt}} - \mathbf{s}, \qquad
+r = \|\boldsymbol{\delta}\|, \qquad
+\dot{r} = \frac{\boldsymbol{\delta}^\top \mathbf{v}}{r}
+$$
 
-h_radar(x) = [r, ṙ, az, el]ᵀ
-```
+$$
+\alpha_z = \operatorname{atan2}(\delta_y, \delta_x), \qquad
+\text{el} = \arcsin(\delta_z / r)
+$$
 
-The Jacobian **H_radar** = ∂h_radar / ∂x is computed numerically via
-finite differences at the current estimate.
+$$
+h_{\text{radar}}(\mathbf{x}) = [r,\; \dot{r},\; \alpha_z,\; \text{el}]^\top
+$$
 
-Measurement noise covariance (typical values):
-
-```
-R_radar = diag(σ_r², σ_ṙ², σ_az², σ_el²)
-        = diag(5², 1², 0.01², 0.01²)
-```
+$$
+R_{\text{radar}} = \operatorname{diag}(\sigma_r^2, \sigma_{\dot{r}}^2, \sigma_{\alpha}^2, \sigma_{\text{el}}^2)
+= \operatorname{diag}(25, 1, 10^{-4}, 10^{-4})
+$$
 
 ### 5.3  Optical Bearing (2-D / 3-D)
 
-Camera provides azimuth and elevation (and optionally range):
+$$
+h_{\text{opt}}(\mathbf{x}) = [\alpha_z,\; \text{el}]^\top \quad \text{(2-D, no range)}
+$$
 
-```
-h_opt(x) = [az, el]ᵀ          (2-D, no range)
-h_opt(x) = [az, el, r]ᵀ       (3-D, with LiDAR)
-```
-
-Noise covariance:
-```
-R_opt = diag(σ_az², σ_el²) = diag(0.02², 0.02²)
-```
+$$
+R_{\text{opt}} = \operatorname{diag}(\sigma_\alpha^2, \sigma_{\text{el}}^2)
+= \operatorname{diag}(4 \times 10^{-4}, 4 \times 10^{-4})
+$$
 
 ### 5.4  RF Fingerprinting (3-D)
 
-RF fingerprinting provides a direct position estimate:
+$$
+h_{\text{RF}}(\mathbf{x}) = [p_x, p_y, p_z]^\top, \qquad
+H_{\text{RF}} = [I_3 \mid \mathbf{0}_{3 \times 8}]
+$$
 
-```
-h_RF(x) = [p_x, p_y, p_z]ᵀ
-H_RF = [I₃ | 0₃ₓ₈]
-```
-
-Measurement noise proportional to RF confidence `c ∈ [0, 1]`:
-
-```
-R_RF = (1/c) diag(σ_RF², σ_RF², σ_RF²),   σ_RF = 10 m
-```
+$$
+R_{\text{RF}} = \frac{1}{c}\,\operatorname{diag}(\sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2),
+\quad \sigma_{\text{RF}} = 10\;\text{m}
+$$
 
 ### 5.5  Acoustic TDOA (3-D)
 
@@ -326,19 +326,13 @@ direct position estimate with confidence-scaled noise (same structure as RF).
 
 When multiple sensor types are available simultaneously, an **adaptive
 weighting** scheme scales each sensor's noise covariance by its current
-confidence score `c_s ∈ [0, 1]`:
+confidence score $c_s \in [0, 1]$:
 
-```
-R_s_eff = R_s / c_s
-```
+$$
+R_{s,\text{eff}} = R_s / c_s
+$$
 
-This automatically de-weights degraded sensors.  The standard EKF update
-is then applied sequentially for each sensor type, or batch-applied via a
-stacked measurement vector.
-
-**Sequential vs. batch update:**  The implementation uses sequential updates
-(one sensor at a time) to preserve numerical stability and allow independent
-sensor dropout without re-building the full measurement matrix.
+This automatically de-weights degraded sensors.
 
 ---
 
@@ -349,29 +343,27 @@ sensor dropout without re-building the full measurement matrix.
 After every predict and update step the covariance matrix is symmetrised to
 eliminate floating-point asymmetry accumulation:
 
-```
-P ← (P + Pᵀ) / 2
-```
+$$
+P \leftarrow (P + P^\top) / 2
+$$
 
 ### Positive Definiteness
 
 A small regularisation term can be added if eigenvalues approach zero:
 
-```
-P ← P + ε I,   ε ≈ 1e-9
-```
-
-This is applied in the position/velocity EKF GPS update to keep `S = HPHᵀ + R`
-invertible even when P becomes near-singular.
+$$
+P \leftarrow P + \varepsilon\,I, \quad \varepsilon \approx 10^{-9}
+$$
 
 ### Assembled 18×18 Covariance
 
 The full 18-D covariance is a **block-diagonal** assembly of the three
 sub-filter covariances:
 
-```
-P_18 = block_diag(P_pv(6×6), P_a(3×3), P_att(4×4), P_av(3×3), P_batt(1×1), P_h(1×1))
-```
+$$
+P_{18} = \operatorname{block\_diag}\!\bigl(P_{pv}(6 \times 6),\;
+  P_a(3 \times 3),\; P_{\text{att}}(4 \times 4),\;
+  P_{\omega}(3 \times 3),\; P_E(1 \times 1),\; P_h(1 \times 1)\bigr)
+$$
 
-Acceleration uncertainty is approximated as `P_a ≈ P_v / 10` (velocity
-sub-block of the position/velocity EKF, scaled down).
+

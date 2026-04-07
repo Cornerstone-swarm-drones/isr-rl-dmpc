@@ -1,31 +1,47 @@
-# ISR-DMPC
+# ISR-RL-DMPC
 
-**Autonomous Multi-Drone Swarm System with Pure Distributed Model Predictive Control**
+**Autonomous Multi-Drone ISR Swarm using MARL-Adaptive Distributed MPC**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![ROS2](https://img.shields.io/badge/ROS2-Humble%2FJazzy-brightgreen)](https://docs.ros.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-ISR-DMPC is an autonomous Intelligence, Surveillance & Reconnaissance (ISR) platform for
-multi-drone swarm coordination powered by a **purely optimisation-based Distributed Model
-Predictive Controller (DMPC)**.  The system performs grid-based coverage planning,
-real-time target tracking, and threat assessment using a modular 6-module architecture.
-Simulation and visualisation run in **ROS2 + RViz2** — no third-party simulator required.
+ISR-RL-DMPC is an autonomous Intelligence, Surveillance & Reconnaissance (ISR) platform for
+multi-drone swarm coordination.  It implements a **Multi-Agent Reinforcement Learning (MARL)
+framework that uses MAPPO (Multi-Agent Proximal Policy Optimization) to dynamically tune the
+cost parameters of a Distributed Model Predictive Control (DMPC) layer**, where coordination
+between drones is achieved through **ADMM (Alternating Direction Method of Multipliers)** to
+ensure consensus on shared constraints and objectives.
+
+The MARL policy learns *which cost weights* (Q, R scales) to assign to each drone at every
+control step; the DMPC then solves the resulting constrained QP in real time using
+CVXPY/OSQP, and ADMM drives inter-drone consensus on reference trajectories and collision
+margins.  Simulation and visualisation run in **ROS2 + RViz2** — no third-party simulator
+required.
 
 ## Key Features
 
-- **Pure DMPC Control** — CVXPY/OSQP solves a constrained QP at 50 Hz with hard
-  collision-avoidance constraints and an LQR terminal cost computed from the DARE.
+- **MARL + MAPPO** — Centralised training / decentralised execution via Stable-Baselines3
+  PPO.  Each drone's actor conditions on a 40-D local observation; a shared critic uses the
+  full joint state for variance reduction.
+- **ADMM Consensus Layer** — Alternating Direction Method of Multipliers enforces
+  consistency between each drone's local DMPC sub-problem and the swarm's shared
+  trajectory / collision constraints.
+- **Adaptive DMPC** — MAPPO outputs per-drone Q and R scale vectors; the DMPC cost
+  becomes `Q_eff = Q ⊙ diag(q_scale)`, allowing the RL policy to prioritise position
+  tracking, energy efficiency, or formation keeping dynamically.
+- **CVXPY / OSQP Solver** — Constrained QP solved at 50 Hz with hard collision-avoidance
+  constraints and an LQR terminal cost computed from the DARE.
 - **6 Mission Modules** — Mission planning, formation control, sensor fusion, target
   classification, threat assessment, and task allocation.
 - **Geometric Attitude Controller** — SO(3) control with fixed LQR-tuned gains.
-- **Gymnasium-Compatible Environment** — `ISRGridEnv` with Dict observation spaces and
-  multi-objective rewards for offline algorithm validation.
+- **MARL Gymnasium Environment** — `MARLDMPCEnv` with 40-D per-agent observations and
+  14-D continuous action spaces (Q/R scale vectors) for MAPPO training.
 - **6-DOF Physics Simulation** — Rigid-body dynamics with wind, battery depletion, and
   collision detection, tuned for the hector_quadrotor airframe (1.477 kg).
 - **Open-Source Drone Model** — Uses the [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor)
   COLLADA mesh and self-contained URDF (`urdf/drone.urdf`) for both RViz2 visualisation
-  and hardware deployment.  Replaces primitive cylinder shapes with a realistic 3-D model.
+  and hardware deployment.
 - **ROS2 / RViz2 Simulation** — A ready-to-launch ROS2 Python package
   (`ros2_ws/src/isr_dmpc_sim`) publishes drone poses, target positions, DMPC metrics,
   per-drone trajectory paths, and interactive TF frames, all rendered live in RViz2.
@@ -33,9 +49,9 @@ Simulation and visualisation run in **ROS2 + RViz2** — no third-party simulato
   commands to MAVROS `setpoint_accel` topics (PX4 / ArduPilot).  Switch from
   simulation to live hardware with a single launch argument (`use_sim:=false`).
 - **Stability Analysis** — Lyapunov, eigenvalue, ISS, CBF, and recursive feasibility tools.
-- **Math Reference** — See [`math_docs/`](math_docs/) for full derivations of all algorithms used in the system.
+- **Math Reference** — See [`math_docs/`](math_docs/) for full derivations of all algorithms.
 - **Math / Control Optimisation Guide** — See [`docs/MATH_OPTIMIZATION.md`](docs/MATH_OPTIMIZATION.md)
-  for a comprehensive guide to improving DMPC performance on real hardware.
+  for a comprehensive guide to improving DMPC and MARL performance on real hardware.
 
 ## Quick Start
 
@@ -48,7 +64,7 @@ cd isr-rl-dmpc
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install core Python dependencies
+# Install all dependencies (includes stable-baselines3 for MAPPO)
 pip install -r requirements/dev.txt
 
 # Install the package in development mode
@@ -57,7 +73,10 @@ pip install -e .
 # Run tests
 pytest tests/
 
-# Run a DMPC mission (non-ROS, headless)
+# Train MAPPO policy (headless)
+python scripts/train_mappo.py --config config/mappo_config.yaml
+
+# Run a MARL-DMPC mission (non-ROS, headless)
 python scripts/run_mission.py --config config/dmpc_config.yaml
 ```
 
@@ -99,13 +118,13 @@ RViz2 opens automatically with a pre-configured layout showing:
 ```
 isr-rl-dmpc/
 ├── src/isr_rl_dmpc/           # Core Python package
-│   ├── agents/                # DMPCAgent (pure DMPC, no RL)
+│   ├── agents/                # MAPPOAgent (SB3 PPO), DMPCAgent
 │   ├── analysis/              # Stability analysis tools
 │   ├── core/                  # Data structures (DroneState, TargetState, MissionState)
-│   ├── gym_env/               # Gymnasium environment + 6-DOF physics simulator
+│   ├── gym_env/               # MARLDMPCEnv (40-D obs, 14-D action) + 6-DOF physics
 │   ├── models/
 │   │   └── meshes/hector_quadrotor/  # Open-source drone mesh source files
-│   ├── modules/               # 6 ISR modules + DMPC + attitude controller + analytics
+│   ├── modules/               # 6 ISR modules + DMPC + ADMM + attitude controller + analytics
 │   └── utils/                 # Math, logging, visualization, unit conversions
 ├── ros2_ws/                   # ROS2 workspace
 │   └── src/isr_dmpc_sim/      # ROS2 Python package
@@ -123,10 +142,11 @@ isr-rl-dmpc/
 │       │   └── swarm_simulation.launch.py
 │       └── config/
 │           └── simulation.rviz
-├── scripts/                   # Standalone mission and evaluation scripts
+├── scripts/                   # Standalone mission, training and evaluation scripts
 ├── config/                    # YAML configuration files
 │   ├── drone_specs.yaml       # hector_quadrotor-aligned physical parameters
-│   ├── dmpc_config.yaml       # Hardware-appropriate DMPC tuning
+│   ├── dmpc_config.yaml       # DMPC tuning (horizon, Q, R, ADMM rho)
+│   ├── mappo_config.yaml      # MAPPO hyperparameters (lr, clip, entropy coeff)
 │   └── mission_scenarios.yaml # Real-world ISR applications
 ├── tests/                     # Unit and integration tests
 ├── notebooks/                 # Jupyter tutorials
@@ -139,9 +159,11 @@ isr-rl-dmpc/
 │   ├── 05_FORMATION_CONSENSUS.md
 │   ├── 06_TASK_ALLOCATION.md
 │   ├── 07_GEOMETRIC_ATTITUDE_CONTROL.md
-│   └── 08_COVERAGE_PLANNING.md
+│   ├── 08_COVERAGE_PLANNING.md
+│   ├── 09_MAPPO_AGENT.md      # MARL/MAPPO math and training
+│   └── 10_ADMM_CONSENSUS.md   # ADMM consensus derivation
 └── docs/
-    ├── MATH_OPTIMIZATION.md   # Guide to optimising DMPC math & control
+    ├── MATH_OPTIMIZATION.md   # Guide to optimising MARL-DMPC math & control
     └── ...                    # Other documentation
 ```
 
@@ -150,12 +172,12 @@ isr-rl-dmpc/
 | Document | Description |
 |---|---|
 | [math_docs/](math_docs/) | **Mathematical reference** — full derivations for all algorithms |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design patterns |
-| [MODULE_SPECS.md](docs/MODULE_SPECS.md) | Detailed module specifications |
-| [STABILITY_ANALYSIS.md](docs/STABILITY_ANALYSIS.md) | DMPC stability analysis |
-| [MATH_OPTIMIZATION.md](docs/MATH_OPTIMIZATION.md) | Guide to optimising DMPC math & control |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture — MARL + ADMM + DMPC layers |
+| [MODULE_SPECS.md](docs/MODULE_SPECS.md) | Detailed module specifications including MAPPO and ADMM |
+| [STABILITY_ANALYSIS.md](docs/STABILITY_ANALYSIS.md) | DMPC stability analysis (Lyapunov, ISS, CBF) |
+| [MATH_OPTIMIZATION.md](docs/MATH_OPTIMIZATION.md) | Guide to optimising MARL-DMPC math & control |
 | [PHASE_GUIDE.md](docs/PHASE_GUIDE.md) | Mission execution and integration phases |
-| [GYM_DESIGN.md](docs/GYM_DESIGN.md) | Gymnasium environment design |
+| [GYM_DESIGN.md](docs/GYM_DESIGN.md) | MARL Gymnasium environment design (MARLDMPCEnv) |
 | [API_REFERENCE.md](docs/API_REFERENCE.md) | API documentation |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [WORKFLOW.md](docs/WORKFLOW.md) | Git workflow guide |
@@ -164,6 +186,8 @@ isr-rl-dmpc/
 
 | Component | Technology |
 |---|---|
+| MARL Training | [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) PPO (MAPPO) |
+| Consensus Layer | ADMM (Alternating Direction Method of Multipliers) |
 | Convex Optimisation | [CVXPY](https://www.cvxpy.org/) + [OSQP](https://osqp.org/) |
 | Terminal Cost | Discrete Algebraic Riccati Equation (SciPy DARE) |
 | Task Allocation | Hungarian Algorithm (SciPy) |
@@ -172,7 +196,7 @@ isr-rl-dmpc/
 | Drone Model | [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor) COLLADA mesh + self-contained URDF |
 | ROS2 Simulation | rclpy, geometry_msgs, visualization_msgs, tf2, nav_msgs |
 | Hardware Interface | MAVROS (PX4 / ArduPilot) via `hardware_bridge_node` |
-| Visualisation | RViz2, Matplotlib |
+| Visualisation | RViz2, TensorBoard, Matplotlib |
 | Configuration | YAML with dataclass validation |
 
 ## Mission Scenarios
@@ -196,4 +220,3 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 | Jivesh Kesar | jrb252026@iitd.ac.in |
 | Harsh | jrb252049@iitd.ac.in |
 | Rohit Shankar Sinha | jrb252051@iitd.ac.in |
-
