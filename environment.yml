@@ -1,0 +1,65 @@
+# ISR-RL-DMPC Conda environment — GPU-accelerated MAPPO training
+#
+# Targets CUDA 12.4 (compatible with Ampere / Ada / Hopper GPUs).
+# For CPU-only machines replace the pytorch/torchvision lines below with
+# the matching pytorch-cpu variants, or run:
+#   conda env create -f environment.yml
+#   conda activate isr-rl-dmpc
+#
+# ROS2 Jazzy is installed via the Ubuntu 24.04 APT repository and cannot
+# be managed by conda.  After activating the environment, source ROS2:
+#   source /opt/ros/jazzy/setup.bash
+#
+# Usage:
+#   conda env create -f environment.yml
+#   conda activate isr-rl-dmpc
+#   pip install -e .          # install the isr_rl_dmpc package itself
+#   # optional dev extras:
+#   pip install -e ".[dev]"
+
+name: isr-rl-dmpc
+
+channels:
+  - pytorch        # official PyTorch channel (includes CUDA builds)
+  - conda-forge    # broad scientific / ROS-adjacent packages
+  - defaults
+
+dependencies:
+  # ── Python runtime ────────────────────────────────────────────────────
+  - python=3.10.*
+
+  # ── GPU-accelerated deep learning ─────────────────────────────────────
+  # pytorch 2.x + torchvision built against CUDA 12.4.
+  # stable-baselines3 ≥2.0 requires torch ≥1.13; 2.x is fully supported.
+  - pytorch::pytorch>=2.3.0
+  - pytorch::torchvision>=0.18.0
+  - pytorch::pytorch-cuda=12.4
+
+  # ── Scientific computing ───────────────────────────────────────────────
+  - conda-forge::numpy>=1.21.0
+  - conda-forge::scipy>=1.7.0
+  - conda-forge::pyyaml>=5.4
+
+  # ── Convex optimisation (DMPC layer) ──────────────────────────────────
+  - conda-forge::cvxpy>=1.2.0
+  - conda-forge::osqp>=0.6.0
+
+  # ── RL training framework ─────────────────────────────────────────────
+  - conda-forge::gymnasium>=0.26.0
+
+  # ── Visualisation and monitoring ──────────────────────────────────────
+  - conda-forge::matplotlib>=3.4.0
+  - conda-forge::tensorboard>=2.10.0
+
+  # ── Development and testing ───────────────────────────────────────────
+  - conda-forge::pytest>=6.2.0
+  - conda-forge::pytest-cov>=2.12.0
+  - conda-forge::black>=21.5b0
+  - conda-forge::flake8>=3.9.0
+  - conda-forge::mypy>=0.910
+  - conda-forge::jupyter>=1.0.0
+  - conda-forge::ipython>=7.0.0
+
+  # ── pip-only packages (no conda builds available) ─────────────────────
+  - pip:
+    - stable-baselines3>=2.0.0

@@ -30,7 +30,7 @@ Feedback path (state estimation from onboard):
 Hardware pre-requisites
 -----------------------
 1. MAVROS installed:
-       sudo apt install ros-humble-mavros ros-humble-mavros-extras
+       sudo apt install ros-jazzy-mavros ros-jazzy-mavros-extras
        ros2 run mavros install_geographiclib_datasets.sh
 2. MAVROS running (one instance per drone, namespaced):
        ros2 run mavros mavros_node \

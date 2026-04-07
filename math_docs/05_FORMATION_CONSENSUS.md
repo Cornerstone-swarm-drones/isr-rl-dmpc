@@ -101,7 +101,8 @@ When $\boldsymbol{\varepsilon}_i \to \boldsymbol{0}$ for all $i$, the swarm is i
 
 ### Standard Consensus Update
 
-The consensus term in the control law drives formation error to zero:
+The consensus term in the combined control law penalises deviations from the
+mean neighbour position:
 
 $$
 \boldsymbol{u}_{\text{consensus},i} = k_c \sum_{j \in \mathcal{N}(i)} (\boldsymbol{p}_j - \boldsymbol{p}_i)
@@ -110,6 +111,17 @@ $$
 
 where $k_c = 0.1$ is the consensus gain and $(L\,\boldsymbol{p})_i$ is the $i$-th row of the
 Laplacian matrix applied to the position vector.
+
+> **Distinction from formation error:** This term implements *average consensus*
+> (convergence to a common mean position), whereas the formation error
+> $\boldsymbol{\varepsilon}_i$ defined above includes the desired offsets $\boldsymbol{d}_{ij}$.
+> The consensus term alone would drive all drones to the same position; the
+> formation-offset information is carried by the proportional term
+> $\boldsymbol{u}_p = k_p(\boldsymbol{p}^{\text{des}}_i - \boldsymbol{p}_i)$ in the full control law.
+> Driving $\boldsymbol{\varepsilon}_i \to \boldsymbol{0}$ therefore relies on the combined
+> action of $\boldsymbol{u}_p$ and $\boldsymbol{u}_{\text{consensus}}$; the consensus term
+> provides cohesion but does not by itself enforce the desired inter-drone
+> offsets $\boldsymbol{d}_{ij}$.
 
 ---
 

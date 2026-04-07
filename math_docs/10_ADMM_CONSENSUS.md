@@ -243,19 +243,28 @@ parameter, so the problem structure remains fixed and warm-starting is possible.
 
 ## 8. Swarm-Level Properties
 
-### Collision Avoidance via ADMM
+### Trajectory Consistency and Collision Avoidance
 
-ADMM enforces a **shared minimum-separation constraint** by including it in
-the consensus variable:
+ADMM drives all local solutions $\boldsymbol{z}_i$ toward a shared consensus variable
+$\boldsymbol{v}$, reducing trajectory disagreement across the swarm.  It does **not**,
+however, encode pairwise minimum-separation constraints through the consensus
+variable.  An average of relative positions such as
 
 $$
 \boldsymbol{v}_{\text{sep}} = \frac{1}{|\mathcal{E}|} \sum_{(i,j) \in \mathcal{E}}
   \bigl(\boldsymbol{p}_i - \boldsymbol{p}_j\bigr)
 $$
 
-The corresponding consensus constraint ensures that no pair of drones
-plans to be closer than $r_{\min}$ in the agreed-upon trajectory, even
-if each individual DMPC sub-problem relaxes this constraint.
+can satisfy a minimum-norm condition even when individual pairs violate the
+separation requirement, provided other pairs are sufficiently far apart.  A
+single global average cannot encode all individual pairwise constraints, so
+enforcing consensus on this quantity does **not** guarantee that every pair of
+drones satisfies $\|\boldsymbol{p}_i - \boldsymbol{p}_j\| \ge r_{\min}$.
+
+Pairwise collision avoidance is handled by the per-drone hard constraints
+$\|\boldsymbol{p}_k - \boldsymbol{p}_j\| \ge r_{\min}$ inside each local DMPC QP.  ADMM's role
+is to regularise planned trajectories toward a common reference and reduce
+inter-drone planning inconsistency, not to certify pairwise separation.
 
 ### Communication Requirements
 

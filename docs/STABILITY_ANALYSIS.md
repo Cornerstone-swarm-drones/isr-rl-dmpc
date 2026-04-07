@@ -114,9 +114,12 @@ $$
 = -\boldsymbol{e}^\top (Q + K^\top R K)\,\boldsymbol{e} < 0 \quad \forall\, \boldsymbol{e} \ne \boldsymbol{0}
 $$
 
-**Conclusion:** The LQR-closed-loop translational dynamics are
-*globally asymptotically stable*.  The DMPC inherits this property via
-the terminal cost and the standard MPC stability argument (Section 6).
+**Conclusion:** The LQR-closed-loop translational dynamics (under constant
+feedback $K$ with fixed cost matrices $Q, R$) are *globally asymptotically
+stable*.  The DMPC uses $P$ as a terminal cost motivated by this LQR design.
+Rigorous stability inheritance requires an explicitly enforced terminal set and
+fixed cost matrices equal to those used to compute $P$; see the caveats in
+Section 6.
 
 ---
 
@@ -166,14 +169,16 @@ $$
 
 ### 4.2 ISS Gain Bound
 
-For the quadratic Lyapunov function $V(\boldsymbol{e}) = \boldsymbol{e}^\top P\, \boldsymbol{e}$:
+For the quadratic Lyapunov function $V(\boldsymbol{e}) = \boldsymbol{e}^\top P\, \boldsymbol{e}$, a
+standard ISS gain bound is:
 
 $$
-\gamma_{\text{iss}} = \frac{\lambda_{\max}(P)}{\lambda_{\min}(P)} \cdot \|A_{\text{cl}}\|_2
+\gamma_{\text{iss}} = \sqrt{\frac{\lambda_{\max}(P)}{\lambda_{\min}(P)}}
+  \cdot \frac{\|A_{\text{cl}}\|_2}{1 - \rho}
 $$
 
-A finite ISS gain exists whenever the spectral radius $\rho < 1$, which is
-confirmed by the eigenvalue analysis above.
+where $\rho < 1$ is the spectral radius of $A_{\text{cl}}$.  A finite ISS gain
+exists whenever $\rho < 1$, which is confirmed by the eigenvalue analysis above.
 
 ### 4.3 Disturbance Rejection
 
@@ -215,18 +220,27 @@ where $r_{\min} = 5\;\text{m}$ is the minimum safe separation.
 
 ### 5.2 Discrete-Time CBF Condition
 
-The DMPC hard constraint $\|\boldsymbol{p}_k - \boldsymbol{p}_j\| \ge r_{\min}$ directly enforces:
+The DMPC hard state constraint $\|\boldsymbol{p}_k - \boldsymbol{p}_j\| \ge r_{\min}$ constrains
+predicted positions at sampled times.  This is consistent with the strongest
+CBF condition ($\alpha = 1$):
 
 $$
 h_{ij}(\boldsymbol{x}_{k+1}) \ge (1 - \alpha)\,h_{ij}(\boldsymbol{x}_k)
 $$
 
-with $\alpha = 1$ (strongest condition), meaning the constraint is active at
-every time step.
+with $\alpha = 1$, meaning the constraint is required to be satisfied at every
+predicted time step.
 
-**Forward invariance theorem:** If $\mathcal{C} \ne \emptyset$ and $h_{ij}(\boldsymbol{x}_0) \ge 0$,
-the DMPC collision constraint guarantees $h_{ij}(\boldsymbol{x}_k) \ge 0$ for all
-$k \ge 0$, i.e. the swarm remains in the safety set.
+**Note on forward invariance:** Constraining predicted sampled-time positions
+is a necessary condition for safety but is not sufficient to guarantee
+forward invariance in the CBF-theoretic sense.  Strict forward invariance
+requires the CBF inequality to be imposed as an affine constraint on the
+**control input** (as derived in Section 5 of
+[04_LYAPUNOV_AND_STABILITY.md](../math_docs/04_LYAPUNOV_AND_STABILITY.md)),
+and requires that the QP remains strictly feasible at all times.  The hard
+distance constraint is therefore best understood as a heuristic safety mechanism
+that prevents predicted collisions; it does not provide a provably
+forward-invariant CBF safety filter.
 
 ### 5.3 Swarm Safety Margin
 
@@ -251,6 +265,13 @@ it is feasible at all subsequent time steps $t > 0$.
 *Proof sketch:* Applying the terminal control law $\boldsymbol{u}_f$ at step $N$ maps
 $\boldsymbol{x}_N \in \Omega_f$ to $A_{\text{cl}}\,\boldsymbol{x}_N \in \Omega_f$ (by positive invariance of $\Omega_f$ under
 $A_{\text{cl}}$ — a consequence of the DARE Bellman equation).
+
+> **Implementation caveat:** The theorem requires all three components above to
+> be active and relies on the cost matrices being fixed and equal to those used
+> to compute $P$.  In the current implementation the terminal set is **not**
+> enforced as an explicit QP inequality constraint, and the MAPPO agent varies
+> the cost matrices online.  Recursive feasibility is therefore a design
+> objective rather than a strict guarantee.
 
 ### 6.2 Invariance of Terminal Set
 
