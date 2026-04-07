@@ -92,7 +92,7 @@ observation_space = spaces.Box(
 Each drone's action is a **14-dimensional vector of multiplicative cost scale factors**:
 
 $$
-\boldsymbol{a}^{(i)} = [q_s(0..10),\ r_s(0..2)] \in [0.1,\ 10.0]^{14}
+\boldsymbol{a}^{(i)} = [\boldsymbol{q}_s^\top,\; \boldsymbol{r}_s^\top]^\top \in [0.1,\; 10.0]^{14}
 $$
 
 These are applied to the DMPC base cost matrices:

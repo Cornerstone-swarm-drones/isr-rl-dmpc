@@ -52,8 +52,7 @@ Let $\boldsymbol{e}_k = \boldsymbol{x}_c[k] - \boldsymbol{x}_{\text{ref}}[k]$ be
 Under the optimal DMPC control the error satisfies approximately:
 
 $$
-\boldsymbol{e}[k{+}1] \approx A_{\text{cl}}\,\boldsymbol{e}[k],
-\quad A_{\text{cl}} = A_9 - B_9\,K_{\text{LQR}}
+\boldsymbol{e}[k{+}1] \approx A_{\text{cl}}\,\boldsymbol{e}[k], \quad A_{\text{cl}} = A_9 - B_9\,K_{\text{LQR}}
 $$
 
 near the terminal set.

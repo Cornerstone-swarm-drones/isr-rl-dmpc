@@ -117,7 +117,7 @@ The actor network outputs a mean $\boldsymbol{\mu}_a$ and log-std
 $\log\boldsymbol{\sigma}_a$; actions are sampled from
 
 $$
-\boldsymbol{a}^{(i)} = \mathrm{clip}\!\bigl(\boldsymbol{\mu}_a + \boldsymbol{\sigma}_a \odot \boldsymbol{\varepsilon},\;0.1,\;10.0\bigr),
+\boldsymbol{a}^{(i)} = \mathrm{clip}\!\bigl(\boldsymbol{\mu}_a + \boldsymbol{\sigma}_a \odot \boldsymbol{\varepsilon},\;0.1,\;10.0\bigr)
   \quad \boldsymbol{\varepsilon} \sim \mathcal{N}(\boldsymbol{0}, I)
 $$
 
@@ -134,8 +134,7 @@ $$
 ### Tracking Reward
 
 $$
-r_{\text{track}} = \exp\!\bigl(-\alpha\,\|\boldsymbol{e}_p\|^2\bigr) - 1,
-\quad \alpha = 0.1
+r_{\text{track}} = \exp\!\bigl(-\alpha\,\|\boldsymbol{e}_p\|^2\bigr) - 1, \quad \alpha = 0.1
 $$
 
 Exponential shaping gives dense gradients near the reference.
