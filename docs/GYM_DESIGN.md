@@ -73,9 +73,9 @@ $$
 | 29 | Battery level | 1 | Normalised [0, 1] |
 | 30 | Health | 1 | Structural health [0, 1] |
 | 31–33 | Last applied control | 3 | Previous $u^{(i)}$ |
-| 34–36 | ADMM primal residual | 3 | $\|z_i - v\|$ per axis |
+| 34–36 | ADMM primal residual | 3 | $\lVert z_i - v\rVert$ per axis |
 | 37 | DMPC solve time | 1 | Normalised last QP solve time |
-| 38 | Collision margin | 1 | $\min_j\|p^{(i)}-p^{(j)}\| - r_\min$ (norm.) |
+| 38 | Collision margin | 1 | $\min_j\lVert p^{(i)}-p^{(j)}\rVert - r_\min$ (norm.) |
 | 39 | Mission progress | 1 | $t / T_\max$ |
 
 **Gymnasium space:**
@@ -121,10 +121,10 @@ $$
 
 | Component | Formula | Weight |
 | :--- | :--- | :--- |
-| Tracking | $\exp(-0.1\|\mathbf{e}_p\|^2) - 1$ | 5.0 |
-| Formation | $-\text{mean}(\|\Delta\mathbf{p}_{ij} - \mathbf{d}_{ij}\|)$ over neighbours | 2.0 |
-| Safety | $\sum_j\min(0, \|\mathbf{p}_i-\mathbf{p}_j\| - r_{\min})$ | 10.0 |
-| Efficiency | $-\|\mathbf{u}^{(i)}\|^2$ | 0.1 |
+| Tracking | $\exp(-0.1\lVert\mathbf{e}_p\rVert^2) - 1$ | 5.0 |
+| Formation | $-\text{mean}(\lVert\Delta\mathbf{p}_{ij} - \mathbf{d}_{ij}\rVert)$ over neighbours | 2.0 |
+| Safety | $\sum_j\min(0, \lVert\mathbf{p}_i-\mathbf{p}_j\rVert - r_{\min})$ | 10.0 |
+| Efficiency | $-\lVert\mathbf{u}^{(i)}\rVert^2$ | 0.1 |
 
 The centralised critic during training uses the sum of all agents' rewards to
 compute a global value estimate.
