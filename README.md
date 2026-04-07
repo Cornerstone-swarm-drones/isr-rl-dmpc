@@ -33,6 +33,7 @@ Simulation and visualisation run in **ROS2 + RViz2** — no third-party simulato
   commands to MAVROS `setpoint_accel` topics (PX4 / ArduPilot).  Switch from
   simulation to live hardware with a single launch argument (`use_sim:=false`).
 - **Stability Analysis** — Lyapunov, eigenvalue, ISS, CBF, and recursive feasibility tools.
+- **Math Reference** — See [`math_docs/`](math_docs/) for full derivations of all algorithms used in the system.
 - **Math / Control Optimisation Guide** — See [`docs/MATH_OPTIMIZATION.md`](docs/MATH_OPTIMIZATION.md)
   for a comprehensive guide to improving DMPC performance on real hardware.
 
@@ -129,6 +130,16 @@ isr-rl-dmpc/
 │   └── mission_scenarios.yaml # Real-world ISR applications
 ├── tests/                     # Unit and integration tests
 ├── notebooks/                 # Jupyter tutorials
+├── math_docs/                 # Mathematical reference documentation
+│   ├── README.md              # Index and notation guide
+│   ├── 01_DRONE_STATE_SPACE.md
+│   ├── 02_EXTENDED_KALMAN_FILTER.md
+│   ├── 03_DMPC_FORMULATION.md
+│   ├── 04_LYAPUNOV_AND_STABILITY.md
+│   ├── 05_FORMATION_CONSENSUS.md
+│   ├── 06_TASK_ALLOCATION.md
+│   ├── 07_GEOMETRIC_ATTITUDE_CONTROL.md
+│   └── 08_COVERAGE_PLANNING.md
 └── docs/
     ├── MATH_OPTIMIZATION.md   # Guide to optimising DMPC math & control
     └── ...                    # Other documentation
@@ -138,11 +149,12 @@ isr-rl-dmpc/
 
 | Document | Description |
 |---|---|
+| [math_docs/](math_docs/) | **Mathematical reference** — full derivations for all algorithms |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design patterns |
 | [MODULE_SPECS.md](docs/MODULE_SPECS.md) | Detailed module specifications |
 | [STABILITY_ANALYSIS.md](docs/STABILITY_ANALYSIS.md) | DMPC stability analysis |
 | [MATH_OPTIMIZATION.md](docs/MATH_OPTIMIZATION.md) | Guide to optimising DMPC math & control |
-| [PHASE_GUIDE.md](docs/PHASE_GUIDE.md) | Project phase descriptions |
+| [PHASE_GUIDE.md](docs/PHASE_GUIDE.md) | Mission execution and integration phases |
 | [GYM_DESIGN.md](docs/GYM_DESIGN.md) | Gymnasium environment design |
 | [API_REFERENCE.md](docs/API_REFERENCE.md) | API documentation |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |

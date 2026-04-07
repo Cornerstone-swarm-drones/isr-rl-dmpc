@@ -191,5 +191,5 @@ Config
 | Task Allocation | Hungarian Algorithm (SciPy) |
 | Scientific Computing | NumPy, SciPy |
 | Simulation | Gymnasium, 6-DOF rigid-body physics |
-| Visualisation | Matplotlib, Foxglove Studio |
+| Visualisation | RViz2, Matplotlib |
 | Configuration | YAML with dataclass validation |

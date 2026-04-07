@@ -1,11 +1,10 @@
 # Phase Guide
 
-This document describes the project phases of the ISR-RL-DMPC system, covering the mission execution pipeline and the training lifecycle.
+This document describes the mission execution pipeline and the development integration stages for the ISR-DMPC system.
 
 ## Table of Contents
 
 - [Mission Execution Phases](#mission-execution-phases)
-- [Training Phases](#training-phases)
 - [Integration Phases](#integration-phases)
 
 ---
@@ -70,90 +69,31 @@ Each ISR mission progresses through three phases, each handled by a specific sub
 
 ---
 
-### Phase 3: Control and Learning
+### Phase 3: Control and Analytics
 
-**Objective:** Execute optimal control actions and update RL policy parameters.
+**Objective:** Execute optimal control actions and monitor DMPC performance.
 
 **Active Modules:**
 - Module 7 (DMPC Controller) — Computes optimal control inputs
 - Module 8 (Attitude Controller) — Tracks desired attitudes
-- Module 9 (Learning Module) — Updates cost function parameters
+- Module 9 (DMPC Analytics) — Records performance metrics
 
 **Process:**
 
-1. **DMPC Optimization** — The DMPC controller solves a convex optimization problem (via CVXPY) over the prediction horizon to compute optimal acceleration commands. Cost weights (Q, R, P matrices) are adapted in real-time by the `CostWeightNetwork`.
-2. **Attitude Control** — Desired accelerations are converted to attitude references, and the geometric attitude controller computes motor torques to track them.
-3. **Learning Update** — After each environment step, the transition (s, a, r, s', done) is stored in the replay buffer. When sufficient experience is available, the value and policy networks are updated via gradient descent.
+1. **DMPC Optimisation** — The DMPC controller solves a convex QP (via CVXPY/OSQP) over the prediction horizon to compute optimal acceleration commands. Cost weights Q, R, P are fixed (no online adaptation); P is pre-computed from the Discrete Algebraic Riccati Equation (DARE).
+2. **Attitude Control** — Desired accelerations are converted to attitude references, and the geometric SO(3) attitude controller computes motor torques to track them.
+3. **Analytics** — Per-step statistics (tracking error, solve time, objective value) are accumulated by `DMPCAnalytics` for post-mission diagnostics.
 
 **Key Parameters:**
 
 | Parameter | Config | Default | Effect |
 |---|---|---|---|
-| `prediction_horizon` | `default_config.yaml` | `10` | Longer horizon → better planning, slower solve |
-| `control_horizon` | `default_config.yaml` | `5` | Longer horizon → more control flexibility |
-| `discount_factor` | `default_config.yaml` | `0.99` | Higher γ → agent considers longer-term rewards |
-| `batch_size` | `default_config.yaml` | `32` | Larger batch → smoother gradients |
+| `prediction_horizon` | `dmpc_config.yaml` | `20` | Longer horizon → better planning, slower solve |
+| `accel_max` | `dmpc_config.yaml` | `10.0 m/s²` | Control saturation bound |
+| `collision_radius` | `dmpc_config.yaml` | `5.0 m` | Minimum inter-drone separation |
+| `solver_timeout` | `dmpc_config.yaml` | `10 ms` | OSQP time budget per drone |
 
-**Output:** Motor PWM commands, updated neural network weights.
-
----
-
-## Training Phases
-
-The training lifecycle consists of four phases:
-
-### Phase A: Warmup (Random Exploration)
-
-**Duration:** First `warmup_steps` (default: 10,000 steps)
-
-During warmup, the agent takes random actions to populate the replay buffer with diverse experiences. No gradient updates occur.
-
-**Purpose:** Ensure the replay buffer has sufficient variety before training begins.
-
-### Phase B: Learning (Policy Optimization)
-
-**Duration:** `num_epochs` × `steps_per_epoch` (default: 500 × 4,000 = 2,000,000 steps)
-
-The core training phase where the agent alternates between:
-1. **Data collection** — Executing the current policy in the environment
-2. **Gradient updates** — Updating value and policy networks using sampled mini-batches
-
-**Per Episode:**
-```
-for step in range(max_steps):
-    action = agent.act(obs, training=True)
-    next_obs, reward, done, info = env.step(action)
-    agent.remember(obs, action, reward, next_obs, done)
-    if agent.ready_to_train():
-        critic_loss, actor_loss = agent.train_on_batch()
-```
-
-### Phase C: Evaluation
-
-**Frequency:** Every `eval_interval` epochs (default: every 10 epochs)
-
-The learned policy is evaluated on test episodes using deterministic actions (no exploration noise). Key metrics:
-
-| Metric | Target | Description |
-|---|---|---|
-| Mean Coverage | ≥ 0.90 | Fraction of grid cells visited |
-| Mean Reward | Increasing | Episode total reward |
-| Collision Rate | → 0 | Collisions per episode |
-| Episode Length | Consistent | Steps per episode |
-
-### Phase D: Checkpointing
-
-**Frequency:** Every `save_interval` epochs (default: every 50 epochs)
-
-Model checkpoints are saved to `data/training_logs/<timestamp>/`:
-
-```
-checkpoint_ep50.pt
-checkpoint_ep100.pt
-...
-final_model.pt
-training_stats.json
-```
+**Output:** Motor PWM commands, per-step DMPC analytics.
 
 ---
 
@@ -182,17 +122,17 @@ The modules are integrated in a specific order during development:
 - Classification engine (Bayesian target classification)
 - Threat assessor (threat level computation)
 
-### Stage 4: Control and Learning
+### Stage 4: Control
 
 - Formation controller (consensus-based)
 - Task allocator (Hungarian algorithm)
-- DMPC controller (CVXPY + PyTorch)
-- Attitude controller (geometric control)
-- Learning module (value + policy networks)
+- DMPC controller (CVXPY/OSQP, DARE terminal cost)
+- Attitude controller (geometric SO(3) control)
+- DMPC analytics (performance monitoring)
 
-### Stage 5: Agent and Training
+### Stage 5: Agent and Evaluation
 
 - DMPC agent (unified interface)
-- Training script
-- Hyperparameter search
-- Benchmarking and visualization
+- Mission evaluation scripts
+- Stability analysis tools
+- Benchmarking and visualisation
