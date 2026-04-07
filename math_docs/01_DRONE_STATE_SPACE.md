@@ -115,7 +115,8 @@ where:
 - $g = 9.81\;\text{m/s}^2$
 
 For small angles (near-hover), $R\boldsymbol{e}_3 \approx \boldsymbol{e}_3$ and the net body
-thrust minus gravity cancels.  The **commanded acceleration** $\boldsymbol{u} \in \mathbb{R}^3$ is:
+thrust minus gravity cancels.  Under this **small-angle approximation**, the
+**commanded acceleration** $\boldsymbol{u} \in \mathbb{R}^3$ is:
 
 $$
 \boldsymbol{u} = \ddot{\boldsymbol{p}}_{\text{cmd}} = \boldsymbol{a}_{\text{des}}
@@ -123,6 +124,17 @@ $$
 
 The attitude controller (Module 8) inverts the thrust to realise the desired
 translational acceleration; the DMPC only generates $\boldsymbol{u} = [a_x, a_y, a_z]^\top$.
+
+> **Modelling assumption:** This linearisation implicitly assumes that (i) the
+> inner-loop attitude controller is fast enough to track any commanded
+> acceleration within the $u_{\max}$ bounds, and (ii) the translational
+> dynamics are effectively decoupled from attitude and yaw for the relevant
+> flight envelope.  All stability results derived from the linearised
+> triple-integrator model — including the LQR terminal cost and the Lyapunov
+> analysis in [04_LYAPUNOV_AND_STABILITY.md](04_LYAPUNOV_AND_STABILITY.md) —
+> hold under this abstraction.  They do not apply directly to the full
+> nonlinear quadrotor dynamics, in particular at large roll/pitch angles or
+> when the inner attitude loop is saturated.
 
 ---
 

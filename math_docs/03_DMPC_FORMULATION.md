@@ -91,9 +91,16 @@ $$
 where $\odot$ denotes element-wise (Hadamard) product.  All scale values are
 clipped to $[0.1, 10.0]$ to prevent ill-conditioning of the QP.
 
-**Why scale instead of replace?**  Scaling preserves the positive-definiteness
-guaranteed by the base matrices $Q \succ 0$, $R \succ 0$, so the DARE terminal
-cost $P$ remains valid regardless of the MAPPO output.
+**Why scale instead of replace?**  Scaling preserves positive-definiteness when
+all scale factors are strictly positive (guaranteed by the $[0.1, 10.0]$ clip).
+Note, however, that $P$ is the DARE solution for the *fixed* base matrices
+$(Q, R)$; when $Q_{\text{eff}} \ne Q$ or $R_{\text{eff}} \ne R$ the Bellman
+identity $A_{\text{cl}}^\top P A_{\text{cl}} - P = -(Q + K^\top R K)$ no longer
+holds with the modified stage-cost matrices.  $P$ therefore acts as a
+**heuristic** terminal penalty under MAPPO scaling rather than the exact
+infinite-horizon cost-to-go for the scaled problem; Lyapunov decrease and
+invariance properties derived for the fixed $(Q, R)$ LQR do not transfer
+directly when the cost varies online.
 
 ---
 
@@ -128,13 +135,28 @@ $$
 V_f(\boldsymbol{e}_N) = \boldsymbol{e}_N^\top P\, \boldsymbol{e}_N
 $$
 
-$P$ is the **LQR optimal cost-to-go** matrix solved from the DARE.  Using the
-LQR cost-to-go as the terminal cost provides:
+$P$ is the LQR optimal cost-to-go matrix for the **base** cost matrices
+$(Q, R)$, solved from the DARE.  Standard MPC stability theory (Rawlings &
+Mayne, 2019) shows that, when the DMPC is equipped with an **explicitly
+enforced terminal set** $\Omega_f = \{\boldsymbol{e} : \boldsymbol{e}^\top P \boldsymbol{e} \le c\}$
+(the LQR-invariant ellipsoid) and the **terminal control law**
+$\boldsymbol{u}_f = -K\boldsymbol{e}$, and the cost matrices are fixed and equal to those used
+to compute $P$, the terminal cost provides:
 
 1. **Recursive feasibility** — if the problem is feasible at step $t$, it is
-   feasible at step $t{+}1$.
+   feasible at step $t{+}1$ (requires the terminal set constraint to be active
+   and the LQR assumptions to hold uniformly).
 1. **Asymptotic stability** — the DMPC inherits the LQR's stability guarantee
-   within a neighbourhood of the terminal set.
+   within $\Omega_f$ (requires fixed $Q, R$ and the explicitly enforced terminal
+   set).
+
+> **Implementation caveat:** In the current DMPC the terminal set is *not*
+> added as an explicit QP constraint; $P$ is used as a soft terminal penalty.
+> Furthermore, the deployed controller uses MAPPO-scaled cost matrices
+> $Q_{\text{eff}}, R_{\text{eff}}$ that differ from the $(Q, R)$ pair used to
+> compute $P$.  Recursive feasibility and asymptotic stability are therefore
+> heuristic properties motivated by the LQR design, not strict mathematical
+> guarantees of the implemented controller.
 
 ### Total Cost
 
@@ -169,8 +191,13 @@ $$
 \|\boldsymbol{u}_k\|_2 \le u_{\max}, \quad k = 0, \ldots, N{-}1
 $$
 
-$u_{\max} = 10.0\;\text{m/s}^2$ (default).  CVXPY/OSQP represents this as a
-**second-order cone (SOC) constraint**.
+$u_{\max} = 10.0\;\text{m/s}^2$ (default).  OSQP is a QP solver that accepts
+only linear inequality constraints of the form $\boldsymbol{l} \le A\boldsymbol{y} \le \boldsymbol{u}$;
+it does not support second-order cone (SOC) or other conic constraints.  In the
+CVXPY/OSQP pipeline the Euclidean-norm bound is therefore enforced as per-axis
+box constraints $|u_{k,\ell}| \le u_{\max}$ for $\ell \in \{x,y,z\}$, which are
+linear and natively supported by OSQP.  This is a conservative inner
+approximation of the Euclidean ball $\|\boldsymbol{u}_k\|_2 \le u_{\max}$.
 
 ### 5.3. Collision Avoidance Constraints
 
@@ -342,6 +369,19 @@ for neighbor_pos in neighbor_positions:
         dist_k = cp.norm(pos_k - neighbor_pos)
         constraints.append(dist_k >= collision_radius * 0.9)
 ```
+
+> **Convexity note:** The feasible set defined by
+> $\|\boldsymbol{p}_k - \boldsymbol{p}_j\|_2 \ge r_{\min}$ is the complement of a ball, which
+> is **nonconvex**.  Because neighbour positions $\boldsymbol{p}_j$ are treated as fixed
+> parameters (not optimisation variables) at each solve step, the constraint
+> becomes $\|\boldsymbol{p}_k - \hat{\boldsymbol{p}}_j\|_2 \ge r_{\min}$ with $\hat{\boldsymbol{p}}_j$
+> constant, which is still nonconvex in $\boldsymbol{p}_k$.  The resulting optimisation
+> problem is therefore *not* a convex QP in the strict sense; CVXPY will attempt
+> to reformulate or reject such constraints when targeting OSQP.  In practice
+> the constraint is handled as a penalty or via a local linearisation; if CVXPY
+> cannot canonicalise it to the OSQP linear-constraint form the solver will
+> return an error.  The CBF alternative below provides an affine (linear)
+> reformulation that is compatible with OSQP.
 
 ### Control Barrier Function Alternative
 

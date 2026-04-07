@@ -99,9 +99,15 @@ $$
 
 The last inequality follows because $Q \succ 0$ and $K^\top R K \succeq 0$.
 
-**Conclusion:** The LQR-closed-loop translational dynamics are **globally
-asymptotically stable**.  The DMPC controller inherits this stability guarantee
-within the terminal set $\Omega_f$ via the terminal cost (see
+**Conclusion:** The LQR-closed-loop translational dynamics (under the constant
+feedback $\boldsymbol{u} = -K\boldsymbol{e}$ with fixed cost matrices $Q, R$) are **globally
+asymptotically stable**.  The DMPC *may* inherit this property through the
+terminal cost $P$, provided that (i) the terminal set $\Omega_f$ is explicitly
+enforced as a constraint in the QP, (ii) the stage-cost matrices are fixed and
+equal to the $(Q, R)$ used to compute $P$, and (iii) the standard MPC
+terminal-set assumptions (Rawlings & Mayne, 2019) are satisfied.  When
+MAPPO-scaled cost matrices are used or the terminal set is not explicitly
+enforced, these guarantees do not apply rigorously (see
 [Section 6](#6-recursive-feasibility)).
 
 ### Stability Margin
@@ -263,9 +269,20 @@ where $B_{\text{pos}} = B[0{:}3,\;:]$ extracts the position rows of $B$.
 
 ### Forward Invariance Theorem
 
-If $h_{ij}(\boldsymbol{x}_0) \ge 0$ and the CBF constraint is enforced at every step,
-then by induction $h_{ij}(\boldsymbol{x}_k) \ge 0$ for all $k \ge 0$ — the swarm
-remains in the safe set.
+If $h_{ij}(\boldsymbol{x}_0) \ge 0$ and the **affine CBF control constraint** (the
+linearised inequality derived above) is enforced at every step, then by
+induction $h_{ij}(\boldsymbol{x}_k) \ge 0$ for all $k \ge 0$ — the swarm remains in
+the safe set.
+
+> **Important:** This forward-invariance result applies only when the CBF
+> inequality is imposed as an affine constraint on the **control input** $\boldsymbol{u}$.
+> It does not follow from imposing a state constraint
+> $\|\boldsymbol{p}_k - \boldsymbol{p}_j\| \ge r_{\min}$ at sampled prediction times, which
+> constrains predicted positions but does not directly regulate the control
+> input and does not address what happens when the QP is infeasible.  The
+> linearised CBF formulation above is the primary mechanism that provides the
+> theoretical forward-invariance guarantee; the hard distance state constraint
+> in the main DMPC is a complementary heuristic safety mechanism.
 
 ### Parameter `cbf_alpha`
 
@@ -290,6 +307,18 @@ If the problem is **feasible at time $t = 0$**, it remains feasible for all $t >
 At time $t{+}1$, the shifted trajectory $\{\tilde{\boldsymbol{x}}_k\} = \{\boldsymbol{x}_{k+1}, \ldots, \boldsymbol{x}_N, A_{\text{cl}}\boldsymbol{x}_N\}$
 is a feasible candidate solution (it satisfies all constraints, and
 $A_{\text{cl}}\boldsymbol{x}_N \in \Omega_f$ by invariance of $\Omega_f$ under $A_{\text{cl}}$).
+
+> **Implementation caveat:** The theorem requires all three components—terminal
+> cost, terminal set constraint, and terminal control law—to be active in the
+> optimisation problem, and relies on the cost matrices being fixed and equal to
+> the $(Q, R)$ used to compute $P$.  In the current DMPC implementation the
+> terminal set $\Omega_f$ is **not** enforced as an explicit QP constraint; $P$
+> is used only as a soft terminal penalty.  Additionally, the deployed controller
+> uses MAPPO-scaled cost matrices $Q_{\text{eff}}, R_{\text{eff}}$ that vary
+> online, so the Bellman identity $A_{\text{cl}}^\top P A_{\text{cl}} \prec P$
+> does not hold for the modified stage cost.  Recursive feasibility and
+> asymptotic stability are therefore design objectives rather than strict
+> mathematical guarantees for the deployed controller.
 
 ### Invariance of Terminal Set
 
