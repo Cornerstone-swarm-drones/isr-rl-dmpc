@@ -24,13 +24,13 @@
 ## 1  Problem Statement
 
 Given:
-- A mission area defined by a polygon `B ⊂ ℝ²` (a set of boundary vertices)
-- A swarm of **n** drones with positions `p_1, …, p_n ∈ ℝ²`
-- A grid resolution `r` (metres per cell side)
-- A sensor coverage radius `ρ_s` (metres)
+- A mission area defined by a polygon $\mathcal{B} \subset \mathbb{R}^2$ (a set of boundary vertices)
+- A swarm of $n$ drones with positions $\mathbf{p}_1, \ldots, \mathbf{p}_n \in \mathbb{R}^2$
+- A grid resolution $r$ (metres per cell side)
+- A sensor coverage radius $\rho_s$ (metres)
 
 **Goal:** Generate a waypoint sequence for each drone such that:
-1. Every point in B is visited by at least one drone (≥ 95 % coverage).
+1. Every point in $\mathcal{B}$ is visited by at least one drone (≥ 95 % coverage).
 2. The total path length and mission duration are minimised.
 3. Higher-priority areas are covered first.
 
@@ -45,60 +45,64 @@ nearest-neighbour tour planning for real-time deployment.
 ### Uniform Grid
 
 The mission area is over-laid with an axis-aligned uniform grid of square
-cells of side `r`:
+cells of side $r$:
 
-```
-x_grid = [x_min, x_min + r, x_min + 2r, …, x_max]
-y_grid = [y_min, y_min + r, y_min + 2r, …, y_max]
-```
+$$
+x_{\text{grid}} = [x_{\min},\; x_{\min} + r,\; x_{\min} + 2r,\; \ldots,\; x_{\max}]
+$$
 
-A cell with vertices `{(x_i, y_j), (x_{i+1}, y_j), (x_{i+1}, y_{j+1}), (x_i, y_{j+1})}`
-is included in the mission if its **centroid** `c = ((x_i + x_{i+1})/2, (y_j + y_{j+1})/2)`
-lies inside the mission boundary polygon B.
+$$
+y_{\text{grid}} = [y_{\min},\; y_{\min} + r,\; y_{\min} + 2r,\; \ldots,\; y_{\max}]
+$$
+
+A cell with vertices $\{(x_i, y_j), (x_{i+1}, y_j), (x_{i+1}, y_{j+1}), (x_i, y_{j+1})\}$
+is included in the mission if its **centroid**
+$\mathbf{c} = \left(\frac{x_i + x_{i+1}}{2},\; \frac{y_j + y_{j+1}}{2}\right)$
+lies inside the mission boundary polygon $\mathcal{B}$.
 
 ### Point-in-Polygon Test
 
-Membership `c ∈ B` is decided by `GeometryOps.point_in_polygon(c, B)`, which
+Membership $\mathbf{c} \in \mathcal{B}$ is decided by `GeometryOps.point_in_polygon(c, B)`, which
 uses the **ray-casting algorithm**:
 
-```
-Cast a horizontal ray from c to (+∞, c_y)
-Count the number of boundary edges it crosses
-c ∈ B  ⟺  crossing count is odd
-```
+> Cast a horizontal ray from $\mathbf{c}$ to $(+\infty,\, c_y)$.
+> Count the number of boundary edges it crosses.
+> $\mathbf{c} \in \mathcal{B} \iff$ crossing count is odd.
 
-This runs in O(|B|) per point and is robust to non-convex polygons.
+This runs in $O(|\mathcal{B}|)$ per point and is robust to non-convex polygons.
 
 ### Cell Area
 
-For a square grid cell with resolution r:
+For a square grid cell with resolution $r$:
 
-```
-area = r²   (m²)
-```
+$$
+A_{\text{cell}} = r^2 \quad (\text{m}^2)
+$$
 
 ---
 
 ## 3  Cell Priority Scoring
 
-Each cell is assigned a priority `π_c ∈ [0.1, 1.0]` that determines the order
+Each cell is assigned a priority $\pi_c \in [0.1, 1.0]$ that determines the order
 in which cells are visited.  Higher priority → visited earlier in the mission.
 
 ### Gaussian Distance-from-Centre Priority
 
 The priority decreases exponentially with distance from the area centre:
 
-```
-area_center = mean(B)                  (centroid of boundary polygon)
-dist_center = ‖c − area_center‖       (cell-to-centre distance)
-area_scale  = ‖max(B) − min(B)‖       (diagonal of bounding box)
+$$
+\mathbf{c}_{\text{area}} = \mathrm{mean}(\mathcal{B}), \qquad
+d_c = \|\mathbf{c} - \mathbf{c}_{\text{area}}\|, \qquad
+s = \|\max(\mathcal{B}) - \min(\mathcal{B})\|
+$$
 
-π_c = exp(−dist_center / (area_scale / 10))
-π_c = clip(π_c, 0.1, 1.0)
-```
+$$
+\pi_c = \exp\!\left(-\frac{d_c}{s / 10}\right), \qquad
+\pi_c \leftarrow \mathrm{clip}(\pi_c,\; 0.1,\; 1.0)
+$$
 
 **Rationale:** ISR missions typically originate from a headquarters position
-near the area centre; central regions are higher-value targets.  The `/10`
+near the area centre; central regions are higher-value targets.  The $s/10$
 factor controls the priority falloff radius.
 
 ---
@@ -108,31 +112,32 @@ factor controls the priority falloff radius.
 Cells are assigned to drones using **greedy nearest-neighbour assignment**,
 applied in priority-sorted order:
 
-```
-1. Sort cells by priority (descending)
-2. For each cell c (in priority order):
-     j* = argmin_{j=1,…,n} ‖c.center − p_j[:2]‖
-     Assign c → drone j*
-```
+1. Sort cells by priority (descending).
+2. For each cell $c$ (in priority order):
+
+$$
+j^* = \arg\min_{j=1,\ldots,n} \|\mathbf{c}_{\text{center}} - \mathbf{p}_j[:2]\|, \qquad
+\text{Assign } c \to \text{drone } j^*
+$$
 
 This is a **greedy spatial partition**: each cell goes to the nearest drone,
 so drones naturally cover geographically close regions.  It does not guarantee
 equal workload distribution, but it produces short individual paths.
 
-**Complexity:** O(m log m) for sorting + O(m n) for assignment,
-where m = number of cells and n = number of drones.
+**Complexity:** $O(m \log m)$ for sorting $+ O(mn)$ for assignment,
+where $m$ = number of cells and $n$ = number of drones.
 
 ---
 
 ## 5  Waypoint Generation
 
-After assignment, each drone d receives a list of cells `{c₁, c₂, …, c_k}`.
+After assignment, each drone $d$ receives a list of cells $\{c_1, c_2, \ldots, c_k\}$.
 The waypoint generator orders these cells and returns a 3-D waypoint array
-`W ∈ ℝᵏˣ³`:
+$W \in \mathbb{R}^{k \times 3}$:
 
-```
-W[i] = [c_i.center[0],  c_i.center[1],  altitude]
-```
+$$
+W[i] = \bigl[c_i.\text{center}[0],\; c_i.\text{center}[1],\; \text{altitude}\bigr]
+$$
 
 Three path strategies are implemented:
 
@@ -140,29 +145,23 @@ Three path strategies are implemented:
 
 A **greedy tour** starting from the drone's current position:
 
-```
-remaining = {c₁, …, c_k}
-path = []
-current = drone_start_position
-
-While remaining ≠ ∅:
-    c* = argmin_{c ∈ remaining} ‖c.center − current‖
-    path.append(c*)
-    current = c*.center
-    remaining.remove(c*)
-```
+> $\text{remaining} = \{c_1, \ldots, c_k\}$, $\;\text{path} = []$, $\;\text{current} = \mathbf{p}_{\text{start}}$
+>
+> While $\text{remaining} \ne \emptyset$:
+> $$c^* = \arg\min_{c \in \text{remaining}} \|c.\text{center} - \text{current}\|$$
+> append $c^*$ to path, set $\text{current} = c^*.\text{center}$, remove $c^*$ from remaining.
 
 This is the classic **nearest-neighbour heuristic** for the Travelling Salesman
-Problem (TSP).  It is not optimal in general, but runs in O(k²) and typically
+Problem (TSP).  It is not optimal in general, but runs in $O(k^2)$ and typically
 gives tours within 20–25% of the optimum.
 
 ### 5.2  Sweep (Boustrophedon) Path
 
-Cells are sorted by y-coordinate first, then x within each y-band:
+Cells are sorted by $y$-coordinate first, then $x$ within each $y$-band:
 
-```
-path = sorted(cells, key = lambda c: (c.center[1], c.center[0]))
-```
+$$
+\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c:\;(c.\text{center}[1],\; c.\text{center}[0])\bigr)
+$$
 
 The resulting path resembles a **lawnmower** (boustrophedon) pattern: the drone
 sweeps left-to-right across one row, then right-to-left across the next.  This
@@ -173,10 +172,10 @@ minimises backtracking for rectangular mission areas.
 Cells are sorted by distance from the centroid of all assigned cells,
 from nearest to farthest:
 
-```
-centroid = mean({c.center for c in cells})
-path = sorted(cells, key = lambda c: ‖c.center − centroid‖)
-```
+$$
+\boldsymbol{\mu} = \mathrm{mean}\bigl(\{c.\text{center}\}\bigr), \qquad
+\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c:\;\|c.\text{center} - \boldsymbol{\mu}\|\bigr)
+$$
 
 This visits the highest-priority (central) cells first and spirals outward —
 useful when early coverage of the centre is critical.
@@ -185,25 +184,32 @@ useful when early coverage of the centre is critical.
 
 ## 6  Mission Time Estimation
 
-Given a waypoint sequence `W = [w₀, w₁, …, w_{k-1}]` with hover time `h`
-per waypoint and drone cruise speed `v`:
+Given a waypoint sequence $W = [\mathbf{w}_0, \mathbf{w}_1, \ldots, \mathbf{w}_{k-1}]$ with hover time $h$
+per waypoint and drone cruise speed $v$:
 
-```
-path_length = Σ_{i=0}^{k-2} ‖w_{i+1} − w_i‖    (total path length)
-travel_time = path_length / v                      (travel component)
-hover_time  = k × h                                (dwell at each waypoint)
+$$
+L = \sum_{i=0}^{k-2} \|\mathbf{w}_{i+1} - \mathbf{w}_i\|
+  \quad \text{(total path length)}
+$$
 
-total_time  = (travel_time + hover_time) × 1.2    (20% buffer)
-```
+$$
+T_{\text{travel}} = L / v, \qquad
+T_{\text{hover}} = k \cdot h
+$$
 
-The 20 % buffer accounts for turns, altitude changes, and acceleration phases
+$$
+T_{\text{total}} = (T_{\text{travel}} + T_{\text{hover}}) \times 1.2
+  \quad \text{(20\% buffer)}
+$$
+
+The 20% buffer accounts for turns, altitude changes, and acceleration phases
 not captured by the constant-speed model.
 
-**Edge case:** If `k = 1`, there is no travel (only hover):
+**Edge case:** If $k = 1$, there is no travel (only hover):
 
-```
-total_time = hover_time × 1.2
-```
+$$
+T_{\text{total}} = T_{\text{hover}} \times 1.2
+$$
 
 ---
 
@@ -211,18 +217,18 @@ total_time = hover_time × 1.2
 
 A **boolean coverage matrix** tracks which cells have been visited:
 
-```
-coverage_matrix ∈ {False, True}^m
-```
+$$
+M_{\text{cov}} \in \{\text{false},\, \text{true}\}^m
+$$
 
-A cell is marked as covered when the drone passes within `ρ_s` metres of its
+A cell is marked as covered when the drone passes within $\rho_s$ metres of its
 centroid (sensor footprint check).  The coverage ratio is:
 
-```
-coverage_ratio = sum(coverage_matrix) / m  ∈ [0, 1]
-```
+$$
+\eta = \frac{\sum_c M_{\text{cov}}[c]}{m} \in [0, 1]
+$$
 
-The mission continues until `coverage_ratio ≥ coverage_goal` (default 0.95)
+The mission continues until $\eta \ge \eta_{\text{goal}}$ (default 0.95)
 or the maximum mission duration is reached.
 
 ---
@@ -231,14 +237,14 @@ or the maximum mission duration is reached.
 
 | Operation | Complexity |
 |-----------|-----------|
-| Grid decomposition | O(m_total × |B|) where m_total = (x_range/r) × (y_range/r) |
-| Point-in-polygon per cell | O(|B|) |
-| Priority scoring | O(m) |
-| Cell-to-drone assignment | O(m log m + m n) |
-| Nearest-neighbour tour | O(k²) per drone |
-| Sweep / spiral tour | O(k log k) per drone |
+| Grid decomposition | $O(m_{\text{total}} \cdot |\mathcal{B}|)$ where $m_{\text{total}} = (x_{\text{range}}/r) \times (y_{\text{range}}/r)$ |
+| Point-in-polygon per cell | $O(|\mathcal{B}|)$ |
+| Priority scoring | $O(m)$ |
+| Cell-to-drone assignment | $O(m \log m + mn)$ |
+| Nearest-neighbour tour | $O(k^2)$ per drone |
+| Sweep / spiral tour | $O(k \log k)$ per drone |
 
-For a 500×500 m area with r = 20 m and n = 4 drones:
-- m ≈ 625 cells, k ≈ 156 cells per drone
+For a 500×500 m area with $r = 20\;\text{m}$ and $n = 4$ drones:
+- $m \approx 625$ cells, $k \approx 156$ cells per drone
 - Nearest-neighbour tour: ~24,000 distance computations per drone — negligible
   on modern hardware (< 1 ms).
