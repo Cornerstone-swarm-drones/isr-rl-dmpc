@@ -39,24 +39,24 @@ The architecture follows a layered design:
 ┌─────────────────────────────────────────────────────────────────────┐
 │                     MARLDMPCEnv (Gymnasium)                         │
 │  Per-Agent Observation (40-D per drone)                             │
-│  own_state(11) + ref(6) + tracking_err(3) + neighbour(7) + misc(13)│
+│  own_state(11) + ref(6) + tracking_err(3) + neighbour(7) + misc(13) │
 │                              │                                      │
 │                              ▼                                      │
 │  MAPPOAgent  (Stable-Baselines3 PPO)                                │
-│  Actor π_θ(o^i)  →  action (14-D: q_scale(11) + r_scale(3))        │
-│  Critic V_φ(o^1,...,o^N)  →  value  [centralised, CTDE]            │
-│                              │  q_scale, r_scale                   │
+│  Actor π_θ(o^i)  →  action (14-D: q_scale(11) + r_scale(3))         │
+│  Critic V_φ(o^1,...,o^N)  →  value  [centralised, CTDE]             │
+│                              │  q_scale, r_scale                    │
 │                              ▼                                      │
 │  ADMMConsensus                                                      │
-│  z-update → v-update → dual-update  (3–5 iters per step)           │
-│                              │  consensus variable v               │
+│  z-update → v-update → dual-update  (3–5 iters per step)            │
+│                              │  consensus variable v                │
 │                              ▼                                      │
 │  DMPCAgent (per drone)                                              │
-│  ┌──────────────────────────────┐  ┌────────────────────────────┐  │
-│  │  DMPC (CVXPY / OSQP)         │  │  AttitudeController (SO(3))│  │
-│  │  Q_eff = Q ⊙ diag(q_scale)  │  │  Geometric PD + gyro FF    │  │
-│  │  Terminal cost: DARE         │  └────────────────────────────┘  │
-│  └──────────────────────────────┘                                  │
+│  ┌──────────────────────────────┐  ┌────────────────────────────┐   │
+│  │  DMPC (CVXPY / OSQP)         │  │  AttitudeController (SO(3))│   │
+│  │  Q_eff = Q ⊙ diag(q_scale)  │  │  Geometric PD + gyro FF    │   │
+│  │  Terminal cost: DARE         │  └────────────────────────────┘   │
+│  └──────────────────────────────┘                                   │
 │                              │                                      │
 │  10 Integrated Modules                                              │
 │  M1 MissionPlanner  M2 FormationController  M3 SensorFusion         │
