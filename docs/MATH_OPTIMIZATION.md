@@ -9,21 +9,21 @@ MAPPO to dynamically tune DMPC cost parameters, with ADMM consensus across drone
 ## Table of Contents
 
 1. [Current Mathematical Formulation](#1-current-mathematical-formulation)
-2. [MAPPO Hyperparameter Tuning](#2-mappo-hyperparameter-tuning)
-3. [ADMM Penalty Parameter Tuning](#3-admm-penalty-parameter-tuning)
-4. [Base Cost Matrix Tuning](#4-base-cost-matrix-tuning)
-5. [Dynamics Model Improvements](#5-dynamics-model-improvements)
-6. [Collision Avoidance — from Soft to CBF](#6-collision-avoidance--from-soft-to-cbf)
-7. [Warm-Starting the OSQP Solver](#7-warm-starting-the-osqp-solver)
-8. [Attitude Loop Improvements](#8-attitude-loop-improvements)
-9. [Wind & Disturbance Rejection](#9-wind--disturbance-rejection)
-10. [State Estimation for Hardware](#10-state-estimation-for-hardware)
-11. [Computational Performance](#11-computational-performance)
-12. [Summary Checklist](#12-summary-checklist)
+1. [MAPPO Hyperparameter Tuning](#2-mappo-hyperparameter-tuning)
+1. [ADMM Penalty Parameter Tuning](#3-admm-penalty-parameter-tuning)
+1. [Base Cost Matrix Tuning](#4-base-cost-matrix-tuning)
+1. [Dynamics Model Improvements](#5-dynamics-model-improvements)
+1. [Collision Avoidance — from Soft to CBF](#6-collision-avoidance--from-soft-to-cbf)
+1. [Warm-Starting the OSQP Solver](#7-warm-starting-the-osqp-solver)
+1. [Attitude Loop Improvements](#8-attitude-loop-improvements)
+1. [Wind & Disturbance Rejection](#9-wind--disturbance-rejection)
+1. [State Estimation for Hardware](#10-state-estimation-for-hardware)
+1. [Computational Performance](#11-computational-performance)
+1. [Summary Checklist](#12-summary-checklist)
 
 ---
 
-## 1  Current Mathematical Formulation
+## 1. Current Mathematical Formulation
 
 The ISR-RL-DMPC system solves the following adaptive QP per drone at every
 control step (50 Hz):
@@ -66,9 +66,9 @@ $$
 
 ---
 
-## 2  MAPPO Hyperparameter Tuning
+## 2. MAPPO Hyperparameter Tuning
 
-### 2.1  Learning Rate and Clip Range
+### 2.1. Learning Rate and Clip Range
 
 The default learning rate `3e-4` and clip range `0.2` work well for most ISR
 scenarios.  For fine-grained hover control (tight formations):
@@ -79,7 +79,7 @@ learning_rate: 1.0e-4   # smaller lr → more stable but slower
 clip_range: 0.1         # tighter clip → conservative updates
 ```
 
-### 2.2  Entropy Coefficient
+### 2.2. Entropy Coefficient
 
 Higher entropy encourages more exploration of the cost-scale space:
 
@@ -87,7 +87,7 @@ Higher entropy encourages more exploration of the cost-scale space:
 ent_coef: 0.02    # default 0.01 — increase if policy collapses prematurely
 ```
 
-### 2.3  Action Bounds
+### 2.3. Action Bounds
 
 The action clip `[0.1, 10.0]` can be tightened to `[0.5, 5.0]` for hardware
 deployment to prevent extreme cost distortions:
@@ -98,7 +98,7 @@ ACTION_LOW  = 0.5
 ACTION_HIGH = 5.0
 ```
 
-### 2.4  Centralised Critic Input
+### 2.4. Centralised Critic Input
 
 If N > 6 drones, the joint observation fed to the centralised critic becomes
 large (N × 40).  Consider using a **mean-pooling** critic:
@@ -110,9 +110,9 @@ joint_obs = mean([obs_i for all i])   # (40,) input → lighter critic
 
 ---
 
-## 3  ADMM Penalty Parameter Tuning
+## 3. ADMM Penalty Parameter Tuning
 
-### 3.1  Fixed ρ
+### 3.1. Fixed ρ
 
 The ADMM penalty $\rho$ (default 1.0) controls the speed/accuracy trade-off:
 
@@ -122,7 +122,7 @@ The ADMM penalty $\rho$ (default 1.0) controls the speed/accuracy trade-off:
 | 1.0 | Balanced (default) |
 | > 10 | Fast primal convergence but dual residual spikes |
 
-### 3.2  Adaptive ρ (Recommended)
+### 3.2. Adaptive ρ (Recommended)
 
 The standard adaptive ADMM updates $\rho$ based on residual ratio:
 
@@ -139,12 +139,12 @@ accuracy loss.
 
 ---
 
-## 4  Base Cost Matrix Tuning
+## 4. Base Cost Matrix Tuning
 
 The MAPPO agent scales the *base* Q and R matrices.  Better-tuned base
 matrices give the MAPPO policy a better starting point:
 
-### 4.1  Per-State-Channel Q Weighting
+### 4.1. Per-State-Channel Q Weighting
 
 ```python
 # Recommended Q for ISR reconnaissance (state dim = 11)
@@ -159,7 +159,7 @@ Q = np.diag([
 ])
 ```
 
-### 4.2  R Matrix — Control Effort Penalty
+### 4.2. R Matrix — Control Effort Penalty
 
 Increasing `R` smooths actuator commands and reduces motor wear on hardware.
 A diagonal R with slightly higher z-axis penalty reduces abrupt altitude
@@ -169,7 +169,7 @@ changes:
 R = np.diag([0.12, 0.12, 0.20])
 ```
 
-### 4.3  Terminal Cost P — DARE vs. Riccati Iteration
+### 4.3. Terminal Cost P — DARE vs. Riccati Iteration
 
 The current code computes P via `scipy.linalg.solve_discrete_are` once at
 startup.  For hardware flights, re-run the DARE with the updated Q/R above
@@ -183,9 +183,9 @@ P = compute_lqr_terminal_cost(state_dim=11, control_dim=3, Q=Q, R=R, dt=0.02)
 
 ---
 
-## 5  Dynamics Model Improvements
+## 5. Dynamics Model Improvements
 
-### 3.1  Include Drag in the A Matrix
+### 5.1. Include Drag in the A Matrix
 
 The hector_quadrotor experiences translational drag ~0.22 × v.  Adding a
 first-order drag term to A improves trajectory predictions:
@@ -203,7 +203,7 @@ A[3:6, 3:6] -= dt * c_d * np.eye(3)  # drag: dv *= (1 - c_d·dt)
 
 This keeps the A matrix affine and the QP convex.
 
-### 3.2  Yaw-Coupled Dynamics
+### 5.2. Yaw-Coupled Dynamics
 
 At large yaw angles the body-frame acceleration commands produce
 world-frame forces that differ from the simplified model.  Add the
@@ -222,14 +222,14 @@ B_full[6:9, 0:3] = dt * R_yaw
 Update `DMPC._get_linearized_dynamics()` in `modules/dmpc_controller.py`
 to accept the current yaw angle and return the updated B.
 
-### 3.3  Higher-Order Integrator for Altitude
+### 5.3. Higher-Order Integrator for Altitude
 
 Replace the simple triple integrator for z with a second-order model
 that accounts for hover thrust compensation:
 
-```
-ż̈ = az_cmd + g − g = az_cmd   (current, correct for hover)
-```
+$$
+\ddot{z} = a_{z,\text{cmd}} + g - g = a_{z,\text{cmd}} \quad \text{(correct for hover)}
+$$
 
 For rapid altitude changes, add feed-forward gravity compensation in the
 reference generation (`_build_reference` in `swarm_dmpc_sim_node.py`):
@@ -241,23 +241,25 @@ ref[2]   = target_altitude             # desired altitude
 
 ---
 
-## 6  Collision Avoidance — from Soft to CBF
+## 6. Collision Avoidance — from Soft to CBF
 
-### 4.1  Current limitation
+### 6.1. Current Limitation
 
-The soft constraint `‖p_k − p_j‖ ≥ 0.9 × r_min` can be violated when
+The soft constraint $\|\mathbf{p}_k - \mathbf{p}_j\| \ge 0.9 \times r_{\min}$ can be violated when
 the OSQP solver reaches its time budget without a feasible point.
 
-### 4.2  Control Barrier Function (CBF) Constraint
+### 6.2. Control Barrier Function (CBF) Constraint
 
 Replace the hard collision constraint with a CBF inequality that is
 always feasible and forward-invariant:
 
-```
-h(x) = ‖p − p_j‖² − r_min²   ≥ 0
+$$
+h(\mathbf{x}) = \|\mathbf{p} - \mathbf{p}_j\|^2 - r_{\min}^2 \ge 0
+$$
 
-CBF constraint:  ∇h · ẋ + α·h ≥ 0
-```
+$$
+\text{CBF constraint:} \quad \nabla h \cdot \dot{\mathbf{x}} + \alpha h \ge 0
+$$
 
 In the linearised MPC context this becomes an affine constraint in `u`:
 
@@ -275,22 +277,22 @@ The `stability.cbf_alpha = 0.3` in `config/dmpc_config.yaml` is the
 class-K function parameter.  Values closer to 1.0 enforce the barrier
 more aggressively (better safety, less manoeuvrability).
 
-### 4.3  Inter-Agent Consensus (Buffered Voronoi Cells)
+### 6.3. Inter-Agent Consensus (Buffered Voronoi Cells)
 
 For large swarms (> 6 drones), replace pairwise constraints with
 **Buffered Voronoi Cell** (BVC) decomposition.  Each drone's feasible
 position set is its BVC, computed once per control step:
 
-```
-BVC_i = { p : ‖p − p_i‖ ≤ ‖p − p_j‖ − r_min, ∀ j ≠ i }
-```
+$$
+\mathcal{BVC}_i = \{ \mathbf{p} : \|\mathbf{p} - \mathbf{p}_i\| \le \|\mathbf{p} - \mathbf{p}_j\| - r_{\min},\; \forall\, j \ne i \}
+$$
 
 This reduces the number of constraints from O(N²) to O(N), maintaining
 scalability for larger swarms without sacrificing collision safety.
 
 ---
 
-## 7  Warm-Starting the OSQP Solver
+## 7. Warm-Starting the OSQP Solver
 
 CVXPY/OSQP supports warm-starting: if the previous solution is feasible
 (or near-feasible), the solver converges in far fewer iterations.
@@ -335,13 +337,13 @@ This avoids rebuilding the problem graph each step and enables warm-starting.
 > **ADMM Consensus** is already implemented in Module 7 (`ADMMConsensus`).
 > See [`math_docs/10_ADMM_CONSENSUS.md`](../math_docs/10_ADMM_CONSENSUS.md)
 > for full derivation, convergence proofs, and tuning guidance.  For adaptive
-> ρ tuning see [Section 3.2](#32--adaptive-ρ-recommended) above.
+> ρ tuning see [Section 3.2](#32-adaptive-ρ-recommended) above.
 
 ---
 
-## 8  Attitude Loop Improvements
+## 8. Attitude Loop Improvements
 
-### 8.1  Feed-Forward Angular Acceleration
+### 8.1. Feed-Forward Angular Acceleration
 
 The current `AttitudeController.control_loop` uses a pure PD position loop.
 Adding a feed-forward angular acceleration term from the DMPC output reduces
@@ -354,7 +356,7 @@ tau_ff   = params.inertia @ alpha_ff
 tau      = self.controller.control_law(R, omega, R_d) + tau_ff
 ```
 
-### 8.2  Rate-Limit Filter on Motor Commands
+### 8.2. Rate-Limit Filter on Motor Commands
 
 On hardware, large step changes in motor commands cause ESC current spikes.
 Apply a first-order filter before writing to MAVROS:
@@ -364,7 +366,7 @@ alpha = 0.15   # filter coefficient (higher = faster response)
 motor_thrusts_filtered = alpha * motor_thrusts + (1 - alpha) * prev_motor_thrusts
 ```
 
-### 8.3  Integral Term for Steady-State Error
+### 8.3. Integral Term for Steady-State Error
 
 Under constant wind, the PD position controller accumulates steady-state
 error.  Add a conditional integrator (active only when tracking error is
@@ -382,9 +384,9 @@ Recommended gains for hector_quadrotor: `Ki = 0.4`.
 
 ---
 
-## 9  Wind & Disturbance Rejection
+## 9. Wind & Disturbance Rejection
 
-### 8.1  Disturbance Observer (DOB)
+### 9.1. Disturbance Observer (DOB)
 
 A disturbance observer estimates external forces (wind, payload imbalance)
 and feeds them back into the reference acceleration:
@@ -399,7 +401,7 @@ and $\mathbf{a}_{\text{measured}} = (\mathbf{v}_k - \mathbf{v}_{k-1}) / \Delta t
 The observer gain $L \in (0, 1)$ trades off noise rejection vs. disturbance
 tracking speed.  $L = 0.05$ is conservative for a 1.5 kg quad.
 
-### 8.2  Dryden Model Integration in Reference Generation
+### 9.2. Dryden Model Integration in Reference Generation
 
 The `WindModel` already implements a Dryden turbulence model.  Connect its
 output to the MPC reference:
@@ -412,7 +414,7 @@ ref[6:9] = -wind * drag_coefficient   # pre-compensate wind drag in accel refere
 
 ---
 
-## 10  State Estimation for Hardware
+## 10. State Estimation for Hardware
 
 On real hardware the DMPC needs accurate position and velocity.  Recommended
 estimation stack:
@@ -447,14 +449,14 @@ For collision avoidance DMPC, each drone must know the positions of its
 neighbours.  Options ranked by latency:
 
 1. **Onboard UWB ranging** (DecaWave DWM1001, ~10 cm accuracy, ~10 ms latency)
-2. **MAVLink HEARTBEAT + GLOBAL_POSITION_INT** messages over mesh radio
-3. **ROS2 DDS multicast** (requires low-latency Wi-Fi or private 5G)
+1. **MAVLink HEARTBEAT + GLOBAL_POSITION_INT** messages over mesh radio
+1. **ROS2 DDS multicast** (requires low-latency Wi-Fi or private 5G)
 
 ---
 
-## 11  Computational Performance
+## 11. Computational Performance
 
-### 10.1  Reduce Problem Size
+### 11.1. Reduce Problem Size
 
 At 50 Hz with a 20-step horizon, the QP has:
 - Decision variables: `11 × 21 + 3 × 20 = 291`
@@ -468,7 +470,7 @@ at 10 m/s ≈ 20 s) is much longer than the 0.3 s horizon.
 x_k = A^k x_0 + … ) reduces variable count from 291 to 60 but makes the
 Hessian dense.  Use only if OSQP solve time > 12 ms.
 
-### 10.2  Parallelise with multiprocessing
+### 11.2. Parallelise with multiprocessing
 
 On a companion computer with 4 cores, run one DMPC process per drone:
 
@@ -484,7 +486,7 @@ with Pool(processes=n_drones) as pool:
                                        for i in range(n_drones)])
 ```
 
-### 10.3  Replace CVXPY with a Compiled QP Solver
+### 11.3. Replace CVXPY with a Compiled QP Solver
 
 CVXPY adds overhead from Python-to-C translation.  For sub-2 ms solves,
 call OSQP directly:
@@ -503,7 +505,7 @@ result = prob.solve()
 This typically gives a 4–6× speedup over CVXPY at the cost of more
 boilerplate to assemble the sparse matrices.
 
-### 10.4  Solver Timing Budget Summary
+### 11.4. Solver Timing Budget Summary
 
 | Platform | CVXPY+OSQP (current) | OSQP direct | Target for 50 Hz |
 | :--- | :--- | :--- | :--- |
@@ -515,7 +517,7 @@ For Raspberry Pi 4 with CVXPY, reduce the horizon to 12 or call OSQP directly.
 
 ---
 
-## 12  Summary Checklist
+## 12. Summary Checklist
 
 Copy this checklist to your experiment log and check off items as you validate
 them in simulation before deploying to hardware.

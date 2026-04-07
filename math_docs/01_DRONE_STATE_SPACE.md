@@ -9,18 +9,18 @@
 ## Table of Contents
 
 1. [Overview](#1-overview)
-2. [DMPC State Vector (11-D)](#2-dmpc-state-vector-11-d)
-3. [Estimation State Vector (18-D)](#3-estimation-state-vector-18-d)
-4. [Target State Vector (11-D)](#4-target-state-vector-11-d)
-5. [Quadrotor Translational Dynamics](#5-quadrotor-translational-dynamics)
-6. [Discrete-Time Linearised Dynamics](#6-discrete-time-linearised-dynamics)
-7. [A and B Matrices](#7-a-and-b-matrices)
-8. [Yaw Sub-System](#8-yaw-sub-system)
-9. [Controllability](#9-controllability)
+1. [DMPC State Vector (11-D)](#2-dmpc-state-vector-11-d)
+1. [Estimation State Vector (18-D)](#3-estimation-state-vector-18-d)
+1. [Target State Vector (11-D)](#4-target-state-vector-11-d)
+1. [Quadrotor Translational Dynamics](#5-quadrotor-translational-dynamics)
+1. [Discrete-Time Linearised Dynamics](#6-discrete-time-linearised-dynamics)
+1. [A and B Matrices](#7-a-and-b-matrices)
+1. [Yaw Sub-System](#8-yaw-sub-system)
+1. [Controllability](#9-controllability)
 
 ---
 
-## 1  Overview
+## 1. Overview
 
 The system uses **two different state representations** for two different purposes:
 
@@ -34,7 +34,7 @@ The 18-D state is the full physical state tracked by the Extended Kalman Filters
 
 ---
 
-## 2  DMPC State Vector (11-D)
+## 2. DMPC State Vector (11-D)
 
 $$
 \mathbf{x} = \bigl[p_x,\; p_y,\; p_z,\; v_x,\; v_y,\; v_z,\;
@@ -63,7 +63,7 @@ over the prediction horizon, giving smoother trajectories.
 
 ---
 
-## 3  Estimation State Vector (18-D)
+## 3. Estimation State Vector (18-D)
 
 $$
 \mathbf{x}_{\text{est}} = \bigl[
@@ -83,7 +83,7 @@ $\omega_z$ for index 10).
 
 ---
 
-## 4  Target State Vector (11-D)
+## 4. Target State Vector (11-D)
 
 $$
 \mathbf{x}_{\text{tgt}} = \bigl[p_x,\; p_y,\; p_z,\;
@@ -97,7 +97,7 @@ target tracking (see `core/target_state_estimation.py`).
 
 ---
 
-## 5  Quadrotor Translational Dynamics
+## 5. Quadrotor Translational Dynamics
 
 A quadrotor's translational dynamics in the world frame, neglecting drag and
 disturbances, are:
@@ -126,7 +126,7 @@ translational acceleration; the DMPC only generates $\mathbf{u} = [a_x, a_y, a_z
 
 ---
 
-## 6  Discrete-Time Linearised Dynamics
+## 6. Discrete-Time Linearised Dynamics
 
 The continuous-time triple-integrator model
 
@@ -155,7 +155,7 @@ using the 9-D translational sub-state $[\mathbf{p}, \mathbf{v}, \mathbf{a}]$.
 
 ---
 
-## 7  A and B Matrices
+## 7. A and B Matrices
 
 For the **full 11-D DMPC state** (translational + yaw):
 
@@ -201,7 +201,7 @@ B[6:9, 0:3] = dt * np.eye(3)   # da/du
 
 ---
 
-## 8  Yaw Sub-System
+## 8. Yaw Sub-System
 
 The yaw angle $\psi$ and yaw rate $\dot\psi$ evolve as a **decoupled 2-D linear system**:
 
@@ -217,7 +217,7 @@ regulated by the geometric attitude controller through a separate torque command
 
 ---
 
-## 9  Controllability
+## 9. Controllability
 
 **Theorem:** The pair $(A_9, B_9)$ — the 9-D translational sub-system — is
 **completely controllable**.

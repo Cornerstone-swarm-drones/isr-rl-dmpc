@@ -10,25 +10,25 @@
 ## Table of Contents
 
 1. [Overview](#1-overview)
-2. [EKF Fundamentals](#2-ekf-fundamentals)
-3. [Drone State Estimation (18-D)](#3-drone-state-estimation-18-d)
+1. [EKF Fundamentals](#2-ekf-fundamentals)
+1. [Drone State Estimation (18-D)](#3-drone-state-estimation-18-d)
    - 3.1 [Position/Velocity EKF (6-D)](#31-positionvelocity-ekf-6-d)
    - 3.2 [Attitude EKF — Quaternion (4-D)](#32-attitude-ekf--quaternion-4-d)
    - 3.3 [Angular Velocity Filter (3-D)](#33-angular-velocity-filter-3-d)
    - 3.4 [Battery and Health (2-D direct)](#34-battery-and-health-2-d-direct)
-4. [Target Tracking EKF (11-D)](#4-target-tracking-ekf-11-d)
-5. [Multi-Sensor Measurement Models](#5-multi-sensor-measurement-models)
+1. [Target Tracking EKF (11-D)](#4-target-tracking-ekf-11-d)
+1. [Multi-Sensor Measurement Models](#5-multi-sensor-measurement-models)
    - 5.1 [GPS / RTK](#51-gps--rtk)
    - 5.2 [Radar (4-D)](#52-radar-4-d)
    - 5.3 [Optical Bearing (2-D / 3-D)](#53-optical-bearing-2-d--3-d)
    - 5.4 [RF Fingerprinting (3-D)](#54-rf-fingerprinting-3-d)
    - 5.5 [Acoustic TDOA (3-D)](#55-acoustic-tdoa-3-d)
-6. [Adaptive Sensor Fusion](#6-adaptive-sensor-fusion)
-7. [Covariance Propagation](#7-covariance-propagation)
+1. [Adaptive Sensor Fusion](#6-adaptive-sensor-fusion)
+1. [Covariance Propagation](#7-covariance-propagation)
 
 ---
 
-## 1  Overview
+## 1. Overview
 
 State estimation fuses noisy, asynchronous sensor measurements into smooth,
 low-latency state estimates.  The system uses three parallel EKFs for the
@@ -51,7 +51,7 @@ Acoustic TDOA ──┘
 
 ---
 
-## 2  EKF Fundamentals
+## 2. EKF Fundamentals
 
 The (Extended) Kalman Filter alternates between two steps:
 
@@ -108,12 +108,12 @@ against the new measurement based on their respective uncertainties ($P^-$ and $
 
 ---
 
-## 3  Drone State Estimation (18-D)
+## 3. Drone State Estimation (18-D)
 
 The full 18-D drone state $[\mathbf{p}(3), \mathbf{v}(3), \mathbf{a}(3), \mathbf{q}(4), \boldsymbol{\omega}(3), E(1), h(1)]$
 is estimated by three specialised sub-filters fused inside `DroneStateEstimator`.
 
-### 3.1  Position/Velocity EKF (6-D)
+### 3.1. Position/Velocity EKF (6-D)
 
 **State:** $\mathbf{x}_{pv} = [p_x, p_y, p_z, v_x, v_y, v_z]^\top \in \mathbb{R}^6$
 
@@ -153,7 +153,7 @@ $$
 
 Default noise: $\sigma_p = 5.0\;\text{m}$, $\sigma_v = 1.0\;\text{m/s}$.
 
-### 3.2  Attitude EKF — Quaternion (4-D)
+### 3.2. Attitude EKF — Quaternion (4-D)
 
 **State:** $\mathbf{q} = [q_w, q_x, q_y, q_z]^\top$ (unit quaternion, scalar-first)
 
@@ -211,7 +211,7 @@ $$
 
 where $k_m = 0.01$ is the magnetometer correction gain.
 
-### 3.3  Angular Velocity Filter (3-D)
+### 3.3. Angular Velocity Filter (3-D)
 
 A simple bias-subtraction model with low-pass bias estimation:
 
@@ -224,7 +224,7 @@ $$
   \quad (\text{stationary calibration, } \alpha = 0.1)
 $$
 
-### 3.4  Battery and Health (2-D direct)
+### 3.4. Battery and Health (2-D direct)
 
 **Battery** is modelled as a first-order discharge:
 
@@ -242,7 +242,7 @@ $$
 
 ---
 
-## 4  Target Tracking EKF (11-D)
+## 4. Target Tracking EKF (11-D)
 
 **State:** $\mathbf{x}_{\text{tgt}} = [\mathbf{p}(3), \mathbf{v}(3), \mathbf{a}(3), \psi, \dot\psi]^\top \in \mathbb{R}^{11}$
 
@@ -260,15 +260,15 @@ current state estimate $\hat{\mathbf{x}}$.  See [Section 5](#5-multi-sensor-meas
 
 ---
 
-## 5  Multi-Sensor Measurement Models
+## 5. Multi-Sensor Measurement Models
 
-### 5.1  GPS / RTK
+### 5.1. GPS / RTK
 
 $$
 h_{\text{GPS}}(\mathbf{x}) = [p_x, p_y, p_z, v_x, v_y, v_z]^\top, \qquad H_{\text{GPS}} = I_6
 $$
 
-### 5.2  Radar (4-D)
+### 5.2. Radar (4-D)
 
 Radar measures range, range-rate, azimuth, and elevation from sensor position $\mathbf{s}$:
 
@@ -292,7 +292,7 @@ R_{\text{radar}} = \mathrm{diag}(\sigma_r^2, \sigma_{\dot{r}}^2, \sigma_{\alpha}
 = \mathrm{diag}(25, 1, 10^{-4}, 10^{-4})
 $$
 
-### 5.3  Optical Bearing (2-D / 3-D)
+### 5.3. Optical Bearing (2-D / 3-D)
 
 $$
 h_{\text{opt}}(\mathbf{x}) = [\alpha_z,\; \text{el}]^\top \quad \text{(2-D, no range)}
@@ -303,7 +303,7 @@ R_{\text{opt}} = \mathrm{diag}(\sigma_\alpha^2, \sigma_{\text{el}}^2)
 = \mathrm{diag}(4 \times 10^{-4}, 4 \times 10^{-4})
 $$
 
-### 5.4  RF Fingerprinting (3-D)
+### 5.4. RF Fingerprinting (3-D)
 
 $$
 h_{\text{RF}}(\mathbf{x}) = [p_x, p_y, p_z]^\top, \qquad
@@ -315,14 +315,14 @@ R_{\text{RF}} = \frac{1}{c}\,\mathrm{diag}(\sigma_{\text{RF}}^2, \sigma_{\text{R
 \quad \sigma_{\text{RF}} = 10\;\text{m}
 $$
 
-### 5.5  Acoustic TDOA (3-D)
+### 5.5. Acoustic TDOA (3-D)
 
 Hyperbolic trilateration from time-difference-of-arrival converts to a
 direct position estimate with confidence-scaled noise (same structure as RF).
 
 ---
 
-## 6  Adaptive Sensor Fusion
+## 6. Adaptive Sensor Fusion
 
 When multiple sensor types are available simultaneously, an **adaptive
 weighting** scheme scales each sensor's noise covariance by its current
@@ -336,7 +336,7 @@ This automatically de-weights degraded sensors.
 
 ---
 
-## 7  Covariance Propagation
+## 7. Covariance Propagation
 
 ### Symmetrisation
 

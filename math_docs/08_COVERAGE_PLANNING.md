@@ -8,20 +8,20 @@
 ## Table of Contents
 
 1. [Problem Statement](#1-problem-statement)
-2. [Grid Decomposition](#2-grid-decomposition)
-3. [Cell Priority Scoring](#3-cell-priority-scoring)
-4. [Cell-to-Drone Assignment](#4-cell-to-drone-assignment)
-5. [Waypoint Generation](#5-waypoint-generation)
+1. [Grid Decomposition](#2-grid-decomposition)
+1. [Cell Priority Scoring](#3-cell-priority-scoring)
+1. [Cell-to-Drone Assignment](#4-cell-to-drone-assignment)
+1. [Waypoint Generation](#5-waypoint-generation)
    - 5.1 [Nearest-Neighbour Path](#51-nearest-neighbour-path)
    - 5.2 [Sweep (Boustrophedon) Path](#52-sweep-boustrophedon-path)
    - 5.3 [Spiral Path](#53-spiral-path)
-6. [Mission Time Estimation](#6-mission-time-estimation)
-7. [Coverage Tracking](#7-coverage-tracking)
-8. [Complexity Analysis](#8-complexity-analysis)
+1. [Mission Time Estimation](#6-mission-time-estimation)
+1. [Coverage Tracking](#7-coverage-tracking)
+1. [Complexity Analysis](#8-complexity-analysis)
 
 ---
 
-## 1  Problem Statement
+## 1. Problem Statement
 
 Given:
 - A mission area defined by a polygon $\mathcal{B} \subset \mathbb{R}^2$ (a set of boundary vertices)
@@ -31,8 +31,8 @@ Given:
 
 **Goal:** Generate a waypoint sequence for each drone such that:
 1. Every point in $\mathcal{B}$ is visited by at least one drone (≥ 95 % coverage).
-2. The total path length and mission duration are minimised.
-3. Higher-priority areas are covered first.
+1. The total path length and mission duration are minimised.
+1. Higher-priority areas are covered first.
 
 This is a **Coverage Path Planning (CPP)** problem, which is NP-hard in
 general.  The system uses a greedy grid-based decomposition combined with
@@ -40,7 +40,7 @@ nearest-neighbour tour planning for real-time deployment.
 
 ---
 
-## 2  Grid Decomposition
+## 2. Grid Decomposition
 
 ### Uniform Grid
 
@@ -81,7 +81,7 @@ $$
 
 ---
 
-## 3  Cell Priority Scoring
+## 3. Cell Priority Scoring
 
 Each cell is assigned a priority $\pi_c \in [0.1, 1.0]$ that determines the order
 in which cells are visited.  Higher priority → visited earlier in the mission.
@@ -107,13 +107,13 @@ factor controls the priority falloff radius.
 
 ---
 
-## 4  Cell-to-Drone Assignment
+## 4. Cell-to-Drone Assignment
 
 Cells are assigned to drones using **greedy nearest-neighbour assignment**,
 applied in priority-sorted order:
 
 1. Sort cells by priority (descending).
-2. For each cell $c$ (in priority order):
+1. For each cell $c$ (in priority order):
 
 $$
 j^* = \arg\min_{j=1,\ldots,n} \|\mathbf{c}_{\text{center}} - \mathbf{p}_j[:2]\|, \qquad
@@ -129,7 +129,7 @@ where $m$ = number of cells and $n$ = number of drones.
 
 ---
 
-## 5  Waypoint Generation
+## 5. Waypoint Generation
 
 After assignment, each drone $d$ receives a list of cells $\{c_1, c_2, \ldots, c_k\}$.
 The waypoint generator orders these cells and returns a 3-D waypoint array
@@ -141,7 +141,7 @@ $$
 
 Three path strategies are implemented:
 
-### 5.1  Nearest-Neighbour Path
+### 5.1. Nearest-Neighbour Path
 
 A **greedy tour** starting from the drone's current position:
 
@@ -155,7 +155,7 @@ This is the classic **nearest-neighbour heuristic** for the Travelling Salesman
 Problem (TSP).  It is not optimal in general, but runs in $O(k^2)$ and typically
 gives tours within 20–25% of the optimum.
 
-### 5.2  Sweep (Boustrophedon) Path
+### 5.2. Sweep (Boustrophedon) Path
 
 Cells are sorted by $y$-coordinate first, then $x$ within each $y$-band:
 
@@ -167,7 +167,7 @@ The resulting path resembles a **lawnmower** (boustrophedon) pattern: the drone
 sweeps left-to-right across one row, then right-to-left across the next.  This
 minimises backtracking for rectangular mission areas.
 
-### 5.3  Spiral Path
+### 5.3. Spiral Path
 
 Cells are sorted by distance from the centroid of all assigned cells,
 from nearest to farthest:
@@ -182,7 +182,7 @@ useful when early coverage of the centre is critical.
 
 ---
 
-## 6  Mission Time Estimation
+## 6. Mission Time Estimation
 
 Given a waypoint sequence $W = [\mathbf{w}_0, \mathbf{w}_1, \ldots, \mathbf{w}_{k-1}]$ with hover time $h$
 per waypoint and drone cruise speed $v$:
@@ -213,7 +213,7 @@ $$
 
 ---
 
-## 7  Coverage Tracking
+## 7. Coverage Tracking
 
 A **boolean coverage matrix** tracks which cells have been visited:
 
@@ -233,7 +233,7 @@ or the maximum mission duration is reached.
 
 ---
 
-## 8  Complexity Analysis
+## 8. Complexity Analysis
 
 | Operation | Complexity |
 | :--- | :--- |

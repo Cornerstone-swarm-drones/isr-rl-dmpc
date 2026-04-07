@@ -10,22 +10,22 @@
 ## Table of Contents
 
 1. [Problem Statement](#1-problem-statement)
-2. [MARL-Adaptive Cost Parameters](#2-marl-adaptive-cost-parameters)
-3. [Decision Variables](#3-decision-variables)
-4. [Cost Function](#4-cost-function)
-5. [Constraints](#5-constraints)
-6. [Discrete Algebraic Riccati Equation (DARE)](#6-discrete-algebraic-riccati-equation-dare)
-7. [LQR Terminal Cost](#7-lqr-terminal-cost)
-8. [QP Standard Form](#8-qp-standard-form)
-9. [ADMM Augmented Lagrangian](#9-admm-augmented-lagrangian)
-10. [OSQP Solver Settings](#10-osqp-solver-settings)
-11. [Collision Avoidance Constraints](#11-collision-avoidance-constraints)
-12. [Default Parameter Values](#12-default-parameter-values)
-13. [References](#13-references)
+1. [MARL-Adaptive Cost Parameters](#2-marl-adaptive-cost-parameters)
+1. [Decision Variables](#3-decision-variables)
+1. [Cost Function](#4-cost-function)
+1. [Constraints](#5-constraints)
+1. [Discrete Algebraic Riccati Equation (DARE)](#6-discrete-algebraic-riccati-equation-dare)
+1. [LQR Terminal Cost](#7-lqr-terminal-cost)
+1. [QP Standard Form](#8-qp-standard-form)
+1. [ADMM Augmented Lagrangian](#9-admm-augmented-lagrangian)
+1. [OSQP Solver Settings](#10-osqp-solver-settings)
+1. [Collision Avoidance Constraints](#11-collision-avoidance-constraints)
+1. [Default Parameter Values](#12-default-parameter-values)
+1. [References](#13-references)
 
 ---
 
-## 1  Problem Statement
+## 1. Problem Statement
 
 At each control time step $t$, drone $i$ solves a finite-horizon **Quadratic
 Program (QP)** whose cost matrices are *dynamically scaled* by the MAPPO policy:
@@ -71,7 +71,7 @@ controller can balance tracking accuracy, energy, and formation keeping dynamica
 
 ---
 
-## 2  MARL-Adaptive Cost Parameters
+## 2. MARL-Adaptive Cost Parameters
 
 The MAPPO agent (see [09_MAPPO_AGENT.md](09_MAPPO_AGENT.md)) outputs a 14-dimensional
 action vector per drone:
@@ -97,7 +97,7 @@ cost $P$ remains valid regardless of the MAPPO output.
 
 ---
 
-## 3  Decision Variables
+## 3. Decision Variables
 
 | Variable | Shape | Description |
 | :--- | :--- | :--- |
@@ -109,7 +109,7 @@ The remaining $N{-}1$ controls are discarded (receding-horizon principle).
 
 ---
 
-## 4  Cost Function
+## 4. Cost Function
 
 ### Stage Cost
 
@@ -133,7 +133,7 @@ LQR cost-to-go as the terminal cost provides:
 
 1. **Recursive feasibility** — if the problem is feasible at step $t$, it is
    feasible at step $t{+}1$.
-2. **Asymptotic stability** — the DMPC inherits the LQR's stability guarantee
+1. **Asymptotic stability** — the DMPC inherits the LQR's stability guarantee
    within a neighbourhood of the terminal set.
 
 ### Total Cost
@@ -147,9 +147,9 @@ convex QP solver.
 
 ---
 
-## 5  Constraints
+## 5. Constraints
 
-### 5.1  Dynamics Constraints
+### 5.1. Dynamics Constraints
 
 $$
 \mathbf{x}_{k+1} = A\,\mathbf{x}_k + B\,\mathbf{u}_k, \quad k = 0, 1, \ldots, N{-}1
@@ -163,7 +163,7 @@ These are **equality constraints** in the QP.  $A$ and $B$ are constant
 (time-invariant linearisation); see [01_DRONE_STATE_SPACE.md](01_DRONE_STATE_SPACE.md)
 for their structure.
 
-### 5.2  Control Saturation
+### 5.2. Control Saturation
 
 $$
 \|\mathbf{u}_k\|_2 \le u_{\max}, \quad k = 0, \ldots, N{-}1
@@ -172,7 +172,7 @@ $$
 $u_{\max} = 10.0\;\text{m/s}^2$ (default).  CVXPY/OSQP represents this as a
 **second-order cone (SOC) constraint**.
 
-### 5.3  Collision Avoidance Constraints
+### 5.3. Collision Avoidance Constraints
 
 For each neighbour $j$ at (fixed) position $\mathbf{p}_j$ and each prediction step $k$:
 
@@ -184,7 +184,7 @@ where $r_{\min} = 0.9 \times r_{\text{collision}}$ (10% safety margin).
 
 ---
 
-## 6  Discrete Algebraic Riccati Equation (DARE)
+## 6. Discrete Algebraic Riccati Equation (DARE)
 
 The DARE is the fixed-point equation for the infinite-horizon discrete-time LQR cost:
 
@@ -215,7 +215,7 @@ rows/cols retain a $Q$-proportional diagonal).
 
 ---
 
-## 7  LQR Terminal Cost
+## 7. LQR Terminal Cost
 
 Given the DARE solution $P$, the **optimal LQR gain** is:
 
@@ -244,7 +244,7 @@ full proof).
 
 ---
 
-## 8  QP Standard Form
+## 8. QP Standard Form
 
 CVXPY canonicalises the DMPC problem into the standard OSQP form:
 
@@ -265,7 +265,7 @@ is the stacked decision variable vector.
 
 ---
 
-## 9  ADMM Augmented Lagrangian
+## 9. ADMM Augmented Lagrangian
 
 The ADMM consensus layer (see [10_ADMM_CONSENSUS.md](10_ADMM_CONSENSUS.md)) couples
 the local DMPC sub-problems across drones.  The **augmented Lagrangian** for the
@@ -304,7 +304,7 @@ $$
 
 ---
 
-## 10  OSQP Solver Settings
+## 10. OSQP Solver Settings
 
 ```python
 problem.solve(
@@ -328,7 +328,7 @@ exceeded), the controller outputs a zero control command and logs a warning.
 
 ---
 
-## 11  Collision Avoidance Constraints
+## 11. Collision Avoidance Constraints
 
 ### Current Implementation
 
@@ -362,7 +362,7 @@ achieve a strictly feasible point within the time budget.  See
 
 ---
 
-## 12  Default Parameter Values
+## 12. Default Parameter Values
 
 | Parameter | Symbol | Value | Source |
 | :--- | :--- | :--- | :--- |
@@ -381,14 +381,14 @@ achieve a strictly feasible point within the time budget.  See
 
 ---
 
-## 13  References
+## 13. References
 
 1. J. B. Rawlings, D. Q. Mayne, and M. Diehl, *Model Predictive Control:
    Theory, Computation, and Design*, 2nd ed., Nob Hill Publishing, 2019.
-2. B. Stellato et al., "OSQP: An Operator Splitting Solver for Quadratic
+1. B. Stellato et al., "OSQP: An Operator Splitting Solver for Quadratic
    Programs," *Math. Prog. Comp.*, 12:637–672, 2020.
-3. S. Boyd, N. Parikh, E. Chu, B. Peleato, and J. Eckstein, "Distributed
+1. S. Boyd, N. Parikh, E. Chu, B. Peleato, and J. Eckstein, "Distributed
    Optimization and Statistical Learning via the Alternating Direction Method
    of Multipliers," *Found. Trends Mach. Learn.*, 3(1):1–122, 2011.
-4. J. Yu, M. Dong, and X. Li, "Multi-Agent PPO for Cooperative UAV Control,"
+1. J. Yu, M. Dong, and X. Li, "Multi-Agent PPO for Cooperative UAV Control,"
    *IEEE Trans. Aerosp. Electron. Syst.*, 2023.

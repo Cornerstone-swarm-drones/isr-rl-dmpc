@@ -23,8 +23,8 @@ Each ISR mission progresses through three phases, each handled by a specific sub
 **Process:**
 
 1. **Area Decomposition** — The mission area (defined in `config/mission_scenarios.yaml`) is divided into a grid of cells based on `grid_cell_size` (default: 10 m).
-2. **Waypoint Generation** — Coverage waypoints are generated to ensure each grid cell is visited at least once. The planner accounts for sensor `coverage_radius` and drone count.
-3. **Path Allocation** — Waypoints are distributed among drones to minimize total travel distance while meeting the `coverage_goal` (default: 0.95).
+1. **Waypoint Generation** — Coverage waypoints are generated to ensure each grid cell is visited at least once. The planner accounts for sensor `coverage_radius` and drone count.
+1. **Path Allocation** — Waypoints are distributed among drones to minimize total travel distance while meeting the `coverage_goal` (default: 0.95).
 
 **Key Parameters:**
 
@@ -52,10 +52,10 @@ Each ISR mission progresses through three phases, each handled by a specific sub
 **Process:**
 
 1. **Formation Control** — Drones maintain a specified formation (grid, wedge, or line) using a distributed consensus protocol. Each drone adjusts its position based on neighbor states within the `communication_radius`.
-2. **Sensor Fusion** — Raw readings from radar, optical, RF, and acoustic sensors are fused into unified detections with uncertainty estimates.
-3. **Classification** — Detected targets are classified as friendly, hostile, or neutral using Bayesian inference.
-4. **Threat Assessment** — Threat scores are computed based on classification confidence, target dynamics, and proximity.
-5. **Task Allocation** — The Hungarian algorithm assigns drones to tasks (coverage waypoints, target tracking, threat engagement) to minimize total assignment cost.
+1. **Sensor Fusion** — Raw readings from radar, optical, RF, and acoustic sensors are fused into unified detections with uncertainty estimates.
+1. **Classification** — Detected targets are classified as friendly, hostile, or neutral using Bayesian inference.
+1. **Threat Assessment** — Threat scores are computed based on classification confidence, target dynamics, and proximity.
+1. **Task Allocation** — The Hungarian algorithm assigns drones to tasks (coverage waypoints, target tracking, threat engagement) to minimize total assignment cost.
 
 **Key Parameters:**
 
@@ -81,8 +81,8 @@ Each ISR mission progresses through three phases, each handled by a specific sub
 **Process:**
 
 1. **DMPC Optimisation** — The DMPC controller solves a convex QP (via CVXPY/OSQP) over the prediction horizon to compute optimal acceleration commands. Cost weights Q, R, P are fixed (no online adaptation); P is pre-computed from the Discrete Algebraic Riccati Equation (DARE).
-2. **Attitude Control** — Desired accelerations are converted to attitude references, and the geometric SO(3) attitude controller computes motor torques to track them.
-3. **Analytics** — Per-step statistics (tracking error, solve time, objective value) are accumulated by `DMPCAnalytics` for post-mission diagnostics.
+1. **Attitude Control** — Desired accelerations are converted to attitude references, and the geometric SO(3) attitude controller computes motor torques to track them.
+1. **Analytics** — Per-step statistics (tracking error, solve time, objective value) are accumulated by `DMPCAnalytics` for post-mission diagnostics.
 
 **Key Parameters:**
 

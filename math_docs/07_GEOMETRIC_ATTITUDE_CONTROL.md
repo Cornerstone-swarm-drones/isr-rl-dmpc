@@ -8,21 +8,21 @@
 ## Table of Contents
 
 1. [Overview](#1-overview)
-2. [Quadrotor Rigid-Body Model](#2-quadrotor-rigid-body-model)
-3. [Quaternion Kinematics](#3-quaternion-kinematics)
-4. [SO(3) Attitude Error](#4-so3-attitude-error)
-5. [Position and Velocity Error](#5-position-and-velocity-error)
-6. [Control Law](#6-control-law)
-7. [Motor Mixing (X-Quad)](#7-motor-mixing-x-quad)
-8. [Default Gain Parameters](#8-default-gain-parameters)
-9. [References](#9-references)
+1. [Quadrotor Rigid-Body Model](#2-quadrotor-rigid-body-model)
+1. [Quaternion Kinematics](#3-quaternion-kinematics)
+1. [SO(3) Attitude Error](#4-so3-attitude-error)
+1. [Position and Velocity Error](#5-position-and-velocity-error)
+1. [Control Law](#6-control-law)
+1. [Motor Mixing (X-Quad)](#7-motor-mixing-x-quad)
+1. [Default Gain Parameters](#8-default-gain-parameters)
+1. [References](#9-references)
 
 ---
 
-## 1  Overview
+## 1. Overview
 
 The Attitude Controller (Module 8) translates DMPC acceleration commands
-`u = [aₓ, a_y, a_z]` into motor thrust commands `[T₁, T₂, T₃, T₄]`.
+$\mathbf{u} = [a_x, a_y, a_z]$ into motor thrust commands $[T_1, T_2, T_3, T_4]$.
 
 The control architecture is a **cascade PD loop**:
 
@@ -36,7 +36,7 @@ All control gains are fixed at construction time (no online adaptation).
 
 ---
 
-## 2  Quadrotor Rigid-Body Model
+## 2. Quadrotor Rigid-Body Model
 
 ### Translational Dynamics
 
@@ -70,7 +70,7 @@ $$
 
 ---
 
-## 3  Quaternion Kinematics
+## 3. Quaternion Kinematics
 
 The rotation matrix $R$ is parameterised by the unit quaternion
 $\mathbf{q} = [q_w, q_x, q_y, q_z]^\top$ (scalar-first convention).
@@ -101,7 +101,7 @@ The quaternion must always satisfy the unit-norm constraint $\|\mathbf{q}\| = 1$
 
 ---
 
-## 4  SO(3) Attitude Error
+## 4. SO(3) Attitude Error
 
 ### Why SO(3) Instead of Euler Angles?
 
@@ -144,7 +144,7 @@ where $\boldsymbol{\omega}_d$ is the desired angular velocity (zero for stationa
 
 ---
 
-## 5  Position and Velocity Error
+## 5. Position and Velocity Error
 
 The outer (position) loop computes a desired acceleration $\mathbf{a}_{\text{des}}$ from the
 DMPC reference:
@@ -177,7 +177,7 @@ rotation matrix $R_d$ (via the Gram-Schmidt process on $\mathbf{b}_{1,\text{des}
 
 ---
 
-## 6  Control Law
+## 6. Control Law
 
 ### Torque Command (Geometric PD)
 
@@ -206,7 +206,7 @@ individual motor thrusts via the motor mixing matrix.
 
 ---
 
-## 7  Motor Mixing (X-Quad)
+## 7. Motor Mixing (X-Quad)
 
 For an **X-configuration quadrotor** (motors at ±45° from the longitudinal
 axis), the relationship between individual motor thrusts $[T_1, T_2, T_3, T_4]$
@@ -240,21 +240,21 @@ clipped to `[0, T_max]` to respect motor saturation.
 
 ### Motor Speed Conversion
 
-Motor angular speed `Ω_i` from thrust `T_i`:
+Motor angular speed $\Omega_i$ from thrust $T_i$:
 
-```
-T_i = k_f Ω_i²   →   Ω_i = √(T_i / k_f)
-```
+$$
+T_i = k_f \Omega_i^2 \quad \Longrightarrow \quad \Omega_i = \sqrt{T_i / k_f}
+$$
 
 PWM duty cycle:
 
-```
-PWM_i = Ω_i / Ω_max ∈ [0, 1]
-```
+$$
+\text{PWM}_i = \Omega_i / \Omega_{\max} \in [0, 1]
+$$
 
 ---
 
-## 8  Default Gain Parameters
+## 8. Default Gain Parameters
 
 | Parameter | Symbol | Default | Units |
 | :--- | :--- | :--- | :--- |
@@ -275,13 +275,13 @@ proportionally or re-run LQR tuning via the DARE.
 
 ---
 
-## 9  References
+## 9. References
 
 1. T. Lee, M. Leok, and N. H. McClamroch, "Geometric tracking control of a
    quadrotor UAV on SE(3)," *IEEE Conference on Decision and Control (CDC)*,
    2010, pp. 5420–5425.
-2. D. Mellinger and V. Kumar, "Minimum snap trajectory generation and control
+1. D. Mellinger and V. Kumar, "Minimum snap trajectory generation and control
    for quadrotors," *IEEE ICRA*, 2011, pp. 2520–2525.
-3. F. L. Markley and J. L. Crassidis, *Fundamentals of Spacecraft Attitude
+1. F. L. Markley and J. L. Crassidis, *Fundamentals of Spacecraft Attitude
    Determination and Control*, Springer, 2014. (Chapters 5–6 for SO(3) attitude
    control.)

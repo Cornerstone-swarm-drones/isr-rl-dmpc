@@ -9,23 +9,23 @@
 ## Table of Contents
 
 1. [Overview](#1-overview)
-2. [Graph Theory Foundations](#2-graph-theory-foundations)
-3. [Consensus Protocol](#3-consensus-protocol)
-4. [Formation Control Law](#4-formation-control-law)
-5. [Formation Geometries](#5-formation-geometries)
+1. [Graph Theory Foundations](#2-graph-theory-foundations)
+1. [Consensus Protocol](#3-consensus-protocol)
+1. [Formation Control Law](#4-formation-control-law)
+1. [Formation Geometries](#5-formation-geometries)
    - 5.1 [Line](#51-line)
    - 5.2 [Wedge (V-Shape)](#52-wedge-v-shape)
    - 5.3 [Column](#53-column)
    - 5.4 [Circular](#54-circular)
    - 5.5 [Grid](#55-grid)
    - 5.6 [Sphere (Fibonacci)](#56-sphere-fibonacci)
-6. [ADMM Consensus Layer](#6-admm-consensus-layer)
-7. [Convergence Analysis](#7-convergence-analysis)
-8. [Formation Quality Metrics](#8-formation-quality-metrics)
+1. [ADMM Consensus Layer](#6-admm-consensus-layer)
+1. [Convergence Analysis](#7-convergence-analysis)
+1. [Formation Quality Metrics](#8-formation-quality-metrics)
 
 ---
 
-## 1  Overview
+## 1. Overview
 
 The Formation Controller (Module 2) coordinates the swarm into prescribed
 geometric patterns using a **distributed consensus protocol**.  Each drone
@@ -49,7 +49,7 @@ through a shared consensus variable.
 
 ---
 
-## 2  Graph Theory Foundations
+## 2. Graph Theory Foundations
 
 ### Communication Graph
 
@@ -86,7 +86,7 @@ The second-smallest eigenvalue $\lambda_1$ (the **algebraic connectivity** or
 
 ---
 
-## 3  Consensus Protocol
+## 3. Consensus Protocol
 
 ### Position Consensus Error
 
@@ -113,7 +113,7 @@ Laplacian matrix applied to the position vector.
 
 ---
 
-## 4  Formation Control Law
+## 4. Formation Control Law
 
 For drone $i$ with desired position $\mathbf{p}^{\text{des}}_i$, current position
 $\mathbf{p}_i$, and velocity $\mathbf{v}_i$:
@@ -151,13 +151,13 @@ $\|\mathbf{u}_{\text{total}}\|$ is saturated at $u_{\max} = 5.0\;\text{m/s}^2$.
 
 ---
 
-## 5  Formation Geometries
+## 5. Formation Geometries
 
 Each formation type generates the desired position $\mathbf{p}^{\text{des}}_i$ for
 drone $i$ as an offset from the formation **center** $\mathbf{c} \in \mathbb{R}^3$
 rotated by **heading** $\theta$.
 
-### 5.1  Line
+### 5.1. Line
 
 Drones are evenly spaced along the heading direction:
 
@@ -169,7 +169,7 @@ $$
 where $z_i = \left(i - \frac{N{-}1}{2}\right) \times s_z$ stacks layers in altitude,
 $s = 10\;\text{m}$, $s_z = 2\;\text{m}$.
 
-### 5.2  Wedge (V-Shape)
+### 5.2. Wedge (V-Shape)
 
 The lead drone ($i = 0$) flies at the center; remaining drones alternate
 left and right behind:
@@ -188,7 +188,7 @@ $$
 \end{bmatrix}
 $$
 
-### 5.3  Column
+### 5.3. Column
 
 Single-file queue along the heading direction:
 
@@ -196,7 +196,7 @@ $$
 \mathbf{p}^{\text{des}}_i = \mathbf{c} + \begin{bmatrix} i\,s\cos\theta \\ i\,s\sin\theta \\ 0 \end{bmatrix}
 $$
 
-### 5.4  Circular
+### 5.4. Circular
 
 Drones equally spaced on a circle of radius $r = \text{scale}/2$:
 
@@ -205,7 +205,7 @@ $$
 \mathbf{p}^{\text{des}}_i = \mathbf{c} + \begin{bmatrix} r\cos\varphi_i \\ r\sin\varphi_i \\ 0 \end{bmatrix}
 $$
 
-### 5.5  Grid
+### 5.5. Grid
 
 Drones arranged in a $\lceil\sqrt{N}\rceil \times \lceil\sqrt{N}\rceil$ lattice,
 rotated by heading:
@@ -219,7 +219,7 @@ $$
 \mathbf{p}^{\text{des}}_i = \mathbf{c} + \begin{bmatrix} x\cos\theta - y\sin\theta \\ x\sin\theta + y\cos\theta \\ 0 \end{bmatrix}
 $$
 
-### 5.6  Sphere (Fibonacci)
+### 5.6. Sphere (Fibonacci)
 
 3-D spherical distribution using the **Fibonacci sphere** algorithm:
 
@@ -242,7 +242,7 @@ drones is approximately $\sqrt{4\pi/N}$ steradians, optimising 3-D coverage.
 
 ---
 
-## 6  ADMM Consensus Layer
+## 6. ADMM Consensus Layer
 
 The formation consensus protocol is reinforced by the ADMM layer, which
 couples each drone's DMPC sub-problem to a shared consensus variable $\mathbf{v}$
@@ -267,7 +267,7 @@ drones optimise independently.
 
 ---
 
-## 7  Convergence Analysis
+## 7. Convergence Analysis
 
 ### Linear Consensus Convergence
 
@@ -311,7 +311,7 @@ return True  # converged
 
 ---
 
-## 8  Formation Quality Metrics
+## 8. Formation Quality Metrics
 
 $$
 \text{errors}_i = \|\mathbf{p}_i - \mathbf{p}^{\text{des}}_i\|, \quad i = 0, \ldots, N{-}1

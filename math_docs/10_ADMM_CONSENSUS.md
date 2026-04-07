@@ -9,19 +9,19 @@
 ## Table of Contents
 
 1. [Overview](#1-overview)
-2. [Consensus Problem Formulation](#2-consensus-problem-formulation)
-3. [Dual Decomposition](#3-dual-decomposition)
-4. [ADMM Algorithm](#4-admm-algorithm)
-5. [Convergence Analysis](#5-convergence-analysis)
-6. [Residuals and Stopping Criteria](#6-residuals-and-stopping-criteria)
-7. [Integration with DMPC](#7-integration-with-dmpc)
-8. [Swarm-Level Properties](#8-swarm-level-properties)
-9. [Default Parameters](#9-default-parameters)
-10. [References](#10-references)
+1. [Consensus Problem Formulation](#2-consensus-problem-formulation)
+1. [Dual Decomposition](#3-dual-decomposition)
+1. [ADMM Algorithm](#4-admm-algorithm)
+1. [Convergence Analysis](#5-convergence-analysis)
+1. [Residuals and Stopping Criteria](#6-residuals-and-stopping-criteria)
+1. [Integration with DMPC](#7-integration-with-dmpc)
+1. [Swarm-Level Properties](#8-swarm-level-properties)
+1. [Default Parameters](#9-default-parameters)
+1. [References](#10-references)
 
 ---
 
-## 1  Overview
+## 1. Overview
 
 Each drone in the swarm independently solves its own DMPC sub-problem.
 Without coordination, independent solutions may be mutually inconsistent:
@@ -41,7 +41,7 @@ ADMM is particularly suited to this setting because:
 
 ---
 
-## 2  Consensus Problem Formulation
+## 2. Consensus Problem Formulation
 
 ### Shared Variable
 
@@ -69,7 +69,7 @@ restricted to the shared variable subspace).
 
 ---
 
-## 3  Dual Decomposition
+## 3. Dual Decomposition
 
 Introduce Lagrange multipliers $\boldsymbol{\mu}_i$ for each consensus
 constraint $\mathbf{z}_i = \mathbf{v}$.  The **augmented Lagrangian** is:
@@ -98,7 +98,7 @@ $$
 
 ---
 
-## 4  ADMM Algorithm
+## 4. ADMM Algorithm
 
 ADMM minimises $\mathcal{L}_\rho$ by alternating between three update steps.
 
@@ -136,7 +136,7 @@ and the consensus; they act as a "price signal" that penalises deviation.
 
 ---
 
-## 5  Convergence Analysis
+## 5. Convergence Analysis
 
 ### Primal and Dual Residuals
 
@@ -159,8 +159,8 @@ $$
 For any $\rho > 0$, if all $f_i$ are **closed, proper, and convex**:
 
 1. **Primal residual converges:** $r_{\text{prim}}^k \to 0$ as $k \to \infty$.
-2. **Dual residual converges:** $r_{\text{dual}}^k \to 0$ as $k \to \infty$.
-3. **Objective converges:** $\sum_i f_i(\mathbf{z}_i^k) \to p^*$ (optimal value).
+1. **Dual residual converges:** $r_{\text{dual}}^k \to 0$ as $k \to \infty$.
+1. **Objective converges:** $\sum_i f_i(\mathbf{z}_i^k) \to p^*$ (optimal value).
 
 The convergence rate is **linear** (geometric decrease) for strongly convex
 $f_i$, matching the QP structure of the DMPC sub-problems.
@@ -181,7 +181,7 @@ $10^{-3}$ m in the swarm configuration.
 
 ---
 
-## 6  Residuals and Stopping Criteria
+## 6. Residuals and Stopping Criteria
 
 Iteration stops when both residuals fall below absolute and relative tolerances:
 
@@ -197,7 +197,7 @@ with default tolerances $\varepsilon_{\text{abs}} = \varepsilon_{\text{rel}} = 1
 
 ---
 
-## 7  Integration with DMPC
+## 7. Integration with DMPC
 
 The ADMM consensus layer wraps the DMPC solve in the following pattern:
 
@@ -241,7 +241,7 @@ parameter, so the problem structure remains fixed and warm-starting is possible.
 
 ---
 
-## 8  Swarm-Level Properties
+## 8. Swarm-Level Properties
 
 ### Collision Avoidance via ADMM
 
@@ -274,7 +274,7 @@ contribution of the missing drone over subsequent iterations.
 
 ---
 
-## 9  Default Parameters
+## 9. Default Parameters
 
 | Parameter | Symbol | Value | Source |
 | :--- | :--- | :--- | :--- |
@@ -286,14 +286,14 @@ contribution of the missing drone over subsequent iterations.
 
 ---
 
-## 10  References
+## 10. References
 
 1. S. Boyd, N. Parikh, E. Chu, B. Peleato, and J. Eckstein, "Distributed
    Optimization and Statistical Learning via the Alternating Direction Method
    of Multipliers," *Found. Trends Mach. Learn.*, 3(1):1–122, 2011.
-2. R. Olfati-Saber, J. A. Fax, and R. M. Murray, "Consensus and Cooperation
+1. R. Olfati-Saber, J. A. Fax, and R. M. Murray, "Consensus and Cooperation
    in Networked Multi-Agent Systems," *Proc. IEEE*, 95(1):215–233, 2007.
-3. Y. Wang and B. Elia, "A Control Perspective for Centralised and Distributed
+1. Y. Wang and B. Elia, "A Control Perspective for Centralised and Distributed
    Convex Optimisation," *IEEE CDC*, 2011.
-4. M. Zhu and S. Martínez, "On Distributed Convex Optimisation Under Inequality
+1. M. Zhu and S. Martínez, "On Distributed Convex Optimisation Under Inequality
    and Equality Constraints," *IEEE Trans. Autom. Control*, 57(1):151–164, 2012.
