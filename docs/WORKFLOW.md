@@ -3,9 +3,10 @@
 ## Before You Start Coding
 
 1. **Update local repository:**
-   ```bash
-   git pull origin develop
-   ```
+
+```bash
+git pull origin develop
+```
 
 2. Create feature branch from develop:
 
@@ -65,28 +66,29 @@ pytest tests/
 
 4. Create Pull Request on GitHub:
 
-- Go to your branch on GitHub
+   - Go to your branch on GitHub
 
-- Click "Compare & pull request"
+   - Click "Compare & pull request"
 
-- Add description:
+   - Add description:
 
-```text
-## Description
-What does this PR do?
+   ```text
+   ## Description
+   What does this PR do?
 
-## Related Issue
-Closes #123
+   ## Related Issue
+   Closes #123
 
-## Type of Change
-- [ ] Feature
-- [ ] Bug fix
-- [ ] Documentation
+   ## Type of Change
+   - [ ] Feature
+   - [ ] Bug fix
+   - [ ] Documentation
 
-## Testing
-How was this tested?
-```
-- Request code review from team members
+   ## Testing
+   How was this tested?
+   ```
+
+   - Request code review from team members
 
 5. Address review comments
 
@@ -98,6 +100,7 @@ git pull origin develop
 git merge feature/your-feature-name
 git push origin develop
 ```
+
 7. Delete feature branch:
 
 ```bash
