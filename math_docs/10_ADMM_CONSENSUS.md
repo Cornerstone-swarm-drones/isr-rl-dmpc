@@ -58,10 +58,10 @@ the planned collision margin).
 ### Global Consensus Problem
 
 $$
-\min_{\boldsymbol{z}_1, \ldots, \boldsymbol{z}_N} \;
+\min_{\boldsymbol{z}_1, \ldots, \boldsymbol{z}_N} 
   \sum_{i=1}^{N} f_i(\boldsymbol{z}_i)
 \quad \text{s.t.} \quad
-  \boldsymbol{z}_i = \boldsymbol{v} \quad \forall\, i
+  \boldsymbol{z}_i = \boldsymbol{v} \quad \forall  i
 $$
 
 where $f_i(\boldsymbol{z}_i)$ is drone $i$'s local cost (the DMPC objective
@@ -75,7 +75,7 @@ Introduce Lagrange multipliers $\boldsymbol{\mu}_i$ for each consensus
 constraint $\boldsymbol{z}_i = \boldsymbol{v}$.  The **augmented Lagrangian** is:
 
 $$
-\mathcal{L}_\rho(\boldsymbol{z}_1,\ldots,\boldsymbol{z}_N,\, \boldsymbol{v},\,
+\mathcal{L}_\rho(\boldsymbol{z}_1,\ldots,\boldsymbol{z}_N,  \boldsymbol{v}, 
   \boldsymbol{\mu}_1,\ldots,\boldsymbol{\mu}_N)
 = \sum_{i=1}^{N} \Bigl[
     f_i(\boldsymbol{z}_i)
@@ -151,7 +151,7 @@ r_{\text{prim}}^k = \frac{1}{\sqrt{N}} \left\lVert
 $$
 
 $$
-r_{\text{dual}}^k = \rho \sqrt{N}\,\lVert\boldsymbol{v}^k - \boldsymbol{v}^{k-1}\rVert
+r_{\text{dual}}^k = \rho \sqrt{N} \lVert\boldsymbol{v}^k - \boldsymbol{v}^{k-1}\rVert
 $$
 
 ### Convergence Theorem (Boyd et al. 2011)
@@ -186,11 +186,11 @@ $10^{-3}$ m in the swarm configuration.
 Iteration stops when both residuals fall below absolute and relative tolerances:
 
 $$
-r_{\text{prim}}^k \le \varepsilon_{\text{prim}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}} \max\!\bigl(\lVert\boldsymbol{z}^k\rVert,\, \lVert\boldsymbol{v}^k\rVert\bigr)
+r_{\text{prim}}^k \le \varepsilon_{\text{prim}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}} \max \bigl(\lVert\boldsymbol{z}^k\rVert,  \lVert\boldsymbol{v}^k\rVert\bigr)
 $$
 
 $$
-r_{\text{dual}}^k \le \varepsilon_{\text{dual}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}}\,\rho \lVert\boldsymbol{y}^k\rVert
+r_{\text{dual}}^k \le \varepsilon_{\text{dual}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}} \rho \lVert\boldsymbol{y}^k\rVert
 $$
 
 with default tolerances $\varepsilon_{\text{abs}} = \varepsilon_{\text{rel}} = 10^{-3}$.
