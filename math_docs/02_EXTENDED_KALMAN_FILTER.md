@@ -148,7 +148,7 @@ Full-state GPS measurement $\boldsymbol{z} = [\boldsymbol{p}_{\text{GPS}}^\top,\
 
 $$
 H_{\text{gps}} = I_6, \qquad
-R_{\text{gps}} = \mathrm{diag}(\sigma_p^2, \sigma_p^2, \sigma_p^2, \sigma_v^2, \sigma_v^2, \sigma_v^2)
+R_{\text{gps}} = \operatorname{diag}(\sigma_p^2, \sigma_p^2, \sigma_p^2, \sigma_v^2, \sigma_v^2, \sigma_v^2)
 $$
 
 Default noise: $\sigma_p = 5.0\;\text{m}$, $\sigma_v = 1.0\;\text{m/s}$.
@@ -174,7 +174,7 @@ $$
 $$
 
 $$
-\boldsymbol{q}[k{+}1] \leftarrow \boldsymbol{q}[k{+}1] / \|\boldsymbol{q}[k{+}1]\|
+\boldsymbol{q}[k{+}1] \leftarrow \boldsymbol{q}[k{+}1] / \lVert\boldsymbol{q}[k{+}1]\rVert
   \quad \text{(renormalise)}
 $$
 
@@ -196,7 +196,7 @@ Roll/pitch correction via cross-product error:
 $$
 \boldsymbol{e} = \boldsymbol{a}_{\text{norm}} \times \hat{\boldsymbol{g}}, \qquad
 \Delta\boldsymbol{q} = k_a\,[0, \boldsymbol{e}], \qquad
-\boldsymbol{q} \leftarrow \mathrm{normalise}(\boldsymbol{q} + \Delta\boldsymbol{q})
+\boldsymbol{q} \leftarrow \operatorname{normalise}(\boldsymbol{q} + \Delta\boldsymbol{q})
 $$
 
 where $k_a = 0.01$ is the accelerometer correction gain.
@@ -206,7 +206,7 @@ where $k_a = 0.01$ is the accelerometer correction gain.
 $$
 \boldsymbol{e} = \boldsymbol{m}_{\text{norm}} \times \boldsymbol{m}_{\text{expected}}, \qquad
 \Delta\boldsymbol{q} = k_m\,[0, \boldsymbol{e}], \qquad
-\boldsymbol{q} \leftarrow \mathrm{normalise}(\boldsymbol{q} + \Delta\boldsymbol{q})
+\boldsymbol{q} \leftarrow \operatorname{normalise}(\boldsymbol{q} + \Delta\boldsymbol{q})
 $$
 
 where $k_m = 0.01$ is the magnetometer correction gain.
@@ -274,12 +274,12 @@ Radar measures range, range-rate, azimuth, and elevation from sensor position $\
 
 $$
 \boldsymbol{\delta} = \boldsymbol{p}_{\text{tgt}} - \boldsymbol{s}, \qquad
-r = \|\boldsymbol{\delta}\|, \qquad
+r = \lVert\boldsymbol{\delta}\rVert, \qquad
 \dot{r} = \frac{\boldsymbol{\delta}^\top \boldsymbol{v}}{r}
 $$
 
 $$
-\alpha_z = \mathrm{atan2}(\delta_y, \delta_x), \qquad
+\alpha_z = \operatorname{atan2}(\delta_y, \delta_x), \qquad
 \text{el} = \arcsin(\delta_z / r)
 $$
 
@@ -288,8 +288,8 @@ h_{\text{radar}}(\boldsymbol{x}) = [r,\; \dot{r},\; \alpha_z,\; \text{el}]^\top
 $$
 
 $$
-R_{\text{radar}} = \mathrm{diag}(\sigma_r^2, \sigma_{\dot{r}}^2, \sigma_{\alpha}^2, \sigma_{\text{el}}^2)
-= \mathrm{diag}(25, 1, 10^{-4}, 10^{-4})
+R_{\text{radar}} = \operatorname{diag}(\sigma_r^2, \sigma_{\dot{r}}^2, \sigma_{\alpha}^2, \sigma_{\text{el}}^2)
+= \operatorname{diag}(25, 1, 10^{-4}, 10^{-4})
 $$
 
 ### 5.3. Optical Bearing (2-D / 3-D)
@@ -299,8 +299,8 @@ h_{\text{opt}}(\boldsymbol{x}) = [\alpha_z,\; \text{el}]^\top \quad \text{(2-D, 
 $$
 
 $$
-R_{\text{opt}} = \mathrm{diag}(\sigma_\alpha^2, \sigma_{\text{el}}^2)
-= \mathrm{diag}(4 \times 10^{-4}, 4 \times 10^{-4})
+R_{\text{opt}} = \operatorname{diag}(\sigma_\alpha^2, \sigma_{\text{el}}^2)
+= \operatorname{diag}(4 \times 10^{-4}, 4 \times 10^{-4})
 $$
 
 ### 5.4. RF Fingerprinting (3-D)
@@ -311,7 +311,7 @@ H_{\text{RF}} = [I_3 \mid \boldsymbol{0}_{3 \times 8}]
 $$
 
 $$
-R_{\text{RF}} = \frac{1}{c}\,\mathrm{diag}(\sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2), \quad \sigma_{\text{RF}} = 10\;\text{m}
+R_{\text{RF}} = \frac{1}{c}\,\operatorname{diag}(\sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2), \quad \sigma_{\text{RF}} = 10\;\text{m}
 $$
 
 ### 5.5. Acoustic TDOA (3-D)
@@ -360,7 +360,7 @@ The full 18-D covariance is a **block-diagonal** assembly of the three
 sub-filter covariances:
 
 $$
-P_{18} = \mathrm{block\_diag}\!\bigl(P_{pv}(6 \times 6),\;
+P_{18} = \operatorname{block\_diag}\!\bigl(P_{pv}(6 \times 6),\;
   P_a(3 \times 3),\; P_{\text{att}}(4 \times 4),\;
   P_{\omega}(3 \times 3),\; P_E(1 \times 1),\; P_h(1 \times 1)\bigr)
 $$

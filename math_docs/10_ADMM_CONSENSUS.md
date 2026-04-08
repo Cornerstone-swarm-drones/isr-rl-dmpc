@@ -80,11 +80,11 @@ $$
 = \sum_{i=1}^{N} \Bigl[
     f_i(\boldsymbol{z}_i)
     + \boldsymbol{\mu}_i^\top (\boldsymbol{z}_i - \boldsymbol{v})
-    + \frac{\rho}{2} \|\boldsymbol{z}_i - \boldsymbol{v}\|^2
+    + \frac{\rho}{2} \lVert\boldsymbol{z}_i - \boldsymbol{v}\rVert^2
   \Bigr]
 $$
 
-The quadratic penalty $\frac{\rho}{2}\|\boldsymbol{z}_i - \boldsymbol{v}\|^2$ with
+The quadratic penalty $\frac{\rho}{2}\lVert\boldsymbol{z}_i - \boldsymbol{v}\rVert^2$ with
 $\rho > 0$ improves convergence speed compared to pure Lagrangian methods.
 
 ### Scaled Form
@@ -93,7 +93,7 @@ Introducing the scaled dual variable $\boldsymbol{y}_i = \boldsymbol{\mu}_i / \r
 the augmented Lagrangian simplifies to:
 
 $$
-\mathcal{L}_\rho = \sum_{i=1}^{N} \left[ f_i(\boldsymbol{z}_i) + \frac{\rho}{2} \|\boldsymbol{z}_i - \boldsymbol{v} + \boldsymbol{y}_i\|^2 \right] + \text{const}
+\mathcal{L}_\rho = \sum_{i=1}^{N} \left[ f_i(\boldsymbol{z}_i) + \frac{\rho}{2} \lVert\boldsymbol{z}_i - \boldsymbol{v} + \boldsymbol{y}_i\rVert^2 \right] + \text{const}
 $$
 
 ---
@@ -107,7 +107,7 @@ ADMM minimises $\mathcal{L}_\rho$ by alternating between three update steps.
 Each drone $i$ solves its local sub-problem independently:
 
 $$
-\boldsymbol{z}_i^{k+1} \leftarrow \arg\min_{\boldsymbol{z}_i} \left[ f_i(\boldsymbol{z}_i) + \frac{\rho}{2} \|\boldsymbol{z}_i - \boldsymbol{v}^k + \boldsymbol{y}_i^k\|^2 \right]
+\boldsymbol{z}_i^{k+1} \leftarrow \arg\min_{\boldsymbol{z}_i} \left[ f_i(\boldsymbol{z}_i) + \frac{\rho}{2} \lVert\boldsymbol{z}_i - \boldsymbol{v}^k + \boldsymbol{y}_i^k\rVert^2 \right]
 $$
 
 For the DMPC setting, $f_i$ is a convex QP; adding the quadratic proximal
@@ -144,14 +144,14 @@ Define the **primal residual** (consensus violation) and **dual residual**
 (change in consensus variable):
 
 $$
-r_{\text{prim}}^k = \frac{1}{\sqrt{N}} \left\|
+r_{\text{prim}}^k = \frac{1}{\sqrt{N}} \left\lVert
   \begin{bmatrix} \boldsymbol{z}_1^k - \boldsymbol{v}^k \\ \vdots \\
     \boldsymbol{z}_N^k - \boldsymbol{v}^k \end{bmatrix}
-\right\|
+\right\rVert
 $$
 
 $$
-r_{\text{dual}}^k = \rho \sqrt{N}\,\|\boldsymbol{v}^k - \boldsymbol{v}^{k-1}\|
+r_{\text{dual}}^k = \rho \sqrt{N}\,\lVert\boldsymbol{v}^k - \boldsymbol{v}^{k-1}\rVert
 $$
 
 ### Convergence Theorem (Boyd et al. 2011)
@@ -170,7 +170,7 @@ $f_i$, matching the QP structure of the DMPC sub-problems.
 The error satisfies:
 
 $$
-\|\boldsymbol{z}^k - \boldsymbol{z}^*\|^2 \le C \cdot \beta^k, \quad \beta \in (0, 1)
+\lVert\boldsymbol{z}^k - \boldsymbol{z}^*\rVert^2 \le C \cdot \beta^k, \quad \beta \in (0, 1)
 $$
 
 where $C$ depends on the initial condition and $\beta$ depends on $\rho$ and
@@ -186,11 +186,11 @@ $10^{-3}$ m in the swarm configuration.
 Iteration stops when both residuals fall below absolute and relative tolerances:
 
 $$
-r_{\text{prim}}^k \le \varepsilon_{\text{prim}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}} \max\!\bigl(\|\boldsymbol{z}^k\|,\, \|\boldsymbol{v}^k\|\bigr)
+r_{\text{prim}}^k \le \varepsilon_{\text{prim}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}} \max\!\bigl(\lVert\boldsymbol{z}^k\rVert,\, \lVert\boldsymbol{v}^k\rVert\bigr)
 $$
 
 $$
-r_{\text{dual}}^k \le \varepsilon_{\text{dual}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}}\,\rho \|\boldsymbol{y}^k\|
+r_{\text{dual}}^k \le \varepsilon_{\text{dual}} = \varepsilon_{\text{abs}}\sqrt{N} + \varepsilon_{\text{rel}}\,\rho \lVert\boldsymbol{y}^k\rVert
 $$
 
 with default tolerances $\varepsilon_{\text{abs}} = \varepsilon_{\text{rel}} = 10^{-3}$.
@@ -233,7 +233,7 @@ for ADMM iteration k in range(max_admm_iters):
 The DMPC cost is augmented by the proximal term:
 
 $$
-J_{\text{ADMM}}^{(i)} = J_{\text{DMPC}}^{(i)}(\boldsymbol{z}_i) + \frac{\rho}{2}\|\boldsymbol{z}_i - \boldsymbol{v} + \boldsymbol{y}_i\|^2
+J_{\text{ADMM}}^{(i)} = J_{\text{DMPC}}^{(i)}(\boldsymbol{z}_i) + \frac{\rho}{2}\lVert\boldsymbol{z}_i - \boldsymbol{v} + \boldsymbol{y}_i\rVert^2
 $$
 
 This additional quadratic term is added to the QP objective in CVXPY as a
@@ -259,10 +259,10 @@ can satisfy a minimum-norm condition even when individual pairs violate the
 separation requirement, provided other pairs are sufficiently far apart.  A
 single global average cannot encode all individual pairwise constraints, so
 enforcing consensus on this quantity does **not** guarantee that every pair of
-drones satisfies $\|\boldsymbol{p}_i - \boldsymbol{p}_j\| \ge r_{\min}$.
+drones satisfies $\lVert\boldsymbol{p}_i - \boldsymbol{p}_j\rVert \ge r_{\min}$.
 
 Pairwise collision avoidance is handled by the per-drone hard constraints
-$\|\boldsymbol{p}_k - \boldsymbol{p}_j\| \ge r_{\min}$ inside each local DMPC QP.  ADMM's role
+$\lVert\boldsymbol{p}_k - \boldsymbol{p}_j\rVert \ge r_{\min}$ inside each local DMPC QP.  ADMM's role
 is to regularise planned trajectories toward a common reference and reduce
 inter-drone planning inconsistency, not to certify pairwise separation.
 

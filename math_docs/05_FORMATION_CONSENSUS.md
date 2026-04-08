@@ -55,7 +55,7 @@ through a shared consensus variable.
 
 The swarm is modelled as an undirected graph $G = (V, E)$:
 - $V = \{0, 1, \ldots, N{-}1\}$ — drone indices
-- $(i, j) \in E$ iff $\|\boldsymbol{p}_i - \boldsymbol{p}_j\| \le r_{\text{comm}}$ (communication range, default 100 m)
+- $(i, j) \in E$ iff $\lVert\boldsymbol{p}_i - \boldsymbol{p}_j\rVert \le r_{\text{comm}}$ (communication range, default 100 m)
 
 ### Adjacency Matrix
 
@@ -159,7 +159,7 @@ $$
 \boldsymbol{u}_{\text{total}} = \boldsymbol{u}_p + \boldsymbol{u}_d + \boldsymbol{u}_{\text{consensus}}
 $$
 
-$\|\boldsymbol{u}_{\text{total}}\|$ is saturated at $u_{\max} = 5.0\;\text{m/s}^2$.
+$\lVert\boldsymbol{u}_{\text{total}}\rVert$ is saturated at $u_{\max} = 5.0\;\text{m/s}^2$.
 
 ---
 
@@ -263,7 +263,7 @@ couples each drone's DMPC sub-problem to a shared consensus variable $\boldsymbo
 The ADMM augmented Lagrangian for the formation consensus problem is:
 
 $$
-\mathcal{L}_\rho = \sum_{i=1}^{N} \left[ \|\boldsymbol{p}_i - \boldsymbol{p}^{\text{des}}_i\|^2 + \boldsymbol{\mu}_i^\top (\boldsymbol{p}_i - \boldsymbol{v}) + \frac{\rho}{2}\|\boldsymbol{p}_i - \boldsymbol{v}\|^2 \right]
+\mathcal{L}_\rho = \sum_{i=1}^{N} \left[ \lVert\boldsymbol{p}_i - \boldsymbol{p}^{\text{des}}_i\rVert^2 + \boldsymbol{\mu}_i^\top (\boldsymbol{p}_i - \boldsymbol{v}) + \frac{\rho}{2}\lVert\boldsymbol{p}_i - \boldsymbol{v}\rVert^2 \right]
 $$
 
 The global consensus variable $\boldsymbol{v}$ converges to the swarm centroid:
@@ -287,7 +287,7 @@ For the pure consensus update $\dot{\boldsymbol{x}} = -L\,\boldsymbol{x}$ (conti
 convergence rate is governed by the algebraic connectivity:
 
 $$
-\|\boldsymbol{x}(t) - \boldsymbol{x}^*\| \le e^{-\lambda_1 t}\,\|\boldsymbol{x}(0) - \boldsymbol{x}^*\|
+\lVert\boldsymbol{x}(t) - \boldsymbol{x}^*\rVert \le e^{-\lambda_1 t}\,\lVert\boldsymbol{x}(0) - \boldsymbol{x}^*\rVert
 $$
 
 where $\lambda_1 > 0$ is the Fiedler value of $L$ and $\boldsymbol{x}^*$ is the
@@ -326,7 +326,7 @@ return True  # converged
 ## 8. Formation Quality Metrics
 
 $$
-\text{errors}_i = \|\boldsymbol{p}_i - \boldsymbol{p}^{\text{des}}_i\|, \quad i = 0, \ldots, N{-}1
+\text{errors}_i = \lVert\boldsymbol{p}_i - \boldsymbol{p}^{\text{des}}_i\rVert, \quad i = 0, \ldots, N{-}1
 $$
 
 $$

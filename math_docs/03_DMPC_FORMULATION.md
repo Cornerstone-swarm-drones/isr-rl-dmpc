@@ -42,12 +42,12 @@ $$
 $$
 
 $$
-\|\boldsymbol{u}_k\|_2 \le u_{\max}
+\lVert\boldsymbol{u}_k\rVert_2 \le u_{\max}
   \quad (\text{acceleration saturation})
 $$
 
 $$
-\|\boldsymbol{p}_k - \boldsymbol{p}_j\|_2 \ge r_{\min}
+\lVert\boldsymbol{p}_k - \boldsymbol{p}_j\rVert_2 \ge r_{\min}
   \quad \forall\, j \in \mathcal{N}(i)
   \quad (\text{collision avoidance})
 $$
@@ -59,8 +59,8 @@ $$
 where:
 - $\boldsymbol{e}_k = \boldsymbol{x}_k - \boldsymbol{x}^{\text{ref}}_k$ — tracking error at prediction step $k$
 - $N$ — prediction horizon (default: 20 steps = 0.4 s at 50 Hz)
-- $Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\boldsymbol{q}_s^{(i)}) \succ 0$ — effective state-error cost ($11 \times 11$)
-- $R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\boldsymbol{r}_s^{(i)}) \succ 0$ — effective control-effort cost ($3 \times 3$)
+- $Q_{\text{eff}}^{(i)} = Q \odot \operatorname{diag}(\boldsymbol{q}_s^{(i)}) \succ 0$ — effective state-error cost ($11 \times 11$)
+- $R_{\text{eff}}^{(i)} = R \odot \operatorname{diag}(\boldsymbol{r}_s^{(i)}) \succ 0$ — effective control-effort cost ($3 \times 3$)
 - $P \succ 0$ — terminal cost matrix ($11 \times 11$), computed from DARE
 - $\boldsymbol{q}_s^{(i)}, \boldsymbol{r}_s^{(i)}$ — positive scaling vectors output by the MAPPO agent
 
@@ -84,8 +84,8 @@ $$
 These are element-wise scale factors applied to the base cost matrices:
 
 $$
-Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\boldsymbol{q}_s^{(i)}), \qquad
-R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\boldsymbol{r}_s^{(i)})
+Q_{\text{eff}}^{(i)} = Q \odot \operatorname{diag}(\boldsymbol{q}_s^{(i)}), \qquad
+R_{\text{eff}}^{(i)} = R \odot \operatorname{diag}(\boldsymbol{r}_s^{(i)})
 $$
 
 where $\odot$ denotes element-wise (Hadamard) product.  All scale values are
@@ -124,9 +124,9 @@ $$
 \ell(\boldsymbol{e}_k, \boldsymbol{u}_k) = \boldsymbol{e}_k^\top Q_{\text{eff}} \boldsymbol{e}_k + \boldsymbol{u}_k^\top R_{\text{eff}} \boldsymbol{u}_k
 $$
 
-- $\|\boldsymbol{e}_k\|^2_{Q_{\text{eff}}}$: penalises deviation from the reference trajectory
+- $\lVert\boldsymbol{e}_k\rVert^2_{Q_{\text{eff}}}$: penalises deviation from the reference trajectory
   in each state channel, weighted by the MAPPO-adapted $Q_{\text{eff}}$.
-- $\|\boldsymbol{u}_k\|^2_{R_{\text{eff}}}$: penalises large control inputs, promoting smooth
+- $\lVert\boldsymbol{u}_k\rVert^2_{R_{\text{eff}}}$: penalises large control inputs, promoting smooth
   trajectories and limiting actuator wear.
 
 ### Terminal Cost
@@ -188,7 +188,7 @@ for their structure.
 ### 5.2. Control Saturation
 
 $$
-\|\boldsymbol{u}_k\|_2 \le u_{\max}, \quad k = 0, \ldots, N{-}1
+\lVert\boldsymbol{u}_k\rVert_2 \le u_{\max}, \quad k = 0, \ldots, N{-}1
 $$
 
 $u_{\max} = 10.0\;\text{m/s}^2$ (default).  OSQP is a QP solver that accepts
@@ -197,14 +197,14 @@ it does not support second-order cone (SOC) or other conic constraints.  In the
 CVXPY/OSQP pipeline the Euclidean-norm bound is therefore enforced as per-axis
 box constraints $|u_{k,\ell}| \le u_{\max}$ for $\ell \in \{x,y,z\}$, which are
 linear and natively supported by OSQP.  This is a conservative inner
-approximation of the Euclidean ball $\|\boldsymbol{u}_k\|_2 \le u_{\max}$.
+approximation of the Euclidean ball $\lVert\boldsymbol{u}_k\rVert_2 \le u_{\max}$.
 
 ### 5.3. Collision Avoidance Constraints
 
 For each neighbour $j$ at (fixed) position $\boldsymbol{p}_j$ and each prediction step $k$:
 
 $$
-\|\boldsymbol{p}_k - \boldsymbol{p}_j\|_2 \ge r_{\min}
+\lVert\boldsymbol{p}_k - \boldsymbol{p}_j\rVert_2 \ge r_{\min}
 $$
 
 where $r_{\min} = 0.9 \times r_{\text{collision}}$ (10% safety margin).
@@ -279,7 +279,7 @@ $$
 \min_{\boldsymbol{y}} \; \tfrac{1}{2}\,\boldsymbol{y}^\top H_{\text{qp}}\,\boldsymbol{y} + \boldsymbol{c}^\top \boldsymbol{y} \quad \text{s.t.} \quad \boldsymbol{l} \le A_{\text{qp}}\,\boldsymbol{y} \le \boldsymbol{u}
 $$
 
-where $\boldsymbol{y} = [\mathrm{vec}(\mathtt{x\_var})^\top,\; \mathrm{vec}(\mathtt{u\_var})^\top]^\top$
+where $\boldsymbol{y} = [\operatorname{vec}(\mathtt{x\_var})^\top,\; \operatorname{vec}(\mathtt{u\_var})^\top]^\top$
 is the stacked decision variable vector.
 
 | Problem size (default, 1 drone, $N{=}20$) | Value |
@@ -299,7 +299,7 @@ the local DMPC sub-problems across drones.  The **augmented Lagrangian** for the
 global consensus problem is:
 
 $$
-\mathcal{L}_\rho(\boldsymbol{z}_1,\ldots,\boldsymbol{z}_N, \boldsymbol{v}, \boldsymbol{\mu}) = \sum_{i=1}^{N} J_i(\boldsymbol{z}_i) + \sum_{i=1}^{N} \boldsymbol{\mu}_i^\top (\boldsymbol{z}_i - \boldsymbol{v}) + \frac{\rho}{2} \sum_{i=1}^{N} \|\boldsymbol{z}_i - \boldsymbol{v}\|^2
+\mathcal{L}_\rho(\boldsymbol{z}_1,\ldots,\boldsymbol{z}_N, \boldsymbol{v}, \boldsymbol{\mu}) = \sum_{i=1}^{N} J_i(\boldsymbol{z}_i) + \sum_{i=1}^{N} \boldsymbol{\mu}_i^\top (\boldsymbol{z}_i - \boldsymbol{v}) + \frac{\rho}{2} \sum_{i=1}^{N} \lVert\boldsymbol{z}_i - \boldsymbol{v}\rVert^2
 $$
 
 where:
@@ -313,7 +313,7 @@ ADMM iterates three steps per DMPC solve cycle:
 **x-update** (local QP solve per drone, parallelisable):
 
 $$
-\boldsymbol{z}_i^{k+1} \leftarrow \arg\min_{\boldsymbol{z}_i} \Bigl[ J_i(\boldsymbol{z}_i) + (\boldsymbol{\mu}_i^k)^\top(\boldsymbol{z}_i - \boldsymbol{v}^k) + \tfrac{\rho}{2}\|\boldsymbol{z}_i - \boldsymbol{v}^k\|^2 \Bigr]
+\boldsymbol{z}_i^{k+1} \leftarrow \arg\min_{\boldsymbol{z}_i} \Bigl[ J_i(\boldsymbol{z}_i) + (\boldsymbol{\mu}_i^k)^\top(\boldsymbol{z}_i - \boldsymbol{v}^k) + \tfrac{\rho}{2}\lVert\boldsymbol{z}_i - \boldsymbol{v}^k\rVert^2 \Bigr]
 $$
 
 **v-update** (global average, closed form):
@@ -371,10 +371,10 @@ for neighbor_pos in neighbor_positions:
 ```
 
 > **Convexity note:** The feasible set defined by
-> $\|\boldsymbol{p}_k - \boldsymbol{p}_j\|_2 \ge r_{\min}$ is the complement of a ball, which
+> $\lVert\boldsymbol{p}_k - \boldsymbol{p}_j\rVert_2 \ge r_{\min}$ is the complement of a ball, which
 > is **nonconvex**.  Because neighbour positions $\boldsymbol{p}_j$ are treated as fixed
 > parameters (not optimisation variables) at each solve step, the constraint
-> becomes $\|\boldsymbol{p}_k - \hat{\boldsymbol{p}}_j\|_2 \ge r_{\min}$ with $\hat{\boldsymbol{p}}_j$
+> becomes $\lVert\boldsymbol{p}_k - \hat{\boldsymbol{p}}_j\rVert_2 \ge r_{\min}$ with $\hat{\boldsymbol{p}}_j$
 > constant, which is still nonconvex in $\boldsymbol{p}_k$.  The resulting optimisation
 > problem is therefore *not* a convex QP in the strict sense; CVXPY will attempt
 > to reformulate or reject such constraints when targeting OSQP.  In practice
@@ -389,7 +389,7 @@ A formally safe alternative replaces the distance constraint with a
 **Control Barrier Function (CBF)** inequality:
 
 $$
-h(\boldsymbol{p},\, \boldsymbol{p}_j) = \|\boldsymbol{p} - \boldsymbol{p}_j\|^2 - r_{\min}^2 \ge 0
+h(\boldsymbol{p},\, \boldsymbol{p}_j) = \lVert\boldsymbol{p} - \boldsymbol{p}_j\rVert^2 - r_{\min}^2 \ge 0
 $$
 
 $$

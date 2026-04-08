@@ -109,15 +109,15 @@ $$
 These are passed to the DMPC as:
 
 $$
-Q_{\text{eff}}^{(i)} = Q \odot \mathrm{diag}(\boldsymbol{q}_s^{(i)}), \qquad
-R_{\text{eff}}^{(i)} = R \odot \mathrm{diag}(\boldsymbol{r}_s^{(i)})
+Q_{\text{eff}}^{(i)} = Q \odot \operatorname{diag}(\boldsymbol{q}_s^{(i)}), \qquad
+R_{\text{eff}}^{(i)} = R \odot \operatorname{diag}(\boldsymbol{r}_s^{(i)})
 $$
 
 The actor network outputs a mean $\boldsymbol{\mu}_a$ and log-std
 $\log\boldsymbol{\sigma}_a$; actions are sampled from
 
 $$
-\boldsymbol{a}^{(i)} = \mathrm{clip}\!\bigl(\boldsymbol{\mu}_a + \boldsymbol{\sigma}_a \odot \boldsymbol{\varepsilon},\;0.1,\;10.0\bigr)
+\boldsymbol{a}^{(i)} = \operatorname{clip}\!\bigl(\boldsymbol{\mu}_a + \boldsymbol{\sigma}_a \odot \boldsymbol{\varepsilon},\;0.1,\;10.0\bigr)
   \quad \boldsymbol{\varepsilon} \sim \mathcal{N}(\boldsymbol{0}, I)
 $$
 
@@ -134,7 +134,7 @@ $$
 ### Tracking Reward
 
 $$
-r_{\text{track}} = \exp\!\bigl(-\alpha\,\|\boldsymbol{e}_p\|^2\bigr) - 1, \quad \alpha = 0.1
+r_{\text{track}} = \exp\!\bigl(-\alpha\,\lVert\boldsymbol{e}_p\rVert^2\bigr) - 1, \quad \alpha = 0.1
 $$
 
 Exponential shaping gives dense gradients near the reference.
@@ -143,7 +143,7 @@ Exponential shaping gives dense gradients near the reference.
 
 $$
 r_{\text{form}} = -\frac{1}{|\mathcal{N}(i)|} \sum_{j \in \mathcal{N}(i)}
-  \bigl\|\boldsymbol{p}^{(i)} - \boldsymbol{p}^{(j)} - \boldsymbol{d}_{ij}\bigr\|
+  \bigl\lVert\boldsymbol{p}^{(i)} - \boldsymbol{p}^{(j)} - \boldsymbol{d}_{ij}\bigr\rVert
 $$
 
 where $\boldsymbol{d}_{ij}$ is the desired relative position in the target formation.
@@ -152,13 +152,13 @@ where $\boldsymbol{d}_{ij}$ is the desired relative position in the target forma
 
 $$
 r_{\text{safe}} = \sum_{j \in \mathcal{N}(i)}
-  \min\!\bigl(0,\; \|\boldsymbol{p}^{(i)} - \boldsymbol{p}^{(j)}\| - r_{\min}\bigr)
+  \min\!\bigl(0,\; \lVert\boldsymbol{p}^{(i)} - \boldsymbol{p}^{(j)}\rVert - r_{\min}\bigr)
 $$
 
 ### Efficiency Reward
 
 $$
-r_{\text{eff}} = -\|\boldsymbol{u}^{(i)}\|^2
+r_{\text{eff}} = -\lVert\boldsymbol{u}^{(i)}\rVert^2
 $$
 
 Penalises unnecessarily large control commands.
@@ -245,7 +245,7 @@ PPO prevents destructively large policy updates by clipping the probability rati
 $$
 \mathcal{L}^{\text{CLIP}}(\theta) = \mathbb{E}_t\!\left[
   \min\!\bigl(\rho_t(\theta)\,\hat{A}_t,\;
-    \mathrm{clip}(\rho_t(\theta),\;1{-}\epsilon,\;1{+}\epsilon)\,\hat{A}_t\bigr)
+    \operatorname{clip}(\rho_t(\theta),\;1{-}\epsilon,\;1{+}\epsilon)\,\hat{A}_t\bigr)
 \right]
 $$
 
