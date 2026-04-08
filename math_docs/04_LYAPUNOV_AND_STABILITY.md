@@ -189,7 +189,7 @@ For the quadratic Lyapunov function $V(\boldsymbol{e}) = \boldsymbol{e}^\top P\,
 
 $$
 \gamma_{\text{iss}} = \sqrt{\frac{\lambda_{\max}(P)}{\lambda_{\min}(P)}}
-  \cdot \frac{\lVertA_{\text{cl}}\rVert_2}{1 - \rho}
+  \cdot \frac{\lVert A_{\text{cl}}\rVert_2}{1 - \rho}
 $$
 
 A finite ISS gain exists because $\rho < 1$ (Schur stability confirmed above).

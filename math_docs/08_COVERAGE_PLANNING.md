@@ -148,7 +148,7 @@ A **greedy tour** starting from the drone's current position:
 > $\text{remaining} = \{c_1, \ldots, c_k\}$, $\;\text{path} = []$, $\;\text{current} = \boldsymbol{p}_{\text{start}}$
 >
 > While $\text{remaining} \ne \emptyset$:
-> $c^* = \arg\min_{c \in \text{remaining}} \lVertc.\text{center} - \text{current}\rVert$
+> $c^* = \arg\min_{c \in \text{remaining}} \lVert c.\text{center} - \text{current}\rVert$
 > append $c^*$ to path, set $\text{current} = c^*.\text{center}$, remove $c^*$ from remaining.
 
 This is the classic **nearest-neighbour heuristic** for the Travelling Salesman
@@ -174,7 +174,7 @@ from nearest to farthest:
 
 $$
 \boldsymbol{\mu} = \operatorname{mean}\bigl(\{c.\text{center}\}\bigr), \qquad
-\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c:\;\lVertc.\text{center} - \boldsymbol{\mu}\rVert\bigr)
+\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c:\;\lVert c.\text{center} - \boldsymbol{\mu}\rVert\bigr)
 $$
 
 This visits the highest-priority (central) cells first and spirals outward —
