@@ -27,24 +27,32 @@ purely optimisation-based Distributed Model Predictive Controller
 Each drone's translational state is:
 
 $$
-\boldsymbol{x} = [\boldsymbol{p}(3),\; \boldsymbol{v}(3),\; \boldsymbol{a}(3)]^\top \in \mathbb{R}^9
+\boldsymbol{x} = [\boldsymbol{p}(3), \boldsymbol{v}(3), \boldsymbol{a}(3)]^\top \in \mathbb{R}^9
 $$
 
 where $\boldsymbol{p}$ is position, $\boldsymbol{v}$ is velocity, and $\boldsymbol{a}$ is acceleration.
 The control input $\boldsymbol{u} = [a_x, a_y, a_z]^\top \in \mathbb{R}^3$ is the commanded
 acceleration.
 
-The discrete-time linearised dynamics with step $\Delta t = 0.02\;\text{s}$ are:
+The discrete-time linearised dynamics with step $\Delta t = 0.02\text{s}$ are:
 
 $$
-\boldsymbol{x}[k+1] = A\,\boldsymbol{x}[k] + B\,\boldsymbol{u}[k]
+\boldsymbol{x}[k+1] = A\boldsymbol{x}[k] + B\boldsymbol{u}[k]
 $$
 
 where:
 
 $$
-A = \begin{bmatrix} I_3 & \Delta t\,I_3 & 0 \\ 0 & I_3 & \Delta t\,I_3 \\ 0 & 0 & I_3 \end{bmatrix}, \qquad
-B = \begin{bmatrix} 0 \\ 0 \\ \Delta t\,I_3 \end{bmatrix}
+A = \begin{bmatrix} 
+I_3 & \Delta tI_3 & 0 \\ 
+0 & I_3 & \Delta tI_3 \\ 
+0 & 0 & I_3 
+\end{bmatrix}, \qquad
+B = \begin{bmatrix} 
+0 \\ 
+0 \\ 
+\Delta tI_3 
+\end{bmatrix}
 $$
 
 ### 1.2 Yaw Sub-System
@@ -60,14 +68,14 @@ therefore analysed separately.
 At each step $t$ the DMPC solves:
 
 $$
-\min_{\boldsymbol{x},\boldsymbol{u}} \; \sum_{k=0}^{N-1} \bigl[\|\boldsymbol{e}_k\|^2_Q + \|\boldsymbol{u}_k\|^2_R\bigr] + \|\boldsymbol{e}_N\|^2_P
+\min_{\boldsymbol{x},\boldsymbol{u}}  \sum_{k=0}^{N-1} \bigl[\|\boldsymbol{e}_k\|^2_Q + \|\boldsymbol{u}_k\|^2_R\bigr] + \|\boldsymbol{e}_N\|^2_P
 $$
 
 $$
 \text{s.t.} \quad
-\boldsymbol{x}_{k+1} = A\,\boldsymbol{x}_k + B\,\boldsymbol{u}_k, \quad
+\boldsymbol{x}_{k+1} = A\boldsymbol{x}_k + B\boldsymbol{u}_k, \quad
 \|\boldsymbol{u}_k\|_2 \le u_{\max}, \quad
-\|\boldsymbol{p}_k - \boldsymbol{p}_j\|_2 \ge r_{\min}\; \forall j \in \mathcal{N}(i), \quad
+\|\boldsymbol{p}_k - \boldsymbol{p}_j\|_2 \ge r_{\min} \forall j \in \mathcal{N}(i), \quad
 \boldsymbol{x}_0 = \boldsymbol{x}(t)
 $$
 
@@ -83,13 +91,13 @@ computed from the Discrete Algebraic Riccati Equation (DARE).
 We use the terminal cost as a Lyapunov function candidate:
 
 $$
-V(\boldsymbol{e}) = \boldsymbol{e}^\top P\, \boldsymbol{e}
+V(\boldsymbol{e}) = \boldsymbol{e}^\top P \boldsymbol{e}
 $$
 
 where $P$ is the unique symmetric positive-definite solution to the DARE:
 
 $$
-P = Q + A^\top P A - A^\top P B\,(R + B^\top P B)^{-1} B^\top P A
+P = Q + A^\top P A - A^\top P B(R + B^\top P B)^{-1} B^\top P A
 $$
 
 ### 2.2 Stability Conditions
@@ -108,9 +116,9 @@ $$
 Therefore:
 
 $$
-\Delta V = V(A_{\text{cl}}\,\boldsymbol{e}) - V(\boldsymbol{e})
-= \boldsymbol{e}^\top (A_{\text{cl}}^\top P A_{\text{cl}} - P)\,\boldsymbol{e}
-= -\boldsymbol{e}^\top (Q + K^\top R K)\,\boldsymbol{e} < 0 \quad \forall\, \boldsymbol{e} \ne \boldsymbol{0}
+\Delta V = V(A_{\text{cl}}\boldsymbol{e}) - V(\boldsymbol{e})
+= \boldsymbol{e}^\top (A_{\text{cl}}^\top P A_{\text{cl}} - P)\boldsymbol{e}
+= -\boldsymbol{e}^\top (Q + K^\top R K)\boldsymbol{e} < 0 \quad \forall \boldsymbol{e} \ne \boldsymbol{0}
 $$
 
 **Conclusion:** The LQR-closed-loop translational dynamics (under constant
@@ -129,7 +137,7 @@ Section 6.
 For the discrete-time LQR closed-loop matrix $A_{\text{cl}} = A - B K$, all
 eigenvalues must satisfy $|\lambda_i| < 1$ for asymptotic stability.
 
-**Typical result** (default $Q = I_9$, $R = 0.1 \cdot I_3$, $\Delta t = 0.02\;\text{s}$):
+**Typical result** (default $Q = I_9$, $R = 0.1 \cdot I_3$, $\Delta t = 0.02\text{s}$):
 
 | Mode | $\lvert\lambda_i\rvert$ |
 | :--- | :--- |
@@ -150,7 +158,7 @@ $$
 
 where $C > 0$ is a bounded constant depending on the eigenvector
 condition number.  For $\rho \approx 0.983$, errors halve every
-$\approx \ln(2) / (-\ln(0.983)) \approx 40$ steps $= 0.8\;\text{s}$ at 50 Hz.
+$\approx \ln(2) / (-\ln(0.983)) \approx 40$ steps $= 0.8\text{s}$ at 50 Hz.
 
 ---
 
@@ -163,12 +171,12 @@ there exist class-$\mathcal{KL}$ and class-$\mathcal{K}$ functions $\beta$, $\ga
 bounded disturbances $\boldsymbol{d}$:
 
 $$
-\|\boldsymbol{e}(t)\| \le \beta(\|\boldsymbol{e}(0)\|,\, t) + \gamma\!\left(\sup_{s \le t} \|\boldsymbol{d}(s)\|\right)
+\|\boldsymbol{e}(t)\| \le \beta(\|\boldsymbol{e}(0)\|, t) + \gamma \left(\sup_{s \le t} \|\boldsymbol{d}(s)\|\right)
 $$
 
 ### 4.2 ISS Gain Bound
 
-For the quadratic Lyapunov function $V(\boldsymbol{e}) = \boldsymbol{e}^\top P\, \boldsymbol{e}$, a
+For the quadratic Lyapunov function $V(\boldsymbol{e}) = \boldsymbol{e}^\top P \boldsymbol{e}$, a
 standard ISS gain bound is:
 
 $$
@@ -188,8 +196,8 @@ $$
 \|\boldsymbol{d}\|_{\max} = \frac{\varepsilon \cdot \lambda_{\min}(P) \cdot (1 - \rho)}{\lambda_{\max}(P)}
 $$
 
-**Typical result:** With $\varepsilon = 1\;\text{m}$, the controller rejects disturbances
-up to $\approx 1.3\;\text{mm/s}^2$ (acceleration noise floor).  This is consistent with
+**Typical result:** With $\varepsilon = 1\text{m}$, the controller rejects disturbances
+up to $\approx 1.3\text{mm/s}^2$ (acceleration noise floor).  This is consistent with
 the IMU noise characteristics of the drone platform.
 
 ### 4.4 ISR Implications
@@ -213,18 +221,18 @@ $$
 h_{ij}(\boldsymbol{x}) = \|\boldsymbol{p}_i - \boldsymbol{p}_j\|^2 - r_{\min}^2
 $$
 
-where $r_{\min} = 5\;\text{m}$ is the minimum safe separation.
+where $r_{\min} = 5\text{m}$ is the minimum safe separation.
 
-**Safety set:** $\mathcal{C} = \{\boldsymbol{x} : h_{ij}(\boldsymbol{x}) \ge 0\; \forall\, (i,j)\}$.
+**Safety set:** $\mathcal{C} = \{\boldsymbol{x} : h_{ij}(\boldsymbol{x}) \ge 0 \forall (i,j)\}$.
 
 ### 5.2 Discrete-Time CBF Condition
 
-The DMPC hard state constraint $\|\boldsymbol{p}_k - \boldsymbol{p}_j\| \ge r_{\min}$ constrains
+The DMPC hard state constraint $\|\boldsymbol{p}\_k - \boldsymbol{p}\_j\| \ge r_{\min}$ constrains
 predicted positions at sampled times.  This is consistent with the strongest
 CBF condition ($\alpha = 1$):
 
 $$
-h_{ij}(\boldsymbol{x}_{k+1}) \ge (1 - \alpha)\,h_{ij}(\boldsymbol{x}_k)
+h_{ij}(\boldsymbol{x}_{k+1}) \ge (1 - \alpha)h_{ij}(\boldsymbol{x}_k)
 $$
 
 with $\alpha = 1$, meaning the constraint is required to be satisfied at every
@@ -244,8 +252,8 @@ forward-invariant CBF safety filter.
 ### 5.3 Swarm Safety Margin
 
 In all ISR mission scenarios (4–6 drones, grid/wedge/line formations),
-the DMPC maintains a safety margin of $\ge 15\;\text{m}$ with the default
-$r_{\text{collision}} = 5\;\text{m}$ and typical 20 m inter-drone spacing.
+the DMPC maintains a safety margin of $\ge 15\text{m}$ with the default
+$r_{\text{collision}} = 5\text{m}$ and typical 20 m inter-drone spacing.
 
 ---
 
@@ -254,16 +262,16 @@ $r_{\text{collision}} = 5\;\text{m}$ and typical 20 m inter-drone spacing.
 ### 6.1 Standard MPC Result
 
 For a DMPC with:
-- Terminal set $\Omega_f = \{\boldsymbol{e} : \boldsymbol{e}^\top P\, \boldsymbol{e} \le c\}$ (LQR invariant ellipsoid)
-- Terminal cost $V_f(\boldsymbol{e}) = \boldsymbol{e}^\top P\, \boldsymbol{e}$
-- LQR terminal control law $\boldsymbol{u}_f = -K\,\boldsymbol{e}$
+- Terminal set $\Omega_f = \{\boldsymbol{e} : \boldsymbol{e}^\top P \boldsymbol{e} \le c\}$ (LQR invariant ellipsoid)
+- Terminal cost $V_f(\boldsymbol{e}) = \boldsymbol{e}^\top P \boldsymbol{e}$
+- LQR terminal control law $\boldsymbol{u}_f = -K\boldsymbol{e}$
 
 **Theorem (Rawlings & Mayne, 2019):** If the DMPC is feasible at $t = 0$,
 it is feasible at all subsequent time steps $t > 0$.
 
-*Proof sketch:* Applying the terminal control law $\boldsymbol{u}_f$ at step $N$ maps
-$\boldsymbol{x}_N \in \Omega_f$ to $A_{\text{cl}}\,\boldsymbol{x}_N \in \Omega_f$ (by positive invariance of $\Omega_f$ under
-$A_{\text{cl}}$ — a consequence of the DARE Bellman equation).
+*Proof sketch:* Applying the terminal control law $\boldsymbol{u}\_f$ at step $N$ maps
+$\boldsymbol{x}\_N \in \Omega\_f$ to $A_{\text{cl}}\boldsymbol{x}\_N \in \Omega\_f$ (by positive invariance of $\Omega\_f$ under
+$A\_{\text{cl}}$ — a consequence of the DARE Bellman equation).
 
 > **Implementation caveat:** The theorem requires all three components above to
 > be active and relies on the cost matrices being fixed and equal to those used
@@ -312,7 +320,7 @@ $$
 \|\boldsymbol{p}_j(t) - \hat{\boldsymbol{p}}_j(t)\| \le v_{\max} \cdot \tau
 $$
 
-For $v_{\max} = 20\;\text{m/s}$ and $\tau = 0.1\;\text{s}$ (5 Hz radar), the coupling error is
+For $v_{\max} = 20\text{m/s}$ and $\tau = 0.1\text{s}$ (5 Hz radar), the coupling error is
 bounded by 2 m — well below the 5 m collision radius.
 
 ### 7.2 Collective Coverage Stability
@@ -358,7 +366,7 @@ $$
 \tau_{\text{outage}} \le \frac{\|\boldsymbol{e}_{\max}\|}{v_{\max}}
 $$
 
-For $\|\boldsymbol{e}_{\max}\| = 5\;\text{m}$ and $v_{\max} = 20\;\text{m/s}$, the system tolerates up to 0.25 s
+For $\|\boldsymbol{e}\_{\max}\| = 5\text{m}$ and $v\_{\max} = 20\text{m/s}$, the system tolerates up to 0.25 s
 of communication blackout without violating collision constraints.
 
 ---
