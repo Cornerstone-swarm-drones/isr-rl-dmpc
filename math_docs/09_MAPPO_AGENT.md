@@ -101,23 +101,23 @@ $$
 The action is a 14-dimensional vector of multiplicative cost scale factors:
 
 $$
-\boldsymbol{a}^{(i)} = \bigl[\underbrace{q_{s,0}, \ldots, q_{s,10}}_{\boldsymbol{q}_s \in \mathbb{R}^{11}},\;
+\boldsymbol{a}^{(i)} = \bigl[\underbrace{q_{s,0}, \ldots, q_{s,10}}_{\boldsymbol{q}_s \in \mathbb{R}^{11}},
   \underbrace{r_{s,0}, r_{s,1}, r_{s,2}}_{\boldsymbol{r}_s \in \mathbb{R}^{3}}\bigr]
-\in [0.1,\;10.0]^{14}
+\in [0.1,10.0]^{14}
 $$
 
 These are passed to the DMPC as:
 
 $$
-Q_{\text{eff}}^{(i)} = Q \odot \operatorname{diag}(\boldsymbol{q}_s^{(i)}), \qquad
-R_{\text{eff}}^{(i)} = R \odot \operatorname{diag}(\boldsymbol{r}_s^{(i)})
+Q_{\text{eff}}^{(i)} = Q \odot \text{diag}(\boldsymbol{q}_s^{(i)}), \qquad
+R_{\text{eff}}^{(i)} = R \odot \text{diag}(\boldsymbol{r}_s^{(i)})
 $$
 
 The actor network outputs a mean $\boldsymbol{\mu}_a$ and log-std
 $\log\boldsymbol{\sigma}_a$; actions are sampled from
 
 $$
-\boldsymbol{a}^{(i)} = \operatorname{clip}\!\bigl(\boldsymbol{\mu}_a + \boldsymbol{\sigma}_a \odot \boldsymbol{\varepsilon},\;0.1,\;10.0\bigr)
+\boldsymbol{a}^{(i)} = \text{clip} \bigl(\boldsymbol{\mu}_a + \boldsymbol{\sigma}_a \odot \boldsymbol{\varepsilon},0.1,10.0\bigr)
   \quad \boldsymbol{\varepsilon} \sim \mathcal{N}(\boldsymbol{0}, I)
 $$
 
@@ -128,13 +128,13 @@ $$
 The per-step scalar reward for drone $i$ is a weighted combination:
 
 $$
-r^{(i)}_t = w_{\text{track}}\,r_{\text{track}} + w_{\text{form}}\,r_{\text{form}} + w_{\text{safe}}\,r_{\text{safe}} + w_{\text{eff}}\,r_{\text{eff}}
+r^{(i)}_t = w_{\text{track}}r_{\text{track}} + w_{\text{form}}r_{\text{form}} + w_{\text{safe}}r_{\text{safe}} + w_{\text{eff}}r_{\text{eff}}
 $$
 
 ### Tracking Reward
 
 $$
-r_{\text{track}} = \exp\!\bigl(-\alpha\,\lVert\boldsymbol{e}_p\rVert^2\bigr) - 1, \quad \alpha = 0.1
+r_{\text{track}} = \exp \bigl(-\alpha\lVert\boldsymbol{e}_p\rVert^2\bigr) - 1, \quad \alpha = 0.1
 $$
 
 Exponential shaping gives dense gradients near the reference.
@@ -152,7 +152,7 @@ where $\boldsymbol{d}_{ij}$ is the desired relative position in the target forma
 
 $$
 r_{\text{safe}} = \sum_{j \in \mathcal{N}(i)}
-  \min\!\bigl(0,\; \lVert\boldsymbol{p}^{(i)} - \boldsymbol{p}^{(j)}\rVert - r_{\min}\bigr)
+  \min \bigl(0, \lVert\boldsymbol{p}^{(i)} - \boldsymbol{p}^{(j)}\rVert - r_{\min}\bigr)
 $$
 
 ### Efficiency Reward
@@ -179,14 +179,14 @@ Penalises unnecessarily large control commands.
 Standard policy gradient maximises the expected return:
 
 $$
-J(\theta) = \mathbb{E}_{\tau \sim \pi_\theta}\!\left[\sum_{t=0}^{T} r_t\right]
+J(\theta) = \mathbb{E}_{\tau \sim \pi_\theta} \left[\sum_{t=0}^{T} r_t\right]
 $$
 
 The gradient is:
 
 $$
-\nabla_\theta J(\theta) = \mathbb{E}\!\left[
-  \sum_{t} \nabla_\theta \log \pi_\theta(\boldsymbol{a}_t \mid \boldsymbol{o}_t)\; \hat{A}_t
+\nabla_\theta J(\theta) = \mathbb{E} \left[
+  \sum_{t} \nabla_\theta \log \pi_\theta(\boldsymbol{a}_t \mid \boldsymbol{o}_t) \hat{A}_t
 \right]
 $$
 
@@ -200,7 +200,7 @@ MAPPO modifies standard PPO by using a **centralised value function** that
 conditions on the concatenated observations of all agents:
 
 $$
-\hat{A}_t^{(i)} = r_t^{(i)} + \gamma\, V_\phi\bigl(\boldsymbol{o}_{t+1}^{(1:N)}\bigr) - V_\phi\bigl(\boldsymbol{o}_t^{(1:N)}\bigr)
+\hat{A}_t^{(i)} = r_t^{(i)} + \gamma V_\phi\bigl(\boldsymbol{o}_{t+1}^{(1:N)}\bigr) - V_\phi\bigl(\boldsymbol{o}_t^{(1:N)}\bigr)
 $$
 
 This global critic significantly reduces advantage variance compared to a
@@ -228,7 +228,7 @@ $$
 where the **TD residual** is:
 
 $$
-\delta_t = r_t + \gamma\, V_\phi(\boldsymbol{o}_{t+1}) - V_\phi(\boldsymbol{o}_t)
+\delta_t = r_t + \gamma V_\phi(\boldsymbol{o}_{t+1}) - V_\phi(\boldsymbol{o}_t)
 $$
 
 | Parameter | Value | Effect |
@@ -243,9 +243,9 @@ $$
 PPO prevents destructively large policy updates by clipping the probability ratio:
 
 $$
-\mathcal{L}^{\text{CLIP}}(\theta) = \mathbb{E}_t\!\left[
-  \min\!\bigl(\rho_t(\theta)\,\hat{A}_t,\;
-    \operatorname{clip}(\rho_t(\theta),\;1{-}\epsilon,\;1{+}\epsilon)\,\hat{A}_t\bigr)
+\mathcal{L}^{\text{CLIP}}(\theta) = \mathbb{E}_t \left[
+  \min \bigl(\rho_t(\theta)\hat{A}_t,
+    \text{clip}(\rho_t(\theta),1{-}\epsilon,1{+}\epsilon)\hat{A}_t\bigr)
 \right]
 $$
 
@@ -265,7 +265,7 @@ The clip parameter $\epsilon = 0.2$ is the default.
 An entropy bonus prevents premature collapse to a deterministic policy:
 
 $$
-\mathcal{L}^{\text{ENT}}(\theta) = \mathbb{E}_t\!\left[
+\mathcal{L}^{\text{ENT}}(\theta) = \mathbb{E}_t \left[
   \mathcal{H}\bigl[\pi_\theta(\cdot \mid \boldsymbol{o}_t)\bigr]
 \right]
 $$
@@ -273,17 +273,17 @@ $$
 For a Gaussian policy $\pi \sim \mathcal{N}(\boldsymbol{\mu}, \boldsymbol{\sigma}^2 I)$:
 
 $$
-\mathcal{H} = \frac{1}{2}\ln\!\bigl((2\pi e)^{d} \det(\boldsymbol{\Sigma})\bigr)
+\mathcal{H} = \frac{1}{2}\ln \bigl((2\pi e)^{d} \det(\boldsymbol{\Sigma})\bigr)
   = \sum_{j=1}^{d} \bigl(\log\sigma_j + \tfrac{1}{2}\log(2\pi e)\bigr)
 $$
 
 The full PPO-MAPPO objective is:
 
 $$
-\mathcal{L}(\theta) = \mathcal{L}^{\text{CLIP}}(\theta) - c_1\, \mathcal{L}^{\text{VF}}(\phi) + c_2\, \mathcal{L}^{\text{ENT}}(\theta)
+\mathcal{L}(\theta) = \mathcal{L}^{\text{CLIP}}(\theta) - c_1 \mathcal{L}^{\text{VF}}(\phi) + c_2 \mathcal{L}^{\text{ENT}}(\theta)
 $$
 
-where $\mathcal{L}^{\text{VF}} = \mathbb{E}_t[(V_\phi(\boldsymbol{o}_t) - V_t^{\text{target}})^2]$
+where $\mathcal{L}^{\text{VF}} = \mathbb{E}\_t[(V_\phi(\boldsymbol{o}\_t) - V\_t^{\text{target}})^2]$
 is the value function loss, $c_1 = 0.5$, $c_2 = 0.01$.
 
 ---
