@@ -201,7 +201,7 @@ class MARLDMPCEnv(gym.Env):
         self._health[:] = 1.0
 
         # Reset physics simulator
-        sim_obs = self._simulator.reset()
+        self._simulator.reset()
         self._sync_states_from_sim()
 
         # Generate initial references (hover in place)
@@ -266,10 +266,12 @@ class MARLDMPCEnv(gym.Env):
             controls[i] = 0.8 * raw_proposals[i] + 0.2 * consensus_ref
 
         # ── Apply controls to simulator ──────────────────────────────────
-        motor_cmds = self._accel_to_motor_cmds(controls)
-        sim_obs, sim_reward, terminated, truncated, sim_info = self._simulator.step(
-            motor_cmds.flatten()
-        )
+        # _accel_to_motor_cmds returns (num_drones, 4); simulator.step expects
+        # the same shape so that motor_commands[drone_id] gives a (4,) vector.
+        motor_cmds = self._accel_to_motor_cmds(controls)  # (num_drones, 4)
+        self._simulator.step(motor_cmds)
+        terminated = not all(d.is_active for d in self._simulator.drones)
+        truncated = False
         self._sync_states_from_sim()
 
         # Update battery (simple linear discharge)
@@ -431,14 +433,11 @@ class MARLDMPCEnv(gym.Env):
 
     def _sync_states_from_sim(self) -> None:
         """Pull drone states from the physics simulator."""
-        sim_state = self._simulator.get_state()
+        drone_states = self._simulator.get_drone_states()  # (num_drones, 18)
         for i in range(self.num_drones):
-            drone_key = f"drone_{i}"
-            if isinstance(sim_state, dict) and drone_key in sim_state:
-                raw = sim_state[drone_key]
-                n = min(len(raw), STATE_DIM)
-                self._drone_states[i, :n] = raw[:n]
-            # else keep previous state (warm-start)
+            raw = drone_states[i]
+            n = min(len(raw), STATE_DIM)
+            self._drone_states[i, :n] = raw[:n]
 
     def _accel_to_motor_cmds(self, controls: np.ndarray) -> np.ndarray:
         """Convert per-drone acceleration commands to normalised motor commands.
