@@ -266,8 +266,10 @@ class MARLDMPCEnv(gym.Env):
             controls[i] = 0.8 * raw_proposals[i] + 0.2 * consensus_ref
 
         # ── Apply controls to simulator ──────────────────────────────────
-        motor_cmds = self._accel_to_motor_cmds(controls)
-        self._simulator.step(motor_cmds.reshape(self.num_drones, 4))
+        # _accel_to_motor_cmds returns (num_drones, 4); simulator.step expects
+        # the same shape so that motor_commands[drone_id] gives a (4,) vector.
+        motor_cmds = self._accel_to_motor_cmds(controls)  # (num_drones, 4)
+        self._simulator.step(motor_cmds)
         terminated = not all(d.is_active for d in self._simulator.drones)
         truncated = False
         self._sync_states_from_sim()

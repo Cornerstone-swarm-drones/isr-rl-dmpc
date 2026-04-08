@@ -123,7 +123,12 @@ def _run_episode(
             battery_levels.append(float(np.mean(bat)))
 
         # Track mean q_scale to measure RL adaptation activity
-        acts = np.asarray(action, dtype=np.float32).reshape(env.num_drones, ACT_DIM)
+        action_flat = np.asarray(action, dtype=np.float32).ravel()
+        expected_size = env.num_drones * ACT_DIM
+        assert action_flat.size == expected_size, (
+            f"Expected action size {expected_size}, got {action_flat.size}"
+        )
+        acts = action_flat.reshape(env.num_drones, ACT_DIM)
         q_scale_history.append(float(np.mean(acts[:, :11])))
 
         if render:
