@@ -75,6 +75,9 @@ pip install -e .
 # Run tests
 pytest tests/
 
+# Quick-start notebook (package verification + DMPC + ADMM demo)
+jupyter notebook notebooks/01_quick_start.ipynb
+
 # Train MAPPO policy (headless)
 python scripts/train_mappo.py --config config/mappo_config.yaml
 
@@ -168,6 +171,11 @@ isr-rl-dmpc/
 │   └── mission_scenarios.yaml # Real-world ISR applications
 ├── tests/                     # Unit and integration tests
 ├── notebooks/                 # Jupyter tutorials
+│   ├── 01_quick_start.ipynb            # Package verification, DMPC solve, ADMM demo
+│   ├── 02_dmpc_deep_dive.ipynb         # Formations, ADMM convergence, DMPC sim, ISR modules
+│   ├── 03_training_curves.ipynb        # MAPPO learning curves
+│   ├── 04_mission_analysis.ipynb       # Per-scenario metrics
+│   └── 05_comparison_analysis.ipynb    # Pure DMPC vs DMPC-RL comparison
 ├── math_docs/                 # Mathematical reference documentation
 │   ├── README.md              # Index and notation guide
 │   ├── 01_DRONE_STATE_SPACE.md
@@ -246,11 +254,11 @@ respectively.  Open `notebooks/05_comparison_analysis.ipynb` for a head-to-head 
 
 | Notebook | Description |
 | :--- | :--- |
-| `01_system_overview.ipynb` | Package structure and module inventory |
-| `02_module_testing.ipynb` | Interactive module unit tests |
-| `03_learning_curves.ipynb` | MAPPO training metrics (reward, entropy, losses) |
+| `01_quick_start.ipynb` | Package verification, config loading, single-step DMPC solve, ADMM consensus demo |
+| `02_dmpc_deep_dive.ipynb` | Formation geometry, ADMM convergence analysis, DMPC multi-step simulation, ISR modules tour |
+| `03_training_curves.ipynb` | MAPPO training metrics (reward, entropy, value-function loss) |
 | `04_mission_analysis.ipynb` | Per-scenario metrics for both Pure DMPC and DMPC-RL |
-| `05_comparison_analysis.ipynb` | Head-to-head comparison (reward, battery, solve time) |
+| `05_comparison_analysis.ipynb` | Head-to-head comparison (reward, battery, solve time, statistical significance) |
 
 ## License
 
