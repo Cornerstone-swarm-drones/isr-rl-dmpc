@@ -78,8 +78,18 @@ pytest tests/
 # Train MAPPO policy (headless)
 python scripts/train_mappo.py --config config/mappo_config.yaml
 
-# Run a MARL-DMPC mission (non-ROS, headless)
-python scripts/run_mission.py --config config/dmpc_config.yaml
+# ── Run a scenario with pure DMPC (no RL) ───────────────────────────────────
+python scripts/run_dmpc.py --scenario area_surveillance
+python scripts/run_dmpc.py --scenario threat_response   --episodes 5
+python scripts/run_dmpc.py --scenario search_and_track  --num-drones 4
+
+# ── Run the same scenario with DMPC-RL (MAPPO-adaptive cost weights) ─────────
+python scripts/run_dmpc_rl.py --scenario area_surveillance
+python scripts/run_dmpc_rl.py --scenario threat_response  --model models/mappo_dmpc/final
+python scripts/run_dmpc_rl.py --scenario search_and_track --episodes 5
+
+# Open the comparison notebook to analyse both methods side-by-side
+jupyter notebook notebooks/05_comparison_analysis.ipynb
 ```
 
 ### ROS2 / RViz2 Simulation
@@ -145,6 +155,12 @@ isr-rl-dmpc/
 │       └── config/
 │           └── simulation.rviz
 ├── scripts/                   # Standalone mission, training and evaluation scripts
+│   ├── run_dmpc.py            # Pure DMPC runner for all 3 task scenarios
+│   ├── run_dmpc_rl.py         # DMPC-RL (MAPPO) runner for all 3 task scenarios
+│   ├── train_mappo.py         # Train the MAPPO adaptive-DMPC policy
+│   ├── evaluate_swarm_tasks.py# Cornerstone-score evaluation suite
+│   ├── benchmark.py           # Module benchmarking (timing, memory)
+│   └── visualize_results.py   # Trajectory & metric visualisation
 ├── config/                    # YAML configuration files
 │   ├── drone_specs.yaml       # hector_quadrotor-aligned physical parameters
 │   ├── dmpc_config.yaml       # DMPC tuning (horizon, Q, R, ADMM rho)
@@ -207,9 +223,34 @@ Three pre-defined real-world ISR scenarios are available in `config/mission_scen
 
 | Scenario | Area | Drones | Targets | Formation | Duration |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| Area Surveillance | 400×400 m | 4 | 0 | Grid | 20 min |
-| Threat Response | 250×250 m | 4 | 2 | Wedge | 10 min |
-| Search & Track | 600×600 m | 4 | 3 | Line | 20 min |
+| `area_surveillance` | 400×400 m | 4 | 0 | Grid | 20 min |
+| `threat_response` | 250×250 m | 4 | 2 | Wedge | 10 min |
+| `search_and_track` | 600×600 m | 4 | 3 | Line | 20 min |
+
+### Running Scenarios
+
+| Task | Command |
+| :--- | :--- |
+| Pure DMPC — area surveillance | `python scripts/run_dmpc.py --scenario area_surveillance` |
+| Pure DMPC — threat response | `python scripts/run_dmpc.py --scenario threat_response` |
+| Pure DMPC — search & track | `python scripts/run_dmpc.py --scenario search_and_track` |
+| DMPC-RL — area surveillance | `python scripts/run_dmpc_rl.py --scenario area_surveillance` |
+| DMPC-RL — threat response | `python scripts/run_dmpc_rl.py --scenario threat_response` |
+| DMPC-RL — search & track | `python scripts/run_dmpc_rl.py --scenario search_and_track` |
+| Train MAPPO policy | `python scripts/train_mappo.py` |
+
+Results are saved as JSON files in `data/results/dmpc/` and `data/results/dmpc_rl/`
+respectively.  Open `notebooks/05_comparison_analysis.ipynb` for a head-to-head comparison.
+
+### Notebooks
+
+| Notebook | Description |
+| :--- | :--- |
+| `01_system_overview.ipynb` | Package structure and module inventory |
+| `02_module_testing.ipynb` | Interactive module unit tests |
+| `03_learning_curves.ipynb` | MAPPO training metrics (reward, entropy, losses) |
+| `04_mission_analysis.ipynb` | Per-scenario metrics for both Pure DMPC and DMPC-RL |
+| `05_comparison_analysis.ipynb` | Head-to-head comparison (reward, battery, solve time) |
 
 ## License
 
