@@ -28,7 +28,7 @@ Given:
 Find a one-to-one assignment $\sigma: \text{tasks} \to \text{drones}$ that minimises total cost:
 
 $$
-\min_{\sigma} \; \sum_i C[i,\, \sigma(i)]
+\min_{\sigma}  \sum_i C[i, \sigma(i)]
 \quad \text{s.t.} \quad \sigma \text{ is a bijection (each task to exactly one drone)}
 $$
 
@@ -42,14 +42,14 @@ problem on a bipartite graph.
 The cost of assigning task $\tau_i$ to drone $d_j$ is a weighted sum of five factors:
 
 $$
-C[i,j] = 0.30\,c_{\text{dist}} + 0.20\,c_{\text{fuel}} + 0.20\,c_{\text{load}} + 0.15\,c_{\text{sensor}} - 0.15\,b_{\text{priority}}
+C[i,j] = 0.30c_{\text{dist}} + 0.20c_{\text{fuel}} + 0.20c_{\text{load}} + 0.15c_{\text{sensor}} - 0.15b_{\text{priority}}
 $$
 
 ### Distance Cost
 
 $$
-d_{ij} = \|\tau_i.\boldsymbol{p} - d_j.\boldsymbol{p}\|, \qquad
-c_{\text{dist}} = d_{ij} / 1000 \quad \text{(normalised to } {\approx}\,[0,2] \text{ for 1 km range)}
+d_{ij} = \lVert\tau_i.\boldsymbol{p} - d_j.\boldsymbol{p}\rVert, \qquad
+c_{\text{dist}} = d_{ij} / 1000 \quad \text{(normalised to } {\approx}[0,2] \text{ for 1 km range)}
 $$
 
 ### Fuel Cost
@@ -63,7 +63,7 @@ Drones with more fuel are preferred.
 ### Task Load Cost
 
 $$
-c_{\text{load}} = d_j.\text{current\_load} \in [0, 1]
+c_{\text{load}} = d_j.\text{current load} \in [0, 1]
 $$
 
 ### Sensor Capability Cost

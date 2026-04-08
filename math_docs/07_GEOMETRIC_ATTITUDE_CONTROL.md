@@ -41,7 +41,7 @@ All control gains are fixed at construction time (no online adaptation).
 ### Translational Dynamics
 
 $$
-m\,\ddot{\boldsymbol{p}} = f_{\text{total}}\,R\,\boldsymbol{e}_3 - m\,g\,\boldsymbol{e}_3
+m\ddot{\boldsymbol{p}} = f_{\text{total}}R\boldsymbol{e}_3 - mg\boldsymbol{e}_3
 $$
 
 where:
@@ -49,12 +49,12 @@ where:
 - $f_{\text{total}} = T_1 + T_2 + T_3 + T_4$ — total thrust
 - $R \in \mathrm{SO}(3)$ — rotation matrix (body → world)
 - $\boldsymbol{e}_3 = [0, 0, 1]^\top$
-- $g = 9.81\;\text{m/s}^2$
+- $g = 9.81\text{m/s}^2$
 
 ### Rotational Dynamics (Euler's Equation)
 
 $$
-J\,\dot{\boldsymbol{\omega}} = \boldsymbol{\tau} - \boldsymbol{\omega} \times (J\,\boldsymbol{\omega})
+J\dot{\boldsymbol{\omega}} = \boldsymbol{\tau} - \boldsymbol{\omega} \times (J\boldsymbol{\omega})
 $$
 
 where:
@@ -65,7 +65,7 @@ where:
 Default inertia (`DroneParameters.__post_init__`):
 
 $$
-J = \mathrm{diag}(0.0083,\; 0.0083,\; 0.0166)\;\text{kg·m}^2
+J = \text{diag}(0.0083, 0.0083, 0.0166)\text{kg·m}^2
 $$
 
 ---
@@ -80,24 +80,33 @@ $\boldsymbol{q} = [q_w, q_x, q_y, q_z]^\top$ (scalar-first convention).
 Using Rodriguez' formula:
 
 $$
-R = (q_w^2 - \boldsymbol{q}_v^\top \boldsymbol{q}_v)\,I_3 + 2\,\boldsymbol{q}_v\,\boldsymbol{q}_v^\top + 2\,q_w\,[\boldsymbol{q}_v]_\times
+R = (q_w^2 - \boldsymbol{q}_v^\top \boldsymbol{q}_v)I_3 + 2\boldsymbol{q}_v\boldsymbol{q}_v^\top + 2q_w[\boldsymbol{q}_v]_\times
 $$
 
-where $\boldsymbol{q}_v = [q_x, q_y, q_z]^\top$ and $[\boldsymbol{q}_v]_\times$ is the skew-symmetric
+where $\boldsymbol{q}\_v = [q_x, q_y, q_z]^\top$ and $[\boldsymbol{q}\_v]_\times$ is the skew-symmetric
 cross-product matrix:
 
 $$
-[\boldsymbol{q}_v]_\times = \begin{bmatrix} 0 & -q_z & q_y \\ q_z & 0 & -q_x \\ -q_y & q_x & 0 \end{bmatrix}
+[\boldsymbol{q}_v]_\times = \begin{bmatrix} 
+0 & -q_z & q_y \\ 
+q_z & 0 & -q_x \\ 
+-q_y & q_x & 0 
+\end{bmatrix}
 $$
 
 ### Quaternion Kinematics Equation
 
 $$
-\dot{\boldsymbol{q}} = \tfrac{1}{2}\,\boldsymbol{q} \otimes [0, \boldsymbol{\omega}]^\top
-= \frac{1}{2} \begin{bmatrix} 0 & -\omega_x & -\omega_y & -\omega_z \\ \omega_x & 0 & \omega_z & -\omega_y \\ \omega_y & -\omega_z & 0 & \omega_x \\ \omega_z & \omega_y & -\omega_x & 0 \end{bmatrix} \boldsymbol{q}
+\dot{\boldsymbol{q}} = \tfrac{1}{2}\boldsymbol{q} \otimes [0, \boldsymbol{\omega}]^\top
+= \frac{1}{2} \begin{bmatrix} 
+0 & -\omega_x & -\omega_y & -\omega_z \\ 
+\omega_x & 0 & \omega_z & -\omega_y \\ 
+\omega_y & -\omega_z & 0 & \omega_x \\ 
+\omega_z & \omega_y & -\omega_x & 0 
+\end{bmatrix} \boldsymbol{q}
 $$
 
-The quaternion must always satisfy the unit-norm constraint $\|\boldsymbol{q}\| = 1$.
+The quaternion must always satisfy the unit-norm constraint $\lVert\boldsymbol{q}\rVert = 1$.
 
 ---
 
@@ -118,11 +127,11 @@ R_e = R_d^\top R \quad \text{(relative rotation: } R_d\text{-frame to }R\text{-f
 $$
 
 $$
-\boldsymbol{e}_R = \tfrac{1}{2}\mathrm{vex}(R_e - R_e^\top) \in \mathbb{R}^3
+\boldsymbol{e}_R = \tfrac{1}{2}\text{vex}(R_e - R_e^\top) \in \mathbb{R}^3
   \quad \text{(attitude error vector)}
 $$
 
-where $\mathrm{vex}(\cdot)$ extracts the axial vector from a skew-symmetric matrix.
+where $\text{vex}(\cdot)$ extracts the axial vector from a skew-symmetric matrix.
 
 In code:
 
@@ -137,7 +146,7 @@ def attitude_error(self, R, R_d):
 ### Angular Velocity Error
 
 $$
-\boldsymbol{e}_\omega = \boldsymbol{\omega} - R^\top R_d\,\boldsymbol{\omega}_d
+\boldsymbol{e}_\omega = \boldsymbol{\omega} - R^\top R_d\boldsymbol{\omega}_d
 $$
 
 where $\boldsymbol{\omega}_d$ is the desired angular velocity (zero for stationary hover).
@@ -155,7 +164,7 @@ $$
 $$
 
 $$
-\boldsymbol{a}_{\text{des}} = \boldsymbol{a}_{\text{ref}} - K_{p,\text{pos}}\,\boldsymbol{e}_p - K_{d,\text{pos}}\,\boldsymbol{e}_v
+\boldsymbol{a}_{\text{des}} = \boldsymbol{a}_{\text{ref}} - K_{p,\text{pos}}\boldsymbol{e}_p - K_{d,\text{pos}}\boldsymbol{e}_v
 $$
 
 ### Desired Thrust Direction
@@ -163,17 +172,17 @@ $$
 From Newton's second law, the total thrust vector in the world frame must be:
 
 $$
-\boldsymbol{f}_{\text{des}} = m\,(\boldsymbol{a}_{\text{des}} + g\,\boldsymbol{e}_3)
+\boldsymbol{f}_{\text{des}} = m(\boldsymbol{a}_{\text{des}} + g\boldsymbol{e}_3)
 $$
 
 The desired body z-axis (thrust direction) is:
 
 $$
-\boldsymbol{b}_{3,\text{des}} = \boldsymbol{f}_{\text{des}} / \|\boldsymbol{f}_{\text{des}}\|
+\boldsymbol{b}_{3,\text{des}} = \boldsymbol{f}_{\text{des}} / \lVert\boldsymbol{f}_{\text{des}}\rVert
 $$
 
 This is combined with a desired yaw angle $\psi_{\text{des}}$ to form the full desired
-rotation matrix $R_d$ (via the Gram-Schmidt process on $\boldsymbol{b}_{1,\text{des}}$ and $\boldsymbol{b}_{3,\text{des}}$).
+rotation matrix $R_d$ (via the Gram-Schmidt process on $\boldsymbol{b}\_{1,\text{des}}$ and $\boldsymbol{b}\_{3,\text{des}}$).
 
 ---
 
@@ -182,21 +191,21 @@ rotation matrix $R_d$ (via the Gram-Schmidt process on $\boldsymbol{b}_{1,\text{
 ### Torque Command (Geometric PD)
 
 $$
-\boldsymbol{\tau} = -K_{p,\text{att}}\,\boldsymbol{e}_R - K_{d,\text{att}}\,\boldsymbol{e}_\omega + \boldsymbol{\omega} \times (J\,\boldsymbol{\omega})
+\boldsymbol{\tau} = -K_{p,\text{att}}\boldsymbol{e}_R - K_{d,\text{att}}\boldsymbol{e}_\omega + \boldsymbol{\omega} \times (J\boldsymbol{\omega})
 $$
 
-The feed-forward gyroscopic term $\boldsymbol{\omega} \times (J\,\boldsymbol{\omega})$ compensates
+The feed-forward gyroscopic term $\boldsymbol{\omega} \times (J\boldsymbol{\omega})$ compensates
 for Coriolis and centrifugal effects, improving tracking at high angular rates.
 
 ### Total Thrust
 
 $$
-f_{\text{total}} = \boldsymbol{f}_{\text{des}} \cdot (R\,\boldsymbol{e}_3)
+f_{\text{total}} = \boldsymbol{f}_{\text{des}} \cdot (R\boldsymbol{e}_3)
   \quad \text{(project desired force onto body z-axis)}
 $$
 
 $$
-f_{\text{total}} \leftarrow \max(f_{\text{total}},\; 0) \quad \text{(thrust cannot be negative)}
+f_{\text{total}} \leftarrow \max(f_{\text{total}}, 0) \quad \text{(thrust cannot be negative)}
 $$
 
 ### Control Output

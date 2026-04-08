@@ -29,14 +29,14 @@ The ISR-RL-DMPC system solves the following adaptive QP per drone at every
 control step (50 Hz):
 
 $$
-\min_{\boldsymbol{x},\boldsymbol{u}} \; \sum_{k=0}^{N-1} \Bigl[ \|\boldsymbol{x}_k - \boldsymbol{x}^{\text{ref}}_k\|^2_{Q_{\text{eff}}} + \|\boldsymbol{u}_k\|^2_{R_{\text{eff}}} \Bigr] + \|\boldsymbol{x}_N - \boldsymbol{x}^{\text{ref}}_N\|^2_P
+\min_{\boldsymbol{x},\boldsymbol{u}}  \sum_{k=0}^{N-1} \Bigl[ \|\boldsymbol{x}_k - \boldsymbol{x}^{\text{ref}}_k\|^2_{Q_{\text{eff}}} + \|\boldsymbol{u}_k\|^2_{R_{\text{eff}}} \Bigr] + \|\boldsymbol{x}_N - \boldsymbol{x}^{\text{ref}}_N\|^2_P
 $$
 
 $$
 \text{s.t.} \quad
 \boldsymbol{x}_{k+1} = A\boldsymbol{x}_k + B\boldsymbol{u}_k, \quad
 \|\boldsymbol{u}_k\|_2 \le u_{\max}, \quad
-\|\boldsymbol{p}_k - \boldsymbol{p}_j\|_2 \ge r_{\min} \;\forall j \in \mathcal{N}
+\|\boldsymbol{p}_k - \boldsymbol{p}_j\|_2 \ge r_{\min} \forall j \in \mathcal{N}
 $$
 
 where the **MAPPO agent** outputs per-drone scale vectors each step:
@@ -44,7 +44,7 @@ where the **MAPPO agent** outputs per-drone scale vectors each step:
 $$
 Q_{\text{eff}} = Q \odot \mathrm{diag}(\boldsymbol{q}_s), \qquad
 R_{\text{eff}} = R \odot \mathrm{diag}(\boldsymbol{r}_s), \qquad
-\boldsymbol{q}_s, \boldsymbol{r}_s \in [0.1,\;10.0]
+\boldsymbol{q}_s, \boldsymbol{r}_s \in [0.1,10.0]
 $$
 
 and **ADMM** drives consensus across local DMPC sub-problems via the
@@ -284,7 +284,7 @@ For large swarms (> 6 drones), replace pairwise constraints with
 position set is its BVC, computed once per control step:
 
 $$
-\mathcal{BVC}_i = \{ \boldsymbol{p} : \|\boldsymbol{p} - \boldsymbol{p}_i\| \le \|\boldsymbol{p} - \boldsymbol{p}_j\| - r_{\min},\; \forall\, j \ne i \}
+\mathcal{BVC}_i = \{ \boldsymbol{p} : \|\boldsymbol{p} - \boldsymbol{p}_i\| \le \|\boldsymbol{p} - \boldsymbol{p}_j\| - r_{\min}, \forall j \ne i \}
 $$
 
 This reduces the number of constraints from O(N²) to O(N), maintaining
@@ -392,7 +392,7 @@ A disturbance observer estimates external forces (wind, payload imbalance)
 and feeds them back into the reference acceleration:
 
 $$
-\hat{d}_{k+1} = \hat{d}_k + L\,(\boldsymbol{a}_{\text{measured}} - \boldsymbol{a}_{\text{predicted}})
+\hat{d}_{k+1} = \hat{d}_k + L(\boldsymbol{a}_{\text{measured}} - \boldsymbol{a}_{\text{predicted}})
 $$
 
 where $\boldsymbol{a}_{\text{predicted}} = \boldsymbol{u}_k + \hat{d}_k$ (control + estimated disturbance)

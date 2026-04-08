@@ -36,12 +36,12 @@ drone's own state and one EKF per tracked target.
 
 ```
 IMU (400 Hz) ──► PositionVelocityEKF (6-D) ─┐
-GPS (10 Hz) ─────────────────────────────────┤
-                                              ├─► DroneStateEstimator ──► 18-D state
-Gyro (400 Hz) ──► AttitudeEKF (4-D) ─────────┤
-Magnetometer ────────────────────────────────┤
-                                              │
-Angular Velocity Filter (3-D) ───────────────┘
+GPS (10 Hz) ────────────────────────────────┤
+                                            ├─► DroneStateEstimator ──► 18-D state
+Gyro (400 Hz) ──► AttitudeEKF (4-D) ────────┤
+Magnetometer ───────────────────────────────┤
+                                            │
+Angular Velocity Filter (3-D) ──────────────┘
 
 Radar ──────────┐
 Optical ────────┤
@@ -60,12 +60,12 @@ The (Extended) Kalman Filter alternates between two steps:
 Given process model $f(\boldsymbol{x})$ and process noise covariance $Q$:
 
 $$
-\hat{\boldsymbol{x}}^-[k] = f(\hat{\boldsymbol{x}}[k{-}1],\, \boldsymbol{u})
+\hat{\boldsymbol{x}}^-[k] = f(\hat{\boldsymbol{x}}[k{-}1], \boldsymbol{u})
   \quad \text{(propagate mean)}
 $$
 
 $$
-P^-[k] = F\,P[k{-}1]\,F^\top + Q
+P^-[k] = FP[k{-}1]F^\top + Q
   \quad \text{(propagate covariance)}
 $$
 
@@ -82,22 +82,22 @@ $$
 $$
 
 $$
-S = H\,P^-\,H^\top + R_{\text{meas}}
+S = HP^-H^\top + R_{\text{meas}}
   \quad \text{(innovation covariance)}
 $$
 
 $$
-K = P^-\,H^\top S^{-1}
+K = P^-H^\top S^{-1}
   \quad \text{(Kalman gain)}
 $$
 
 $$
-\hat{\boldsymbol{x}} = \hat{\boldsymbol{x}}^- + K\,\hat{\boldsymbol{y}}
+\hat{\boldsymbol{x}} = \hat{\boldsymbol{x}}^- + K\hat{\boldsymbol{y}}
   \quad \text{(corrected mean)}
 $$
 
 $$
-P = (I - KH)\,P^-
+P = (I - KH)P^-
   \quad \text{(corrected covariance)}
 $$
 
@@ -119,39 +119,45 @@ is estimated by three specialised sub-filters fused inside `DroneStateEstimator`
 
 #### Process Model (Euler integration)
 
-The IMU accelerometer provides body-frame acceleration $\boldsymbol{a}_{\text{body}}$.
-After rotating to the world frame ($\boldsymbol{a}_{\text{world}} = R(\boldsymbol{q})\,\boldsymbol{a}_{\text{body}} - g\,\boldsymbol{e}_3$):
+The IMU accelerometer provides body-frame acceleration $\mathbf{a}\_{\text{body}}$. 
+After rotating to the world frame: 
+$\mathbf{a}\_{\text{world}} = R(\mathbf{q})\mathbf{a}\_{\text{body}} - g\mathbf{e}\_3$
+
 
 $$
-\boldsymbol{p}[k{+}1] = \boldsymbol{p}[k] + \Delta t\,\boldsymbol{v}[k] + \tfrac{1}{2}\Delta t^2\,\boldsymbol{a}_{\text{world}}
+\boldsymbol{p}[k{+}1] = \boldsymbol{p}[k] + \Delta t\boldsymbol{v}[k] + \tfrac{1}{2}\Delta t^2\boldsymbol{a}_{\text{world}}
 $$
 
 $$
-\boldsymbol{v}[k{+}1] = \boldsymbol{v}[k] + \Delta t\,\boldsymbol{a}_{\text{world}}
+\boldsymbol{v}[k{+}1] = \boldsymbol{v}[k] + \Delta t\boldsymbol{a}_{\text{world}}
 $$
 
 State transition matrix:
 
 $$
-F_{pv} = \begin{bmatrix} I_3 & \Delta t\,I_3 \\ 0 & I_3 \end{bmatrix} \in \mathbb{R}^{6 \times 6}
+F_{pv} = \begin{bmatrix} 
+I_3 & \Delta tI_3 \\ 
+0 & I_3 
+\end{bmatrix} \in \mathbb{R}^{6 \times 6}
 $$
 
 Covariance prediction:
 
 $$
-P^- = F_{pv}\,P\,F_{pv}^\top + Q_{pv}
+P^- = F_{pv}PF_{pv}^\top + Q_{pv}
 $$
 
 #### GPS Update
 
-Full-state GPS measurement $\boldsymbol{z} = [\boldsymbol{p}_{\text{GPS}};\; \boldsymbol{v}_{\text{GPS}}] \in \mathbb{R}^6$:
+Full-state GPS measurement $\boldsymbol{z} = [\boldsymbol{p}\_{\text{GPS}}^\top, \boldsymbol{v}\_{\text{GPS}}^\top]^\top \in \mathbb{R}^6$:
 
 $$
 H_{\text{gps}} = I_6, \qquad
-R_{\text{gps}} = \mathrm{diag}(\sigma_p^2, \sigma_p^2, \sigma_p^2, \sigma_v^2, \sigma_v^2, \sigma_v^2)
+R_{\text{gps}} = \text{diag}(\sigma_p^2, \sigma_p^2, \sigma_p^2, \sigma_v^2, \sigma_v^2, \sigma_v^2)
 $$
 
-Default noise: $\sigma_p = 5.0\;\text{m}$, $\sigma_v = 1.0\;\text{m/s}$.
+
+Default noise: $\sigma_p = 5.0\text{m}$, $\sigma_v = 1.0\text{m/s}$.
 
 ### 3.2. Attitude EKF — Quaternion (4-D)
 
@@ -162,7 +168,7 @@ Default noise: $\sigma_p = 5.0\;\text{m}$, $\sigma_v = 1.0\;\text{m/s}$.
 The quaternion derivative is:
 
 $$
-\dot{\boldsymbol{q}} = \tfrac{1}{2}\,\boldsymbol{q} \otimes [0, \boldsymbol{\omega}]^\top
+\dot{\boldsymbol{q}} = \tfrac{1}{2}\boldsymbol{q} \otimes [0, \boldsymbol{\omega}]^\top
 $$
 
 where $\otimes$ is the quaternion product and $\boldsymbol{\omega} \in \mathbb{R}^3$ is the gyro reading.
@@ -170,11 +176,11 @@ where $\otimes$ is the quaternion product and $\boldsymbol{\omega} \in \mathbb{R
 Discrete-time prediction (first-order):
 
 $$
-\boldsymbol{q}[k{+}1] = \boldsymbol{q}[k] + \tfrac{1}{2}\,\Omega(\boldsymbol{\omega})\,\boldsymbol{q}[k]\,\Delta t
+\boldsymbol{q}[k{+}1] = \boldsymbol{q}[k] + \tfrac{1}{2}\Omega(\boldsymbol{\omega})\boldsymbol{q}[k]\Delta t
 $$
 
 $$
-\boldsymbol{q}[k{+}1] \leftarrow \boldsymbol{q}[k{+}1] / \|\boldsymbol{q}[k{+}1]\|
+\boldsymbol{q}[k{+}1] \leftarrow \boldsymbol{q}[k{+}1] / \lVert\boldsymbol{q}[k{+}1]\rVert
   \quad \text{(renormalise)}
 $$
 
@@ -195,8 +201,8 @@ Roll/pitch correction via cross-product error:
 
 $$
 \boldsymbol{e} = \boldsymbol{a}_{\text{norm}} \times \hat{\boldsymbol{g}}, \qquad
-\Delta\boldsymbol{q} = k_a\,[0, \boldsymbol{e}], \qquad
-\boldsymbol{q} \leftarrow \mathrm{normalise}(\boldsymbol{q} + \Delta\boldsymbol{q})
+\Delta\boldsymbol{q} = k_a[0, \boldsymbol{e}], \qquad
+\boldsymbol{q} \leftarrow \text{normalize}(\boldsymbol{q} + \Delta\boldsymbol{q})
 $$
 
 where $k_a = 0.01$ is the accelerometer correction gain.
@@ -205,8 +211,8 @@ where $k_a = 0.01$ is the accelerometer correction gain.
 
 $$
 \boldsymbol{e} = \boldsymbol{m}_{\text{norm}} \times \boldsymbol{m}_{\text{expected}}, \qquad
-\Delta\boldsymbol{q} = k_m\,[0, \boldsymbol{e}], \qquad
-\boldsymbol{q} \leftarrow \mathrm{normalise}(\boldsymbol{q} + \Delta\boldsymbol{q})
+\Delta\boldsymbol{q} = k_m[0, \boldsymbol{e}], \qquad
+\boldsymbol{q} \leftarrow \text{normalise}(\boldsymbol{q} + \Delta\boldsymbol{q})
 $$
 
 where $k_m = 0.01$ is the magnetometer correction gain.
@@ -220,7 +226,7 @@ $$
 $$
 
 $$
-\boldsymbol{b}[k{+}1] = (1-\alpha)\,\boldsymbol{b}[k] + \alpha\,\boldsymbol{\omega}_{\text{gyro}}[k]
+\boldsymbol{b}[k{+}1] = (1-\alpha)\boldsymbol{b}[k] + \alpha\boldsymbol{\omega}_{\text{gyro}}[k]
   \quad (\text{stationary calibration, } \alpha = 0.1)
 $$
 
@@ -229,13 +235,13 @@ $$
 **Battery** is modelled as a first-order discharge:
 
 $$
-E[k{+}1] = \max(0,\; E[k] - P_{\text{draw}}\,\Delta t / 3600)
+E[k{+}1] = \max(0, E[k] - P_{\text{draw}}\Delta t / 3600)
 $$
 
 A fuel-gauge update applies an $\alpha$-filter to fuse the on-board measurement:
 
 $$
-E \leftarrow (1-\alpha)\,E + \alpha\,E_{\text{measured}}, \quad \alpha = 0.5
+E \leftarrow (1-\alpha)E + \alpha E_{\text{measured}}, \quad \alpha = 0.5
 $$
 
 **Health** is a direct measurement (motor diagnostics) clipped to $[0, 1]$.
@@ -274,33 +280,33 @@ Radar measures range, range-rate, azimuth, and elevation from sensor position $\
 
 $$
 \boldsymbol{\delta} = \boldsymbol{p}_{\text{tgt}} - \boldsymbol{s}, \qquad
-r = \|\boldsymbol{\delta}\|, \qquad
+r = \lVert\boldsymbol{\delta}\rVert, \qquad
 \dot{r} = \frac{\boldsymbol{\delta}^\top \boldsymbol{v}}{r}
 $$
 
 $$
-\alpha_z = \mathrm{atan2}(\delta_y, \delta_x), \qquad
-\text{el} = \arcsin(\delta_z / r)
+\alpha_z = \text{atan2}(\delta_y, \delta_x), \qquad
+\text{el} = \text{asin}(\delta_z / r)
 $$
 
 $$
-h_{\text{radar}}(\boldsymbol{x}) = [r,\; \dot{r},\; \alpha_z,\; \text{el}]^\top
+h_{\text{radar}}(\boldsymbol{x}) = [r, \dot{r}, \alpha_z, \text{el}]^\top
 $$
 
 $$
-R_{\text{radar}} = \mathrm{diag}(\sigma_r^2, \sigma_{\dot{r}}^2, \sigma_{\alpha}^2, \sigma_{\text{el}}^2)
-= \mathrm{diag}(25, 1, 10^{-4}, 10^{-4})
+R_{\text{radar}} = \text{diag}(\sigma_r^2, \sigma_{\dot{r}}^2, \sigma_{\alpha}^2, \sigma_{\text{el}}^2)
+= \text{diag}(25, 1, 10^{-4}, 10^{-4})
 $$
 
 ### 5.3. Optical Bearing (2-D / 3-D)
 
 $$
-h_{\text{opt}}(\boldsymbol{x}) = [\alpha_z,\; \text{el}]^\top \quad \text{(2-D, no range)}
+h_{\text{opt}}(\boldsymbol{x}) = [\alpha_z, \text{el}]^\top \quad \text{(2-D, no range)}
 $$
 
 $$
-R_{\text{opt}} = \mathrm{diag}(\sigma_\alpha^2, \sigma_{\text{el}}^2)
-= \mathrm{diag}(4 \times 10^{-4}, 4 \times 10^{-4})
+R_{\text{opt}} = \text{diag}(\sigma_\alpha^2, \sigma_{\text{el}}^2)
+= \text{diag}(4 \times 10^{-4}, 4 \times 10^{-4})
 $$
 
 ### 5.4. RF Fingerprinting (3-D)
@@ -311,8 +317,7 @@ H_{\text{RF}} = [I_3 \mid \boldsymbol{0}_{3 \times 8}]
 $$
 
 $$
-R_{\text{RF}} = \frac{1}{c}\,\mathrm{diag}(\sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2),
-\quad \sigma_{\text{RF}} = 10\;\text{m}
+R_{\text{RF}} = \frac{1}{c}\text{diag}(\sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2, \sigma_{\text{RF}}^2), \quad \sigma_{\text{RF}} = 10\,\text{m}
 $$
 
 ### 5.5. Acoustic TDOA (3-D)
@@ -352,7 +357,7 @@ $$
 A small regularisation term can be added if eigenvalues approach zero:
 
 $$
-P \leftarrow P + \varepsilon\,I, \quad \varepsilon \approx 10^{-9}
+P \leftarrow P + \varepsilon I, \quad \varepsilon \approx 10^{-9}
 $$
 
 ### Assembled 18×18 Covariance
@@ -361,9 +366,12 @@ The full 18-D covariance is a **block-diagonal** assembly of the three
 sub-filter covariances:
 
 $$
-P_{18} = \mathrm{block\_diag}\!\bigl(P_{pv}(6 \times 6),\;
-  P_a(3 \times 3),\; P_{\text{att}}(4 \times 4),\;
-  P_{\omega}(3 \times 3),\; P_E(1 \times 1),\; P_h(1 \times 1)\bigr)
+P_{18} = \text{block diag}\bigl(P_{pv}(6 \times 6),
+P_a(3 \times 3), P_{\text{att}}(4 \times 4),
+P_{\omega}(3 \times 3), P_E(1 \times 1), P_h(1 \times 1)\bigr)
 $$
+
+
+
 
 

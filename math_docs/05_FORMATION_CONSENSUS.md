@@ -55,14 +55,14 @@ through a shared consensus variable.
 
 The swarm is modelled as an undirected graph $G = (V, E)$:
 - $V = \{0, 1, \ldots, N{-}1\}$ — drone indices
-- $(i, j) \in E$ iff $\|\boldsymbol{p}_i - \boldsymbol{p}_j\| \le r_{\text{comm}}$ (communication range, default 100 m)
+- $(i, j) \in E$ iff $\lVert\boldsymbol{p}\_i - \boldsymbol{p}\_j\rVert \le r_{\text{comm}}$ (communication range, default 100 m)
 
 ### Adjacency Matrix
 
 The weighted adjacency matrix $A_{\text{adj}}$ has entries:
 
 $$
-A_{\text{adj}}[i, j] = \begin{cases} 1 & (i,j) \in E,\; i \ne j \\ 0 & \text{otherwise} \end{cases}
+A_{\text{adj}}[i, j] = \begin{cases} 1 & (i,j) \in E, i \ne j \\ 0 & \text{otherwise} \end{cases}
 $$
 
 ### Graph Laplacian
@@ -106,22 +106,22 @@ mean neighbour position:
 
 $$
 \boldsymbol{u}_{\text{consensus},i} = k_c \sum_{j \in \mathcal{N}(i)} (\boldsymbol{p}_j - \boldsymbol{p}_i)
-= -k_c\,(L\,\boldsymbol{p})_i
+= -k_c(L\boldsymbol{p})_i
 $$
 
-where $k_c = 0.1$ is the consensus gain and $(L\,\boldsymbol{p})_i$ is the $i$-th row of the
+where $k_c = 0.1$ is the consensus gain and $(L\boldsymbol{p})_i$ is the $i$-th row of the
 Laplacian matrix applied to the position vector.
 
 > **Distinction from formation error:** This term implements *average consensus*
 > (convergence to a common mean position), whereas the formation error
-> $\boldsymbol{\varepsilon}_i$ defined above includes the desired offsets $\boldsymbol{d}_{ij}$.
+> $\boldsymbol{\varepsilon}\_i$ defined above includes the desired offsets $\boldsymbol{d}\_{ij}$.
 > The consensus term alone would drive all drones to the same position; the
 > formation-offset information is carried by the proportional term
 > $\boldsymbol{u}_p = k_p(\boldsymbol{p}^{\text{des}}_i - \boldsymbol{p}_i)$ in the full control law.
-> Driving $\boldsymbol{\varepsilon}_i \to \boldsymbol{0}$ therefore relies on the combined
-> action of $\boldsymbol{u}_p$ and $\boldsymbol{u}_{\text{consensus}}$; the consensus term
+> Driving $\boldsymbol{\varepsilon}\_i \to \boldsymbol{0}$ therefore relies on the combined
+> action of $\boldsymbol{u}\_p$ and $\boldsymbol{u}\_{\text{consensus}}$; the consensus term
 > provides cohesion but does not by itself enforce the desired inter-drone
-> offsets $\boldsymbol{d}_{ij}$.
+> offsets $\boldsymbol{d}\_{ij}$.
 
 ---
 
@@ -134,13 +134,13 @@ $\boldsymbol{p}_i$, and velocity $\boldsymbol{v}_i$:
 
 $$
 \boldsymbol{e}_p = \boldsymbol{p}^{\text{des}}_i - \boldsymbol{p}_i, \qquad
-\boldsymbol{u}_p = k_p\,\boldsymbol{e}_p, \quad k_p = 2.0
+\boldsymbol{u}_p = k_p\boldsymbol{e}_p, \quad k_p = 2.0
 $$
 
 ### Derivative (Damping) Term
 
 $$
-\boldsymbol{u}_d = -k_d\,\boldsymbol{v}_i, \quad k_d = 0.1\;\text{(velocity\_damping)}
+\boldsymbol{u}_d = -k_d\boldsymbol{v}_i, \quad k_d = 0.1\text{(velocity damping)}
 $$
 
 This term suppresses oscillations and reduces overshoot.
@@ -150,7 +150,7 @@ This term suppresses oscillations and reduces overshoot.
 $$
 \bar{\boldsymbol{p}}_{\mathcal{N}} = \frac{1}{|\mathcal{N}(i)|}
   \sum_{j \in \mathcal{N}(i)} \boldsymbol{p}_j, \qquad
-\boldsymbol{u}_{\text{consensus}} = k_c\,(\bar{\boldsymbol{p}}_{\mathcal{N}} - \boldsymbol{p}_i), \quad k_c = 0.1
+\boldsymbol{u}_{\text{consensus}} = k_c(\bar{\boldsymbol{p}}_{\mathcal{N}} - \boldsymbol{p}_i), \quad k_c = 0.1
 $$
 
 ### Combined Control
@@ -159,7 +159,7 @@ $$
 \boldsymbol{u}_{\text{total}} = \boldsymbol{u}_p + \boldsymbol{u}_d + \boldsymbol{u}_{\text{consensus}}
 $$
 
-$\|\boldsymbol{u}_{\text{total}}\|$ is saturated at $u_{\max} = 5.0\;\text{m/s}^2$.
+$\lVert\boldsymbol{u}\_{\text{total}}\rVert$ is saturated at $u\_{\max} = 5.0\text{m/s}^2$.
 
 ---
 
@@ -175,11 +175,16 @@ Drones are evenly spaced along the heading direction:
 
 $$
 o_i = \left(i - \frac{N{-}1}{2}\right) \times s, \qquad
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + \begin{bmatrix} o_i \cos\theta \\ o_i \sin\theta \\ z_i \end{bmatrix}
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+\begin{bmatrix} 
+o_i \cos\theta \\ 
+o_i \sin\theta \\ 
+z_i 
+\end{bmatrix}
 $$
 
 where $z_i = \left(i - \frac{N{-}1}{2}\right) \times s_z$ stacks layers in altitude,
-$s = 10\;\text{m}$, $s_z = 2\;\text{m}$.
+$s = 10\text{m}$, $s_z = 2\text{m}$.
 
 ### 5.2. Wedge (V-Shape)
 
@@ -188,14 +193,15 @@ left and right behind:
 
 $$
 r_i = s \cdot \lceil i/2 \rceil, \qquad
-\varphi_i = \frac{i}{N}\,\pi, \qquad
+\varphi_i = \frac{i}{N}\pi, \qquad
 \text{side}_i = (-1)^i
 $$
 
 $$
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + \begin{bmatrix}
-  r_i \cos(\theta + \text{side}_i\,\varphi_i) \\
-  r_i \sin(\theta + \text{side}_i\,\varphi_i) \\
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+\begin{bmatrix}
+  r_i \cos(\theta + \text{side}_i\varphi_i) \\
+  r_i \sin(\theta + \text{side}_i\varphi_i) \\
   (i \bmod 2) \times s_z
 \end{bmatrix}
 $$
@@ -205,7 +211,12 @@ $$
 Single-file queue along the heading direction:
 
 $$
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + \begin{bmatrix} i\,s\cos\theta \\ i\,s\sin\theta \\ 0 \end{bmatrix}
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+\begin{bmatrix} 
+is\cos\theta \\ 
+is\sin\theta \\ 
+0 
+\end{bmatrix}
 $$
 
 ### 5.4. Circular
@@ -214,7 +225,12 @@ Drones equally spaced on a circle of radius $r = \text{scale}/2$:
 
 $$
 \varphi_i = \frac{2\pi i}{N} + \theta, \qquad
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + \begin{bmatrix} r\cos\varphi_i \\ r\sin\varphi_i \\ 0 \end{bmatrix}
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+\begin{bmatrix} 
+r\cos\varphi_i \\ 
+r\sin\varphi_i \\ 
+0 
+\end{bmatrix}
 $$
 
 ### 5.5. Grid
@@ -224,11 +240,16 @@ rotated by heading:
 
 $$
 c_i = i \bmod g, \quad r_i = \lfloor i/g \rfloor, \qquad
-x = (c_i - g/2)\,s, \quad y = (r_i - g/2)\,s
+x = (c_i - g/2)s, \quad y = (r_i - g/2)s
 $$
 
 $$
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + \begin{bmatrix} x\cos\theta - y\sin\theta \\ x\sin\theta + y\cos\theta \\ 0 \end{bmatrix}
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+\begin{bmatrix} 
+x\cos\theta - y\sin\theta \\ 
+x\sin\theta + y\cos\theta \\ 
+0 
+\end{bmatrix}
 $$
 
 ### 5.6. Sphere (Fibonacci)
@@ -237,12 +258,13 @@ $$
 
 $$
 \varphi_i = \arccos\!\left(1 - \frac{2i}{N}\right), \qquad
-\theta_i = \sqrt{N\pi}\,\varphi_i, \qquad
+\theta_i = \sqrt{N\pi}\varphi_i, \qquad
 r = \frac{\text{scale}}{2}
 $$
 
 $$
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + r\begin{bmatrix}
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+r\begin{bmatrix}
   \sin\varphi_i\cos\theta_i \\
   \sin\varphi_i\sin\theta_i \\
   \cos\varphi_i
@@ -263,7 +285,7 @@ couples each drone's DMPC sub-problem to a shared consensus variable $\boldsymbo
 The ADMM augmented Lagrangian for the formation consensus problem is:
 
 $$
-\mathcal{L}_\rho = \sum_{i=1}^{N} \left[ \|\boldsymbol{p}_i - \boldsymbol{p}^{\text{des}}_i\|^2 + \boldsymbol{\mu}_i^\top (\boldsymbol{p}_i - \boldsymbol{v}) + \frac{\rho}{2}\|\boldsymbol{p}_i - \boldsymbol{v}\|^2 \right]
+\mathcal{L}_\rho = \sum_{i=1}^{N} \left[ \lVert\boldsymbol{p}_i - \boldsymbol{p}^{\text{des}}_i\rVert^2 + \boldsymbol{\mu}_i^\top (\boldsymbol{p}_i - \boldsymbol{v}) + \frac{\rho}{2}\lVert\boldsymbol{p}_i - \boldsymbol{v}\rVert^2 \right]
 $$
 
 The global consensus variable $\boldsymbol{v}$ converges to the swarm centroid:
@@ -283,11 +305,11 @@ drones optimise independently.
 
 ### Linear Consensus Convergence
 
-For the pure consensus update $\dot{\boldsymbol{x}} = -L\,\boldsymbol{x}$ (continuous time), the
+For the pure consensus update $\dot{\boldsymbol{x}} = -L\boldsymbol{x}$ (continuous time), the
 convergence rate is governed by the algebraic connectivity:
 
 $$
-\|\boldsymbol{x}(t) - \boldsymbol{x}^*\| \le e^{-\lambda_1 t}\,\|\boldsymbol{x}(0) - \boldsymbol{x}^*\|
+\lVert \boldsymbol{x}(t) - \boldsymbol{x}^* \rVert \le e^{-\lambda_1 t} \lVert \boldsymbol{x}(0) - \boldsymbol{x}^* \rVert
 $$
 
 where $\lambda_1 > 0$ is the Fiedler value of $L$ and $\boldsymbol{x}^*$ is the
@@ -298,20 +320,20 @@ consensus value.
 In discrete time with step $\Delta t$:
 
 $$
-\boldsymbol{x}[k{+}1] = (I - \Delta t\,k_c\,L)\,\boldsymbol{x}[k]
+\boldsymbol{x}[k{+}1] = (I - \Delta tk_cL)\boldsymbol{x}[k]
 $$
 
 $$
-\text{convergence rate: } \rho = 1 - \Delta t\,k_c\,\lambda_1 < 1
+\text{convergence rate: } \rho = 1 - \Delta tk_c\lambda_1 < 1
 $$
 
-The condition $\Delta t\,k_c\,\lambda_{\max}(L) < 2$ must hold for convergence.
-With $k_c = 0.1$, $\Delta t = 0.02\;\text{s}$, and typical $\lambda_{\max}(L) < 10$,
+The condition $\Delta tk_c\lambda_{\max}(L) < 2$ must hold for convergence.
+With $k_c = 0.1$, $\Delta t = 0.02\text{s}$, and typical $\lambda_{\max}(L) < 10$,
 the product is $0.002 \times 10 = 0.02 \ll 2$, so convergence is guaranteed.
 
 ### Formation Convergence Check
 
-Convergence threshold $\varepsilon = 0.5\;\text{m}$ (default):
+Convergence threshold $\varepsilon = 0.5\text{m}$ (default):
 
 ```python
 for drone_id, desired_pos in desired_positions.items():
@@ -326,7 +348,7 @@ return True  # converged
 ## 8. Formation Quality Metrics
 
 $$
-\text{errors}_i = \|\boldsymbol{p}_i - \boldsymbol{p}^{\text{des}}_i\|, \quad i = 0, \ldots, N{-}1
+\text{errors}_i = \lVert\boldsymbol{p}_i - \boldsymbol{p}^{\text{des}}_i\rVert, \quad i = 0, \ldots, N{-}1
 $$
 
 $$

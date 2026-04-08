@@ -37,8 +37,8 @@ The 18-D state is the full physical state tracked by the Extended Kalman Filters
 ## 2. DMPC State Vector (11-D)
 
 $$
-\boldsymbol{x} = \bigl[p_x,\; p_y,\; p_z,\; v_x,\; v_y,\; v_z,\;
-  a_x,\; a_y,\; a_z,\; \psi,\; \dot\psi\bigr]^\top \in \mathbb{R}^{11}
+\boldsymbol{x} = \bigl[p_x, p_y, p_z, v_x, v_y, v_z,
+  a_x, a_y, a_z, \psi, \dot\psi\bigr]^\top \in \mathbb{R}^{11}
 $$
 
 | Indices | Symbol | Units | Description |
@@ -67,12 +67,12 @@ over the prediction horizon, giving smoother trajectories.
 
 $$
 \boldsymbol{x}_{\text{est}} = \bigl[
-  p_x,\; p_y,\; p_z,\;
-  v_x,\; v_y,\; v_z,\;
-  a_x,\; a_y,\; a_z,\;
-  q_w,\; q_x,\; q_y,\; q_z,\;
-  \omega_x,\; \omega_y,\; \omega_z,\;
-  E_{\text{batt}},\; h
+  p_x, p_y, p_z,
+  v_x, v_y, v_z,
+  a_x, a_y, a_z,
+  q_w, q_x, q_y, q_z,
+  \omega_x, \omega_y, \omega_z,
+  E_{\text{batt}}, h
 \bigr]^\top \in \mathbb{R}^{18}
 $$
 
@@ -86,10 +86,10 @@ $\omega_z$ for index 10).
 ## 4. Target State Vector (11-D)
 
 $$
-\boldsymbol{x}_{\text{tgt}} = \bigl[p_x,\; p_y,\; p_z,\;
-  v_x,\; v_y,\; v_z,\;
-  a_x,\; a_y,\; a_z,\;
-  \psi,\; \dot\psi\bigr]^\top \in \mathbb{R}^{11}
+\boldsymbol{x}_{\text{tgt}} = \bigl[p_x, p_y, p_z,
+  v_x, v_y, v_z,
+  a_x, a_y, a_z,
+  \psi, \dot\psi\bigr]^\top \in \mathbb{R}^{11}
 $$
 
 This mirrors the DMPC drone state; the same EKF structure is re-used for
@@ -103,7 +103,7 @@ A quadrotor's translational dynamics in the world frame, neglecting drag and
 disturbances, are:
 
 $$
-\ddot{\boldsymbol{p}} = \frac{T}{m} R\, \boldsymbol{e}_3 - g\, \boldsymbol{e}_3
+\ddot{\boldsymbol{p}} = \frac{T}{m} R \boldsymbol{e}_3 - g \boldsymbol{e}_3
 $$
 
 where:
@@ -112,7 +112,7 @@ where:
 - $m$ — vehicle mass (1.477 kg for hector\_quadrotor)
 - $R \in \mathrm{SO}(3)$ — rotation matrix (body → world)
 - $\boldsymbol{e}_3 = [0, 0, 1]^\top$ — unit z-vector
-- $g = 9.81\;\text{m/s}^2$
+- $g = 9.81\text{m/s}^2$
 
 For small angles (near-hover), $R\boldsymbol{e}_3 \approx \boldsymbol{e}_3$ and the net body
 thrust minus gravity cancels.  Under this **small-angle approximation**, the
@@ -151,18 +151,18 @@ $$
 is discretised with Euler forward integration at step $\Delta t$:
 
 $$
-\boldsymbol{p}[k{+}1] = \boldsymbol{p}[k] + \Delta t\;\boldsymbol{v}[k]
+\boldsymbol{p}[k{+}1] = \boldsymbol{p}[k] + \Delta t\boldsymbol{v}[k]
 $$
 
 $$
-\boldsymbol{v}[k{+}1] = \boldsymbol{v}[k] + \Delta t\;\boldsymbol{a}[k]
+\boldsymbol{v}[k{+}1] = \boldsymbol{v}[k] + \Delta t\boldsymbol{a}[k]
 $$
 
 $$
-\boldsymbol{a}[k{+}1] = \boldsymbol{a}[k] + \Delta t\;\boldsymbol{u}[k]
+\boldsymbol{a}[k{+}1] = \boldsymbol{a}[k] + \Delta t\boldsymbol{u}[k]
 $$
 
-Written compactly as $\boldsymbol{x}[k{+}1] = A\,\boldsymbol{x}[k] + B\,\boldsymbol{u}[k]$
+Written compactly as $\boldsymbol{x}[k{+}1] = A\boldsymbol{x}[k] + B\boldsymbol{u}[k]$
 using the 9-D translational sub-state $[\boldsymbol{p}, \boldsymbol{v}, \boldsymbol{a}]$.
 
 ---
@@ -173,8 +173,8 @@ For the **full 11-D DMPC state** (translational + yaw):
 
 $$
 A = \begin{bmatrix}
-I_3 & \Delta t\,I_3 & 0 & 0 & 0 \\
-0 & I_3 & \Delta t\,I_3 & 0 & 0 \\
+I_3 & \Delta tI_3 & 0 & 0 & 0 \\
+0 & I_3 & \Delta tI_3 & 0 & 0 \\
 0 & 0 & I_3 & 0 & 0 \\
 0 & 0 & 0 & 1 & \Delta t \\
 0 & 0 & 0 & 0 & 1
@@ -182,7 +182,7 @@ I_3 & \Delta t\,I_3 & 0 & 0 & 0 \\
 $$
 
 $$
-B = \begin{bmatrix} 0 \\ 0 \\ \Delta t\,I_3 \\ 0 \\ 0 \end{bmatrix}
+B = \begin{bmatrix} 0 \\ 0 \\ \Delta tI_3 \\ 0 \\ 0 \end{bmatrix}
 \in \mathbb{R}^{11 \times 3}
 $$
 
@@ -192,13 +192,13 @@ where $I_3$ is the $3 \times 3$ identity matrix.
 
 | Block | Rows | Cols | Meaning |
 | :--- | :--- | :--- | :--- |
-| $A[0{:}3,\;3{:}6] = \Delta t\,I_3$ | position | velocity | $\boldsymbol{p} \mathrel{+}= \Delta t\,\boldsymbol{v}$ |
-| $A[3{:}6,\;6{:}9] = \Delta t\,I_3$ | velocity | acceleration | $\boldsymbol{v} \mathrel{+}= \Delta t\,\boldsymbol{a}$ |
-| $A[9,\;10] = \Delta t$ | yaw | yaw-rate | $\psi \mathrel{+}= \Delta t\,\dot\psi$ |
-| $B[6{:}9,\;0{:}3] = \Delta t\,I_3$ | acceleration | input | $\boldsymbol{a} \mathrel{+}= \Delta t\,\boldsymbol{u}$ |
+| $A[0{:}3,3{:}6] = \Delta tI_3$ | position | velocity | $\boldsymbol{p} \mathrel{+}= \Delta t\boldsymbol{v}$ |
+| $A[3{:}6,6{:}9] = \Delta tI_3$ | velocity | acceleration | $\boldsymbol{v} \mathrel{+}= \Delta t\boldsymbol{a}$ |
+| $A[9,10] = \Delta t$ | yaw | yaw-rate | $\psi \mathrel{+}= \Delta t\dot\psi$ |
+| $B[6{:}9,0{:}3] = \Delta tI_3$ | acceleration | input | $\boldsymbol{a} \mathrel{+}= \Delta t\boldsymbol{u}$ |
 
-The yaw dynamics in $A[9{:}11,\;9{:}11]$ form a $2 \times 2$ integrator; yaw is not
-driven by the translational input $\boldsymbol{u}$, so $B[9{:}11,\;:] = 0$.
+The yaw dynamics in $A[9{:}11,9{:}11]$ form a $2 \times 2$ integrator; yaw is not
+driven by the translational input $\boldsymbol{u}$, so $B[9{:}11,:] = 0$.
 
 ### Python code (from `dmpc_controller.py`)
 
@@ -218,9 +218,18 @@ B[6:9, 0:3] = dt * np.eye(3)   # da/du
 The yaw angle $\psi$ and yaw rate $\dot\psi$ evolve as a **decoupled 2-D linear system**:
 
 $$
-\begin{bmatrix} \psi[k{+}1] \\ \dot\psi[k{+}1] \end{bmatrix}
-= \begin{bmatrix} 1 & \Delta t \\ 0 & 1 \end{bmatrix}
-\begin{bmatrix} \psi[k] \\ \dot\psi[k] \end{bmatrix}
+\begin{bmatrix} 
+\psi[k{+}1] \\ 
+\dot\psi[k{+}1] 
+\end{bmatrix}
+= \begin{bmatrix} 
+1 & \Delta t \\ 
+0 & 1 
+\end{bmatrix}
+\begin{bmatrix} 
+\psi[k] \\ 
+\dot\psi[k] 
+\end{bmatrix}
 $$
 
 Because the translational control input $\boldsymbol{u}$ does not appear in these
@@ -237,7 +246,7 @@ regulated by the geometric attitude controller through a separate torque command
 *Proof sketch:* The controllability matrix
 
 $$
-\mathcal{C} = \bigl[B_9 \;\; A_9 B_9 \;\; A_9^2 B_9 \;\; \cdots \;\; A_9^8 B_9\bigr]
+\mathcal{C} = \bigl[B_9, A_9 B_9, A_9^2 B_9, \cdots, A_9^8 B_9\bigr]
 \in \mathbb{R}^{9 \times 27}
 $$
 

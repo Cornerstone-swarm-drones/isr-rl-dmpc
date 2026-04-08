@@ -48,16 +48,16 @@ The mission area is over-laid with an axis-aligned uniform grid of square
 cells of side $r$:
 
 $$
-x_{\text{grid}} = [x_{\min},\; x_{\min} + r,\; x_{\min} + 2r,\; \ldots,\; x_{\max}]
+x_{\text{grid}} = [x_{\min}, x_{\min} + r, x_{\min} + 2r, \ldots, x_{\max}]
 $$
 
 $$
-y_{\text{grid}} = [y_{\min},\; y_{\min} + r,\; y_{\min} + 2r,\; \ldots,\; y_{\max}]
+y_{\text{grid}} = [y_{\min}, y_{\min} + r, y_{\min} + 2r, \ldots, y_{\max}]
 $$
 
 A cell with vertices $\{(x_i, y_j), (x_{i+1}, y_j), (x_{i+1}, y_{j+1}), (x_i, y_{j+1})\}$
 is included in the mission if its **centroid**
-$\boldsymbol{c} = \left(\frac{x_i + x_{i+1}}{2},\; \frac{y_j + y_{j+1}}{2}\right)$
+$\boldsymbol{c} = \left(\frac{x_i + x_{i+1}}{2}, \frac{y_j + y_{j+1}}{2}\right)$
 lies inside the mission boundary polygon $\mathcal{B}$.
 
 ### Point-in-Polygon Test
@@ -65,7 +65,7 @@ lies inside the mission boundary polygon $\mathcal{B}$.
 Membership $\boldsymbol{c} \in \mathcal{B}$ is decided by `GeometryOps.point_in_polygon(c, B)`, which
 uses the **ray-casting algorithm**:
 
-> Cast a horizontal ray from $\boldsymbol{c}$ to $(+\infty,\, c_y)$.
+> Cast a horizontal ray from $\boldsymbol{c}$ to $(+\infty, c_y)$.
 > Count the number of boundary edges it crosses.
 > $\boldsymbol{c} \in \mathcal{B} \iff$ crossing count is odd.
 
@@ -91,14 +91,14 @@ in which cells are visited.  Higher priority → visited earlier in the mission.
 The priority decreases exponentially with distance from the area centre:
 
 $$
-\boldsymbol{c}_{\text{area}} = \mathrm{mean}(\mathcal{B}), \qquad
-d_c = \|\boldsymbol{c} - \boldsymbol{c}_{\text{area}}\|, \qquad
-s = \|\max(\mathcal{B}) - \min(\mathcal{B})\|
+\boldsymbol{c}_{\text{area}} = \text{mean}(\mathcal{B}), \qquad
+d_c = \lVert\boldsymbol{c} - \boldsymbol{c}_{\text{area}}\rVert, \qquad
+s = \lVert\max(\mathcal{B}) - \min(\mathcal{B})\rVert
 $$
 
 $$
 \pi_c = \exp\!\left(-\frac{d_c}{s / 10}\right), \qquad
-\pi_c \leftarrow \mathrm{clip}(\pi_c,\; 0.1,\; 1.0)
+\pi_c \leftarrow \text{clip}(\pi_c, 0.1, 1.0)
 $$
 
 **Rationale:** ISR missions typically originate from a headquarters position
@@ -116,7 +116,7 @@ applied in priority-sorted order:
 1. For each cell $c$ (in priority order):
 
 $$
-j^* = \arg\min_{j=1,\ldots,n} \|\boldsymbol{c}_{\text{center}} - \boldsymbol{p}_j[:2]\|, \qquad
+j^* = \arg\min_{j=1,\ldots,n} \lVert\boldsymbol{c}_{\text{center}} - \boldsymbol{p}_j[:2]\rVert, \qquad
 \text{Assign } c \to \text{drone } j^*
 $$
 
@@ -136,7 +136,7 @@ The waypoint generator orders these cells and returns a 3-D waypoint array
 $W \in \mathbb{R}^{k \times 3}$:
 
 $$
-W[i] = \bigl[c_i.\text{center}[0],\; c_i.\text{center}[1],\; \text{altitude}\bigr]
+W[i] = \bigl[c_i.\text{center}[0], c_i.\text{center}[1], \text{altitude}\bigr]
 $$
 
 Three path strategies are implemented:
@@ -145,11 +145,11 @@ Three path strategies are implemented:
 
 A **greedy tour** starting from the drone's current position:
 
-> $\text{remaining} = \{c_1, \ldots, c_k\}$, $\;\text{path} = []$, $\;\text{current} = \boldsymbol{p}_{\text{start}}$
+> $\text{remaining} = \{c_1, \ldots, c_k\}$, $\text{path} = []$, $\text{current} = \boldsymbol{p}_{\text{start}}$
 >
 > While $\text{remaining} \ne \emptyset$:
-> $c^* = \arg\min_{c \in \text{remaining}} \|c.\text{center} - \text{current}\|$
-> append $c^*$ to path, set $\text{current} = c^*.\text{center}$, remove $c^*$ from remaining.
+> $c^* = \arg\min_{c \in \text{remaining}} \lVert c.\text{center} - \text{current}\rVert$
+> append $c^{\*}$ to path, set $\text{current} = c^\*.\text{center}$, remove $c^\*$ from remaining.
 
 This is the classic **nearest-neighbour heuristic** for the Travelling Salesman
 Problem (TSP).  It is not optimal in general, but runs in $O(k^2)$ and typically
@@ -160,7 +160,7 @@ gives tours within 20–25% of the optimum.
 Cells are sorted by $y$-coordinate first, then $x$ within each $y$-band:
 
 $$
-\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c:\;(c.\text{center}[1],\; c.\text{center}[0])\bigr)
+\text{path} = \text{sorted}\bigl(\text{cells}, \text{key} = \lambda c:(c.\text{center}[1], c.\text{center}[0])\bigr)
 $$
 
 The resulting path resembles a **lawnmower** (boustrophedon) pattern: the drone
@@ -173,8 +173,8 @@ Cells are sorted by distance from the centroid of all assigned cells,
 from nearest to farthest:
 
 $$
-\boldsymbol{\mu} = \mathrm{mean}\bigl(\{c.\text{center}\}\bigr), \qquad
-\text{path} = \text{sorted}\bigl(\text{cells},\; \text{key} = \lambda c:\;\|c.\text{center} - \boldsymbol{\mu}\|\bigr)
+\boldsymbol{\mu} = \text{mean}\bigl(\{c.\text{center}\}\bigr), \qquad
+\text{path} = \text{sorted}\bigl(\text{cells}, \text{key} = \lambda c:\lVert c.\text{center} - \boldsymbol{\mu}\rVert\bigr)
 $$
 
 This visits the highest-priority (central) cells first and spirals outward —
@@ -184,11 +184,11 @@ useful when early coverage of the centre is critical.
 
 ## 6. Mission Time Estimation
 
-Given a waypoint sequence $W = [\boldsymbol{w}_0, \boldsymbol{w}_1, \ldots, \boldsymbol{w}_{k-1}]$ with hover time $h$
+Given a waypoint sequence $W = [\boldsymbol{w}\_0, \boldsymbol{w}\_1, \ldots, \boldsymbol{w}\_{k-1}]$ with hover time $h$
 per waypoint and drone cruise speed $v$:
 
 $$
-L = \sum_{i=0}^{k-2} \|\boldsymbol{w}_{i+1} - \boldsymbol{w}_i\|
+L = \sum_{i=0}^{k-2} \lVert\boldsymbol{w}_{i+1} - \boldsymbol{w}_i\rVert
   \quad \text{(total path length)}
 $$
 
@@ -218,7 +218,7 @@ $$
 A **boolean coverage matrix** tracks which cells have been visited:
 
 $$
-M_{\text{cov}} \in \{\text{false},\, \text{true}\}^m
+M_{\text{cov}} \in \{\text{false}, \text{true}\}^m
 $$
 
 A cell is marked as covered when the drone passes within $\rho_s$ metres of its
@@ -244,7 +244,7 @@ or the maximum mission duration is reached.
 | Nearest-neighbour tour | $O(k^2)$ per drone |
 | Sweep / spiral tour | $O(k \log k)$ per drone |
 
-For a 500×500 m area with $r = 20\;\text{m}$ and $n = 4$ drones:
+For a 500×500 m area with $r = 20\text{m}$ and $n = 4$ drones:
 - $m \approx 625$ cells, $k \approx 156$ cells per drone
 - Nearest-neighbour tour: ~24,000 distance computations per drone — negligible
   on modern hardware (< 1 ms).
