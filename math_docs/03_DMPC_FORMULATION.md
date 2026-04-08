@@ -31,13 +31,13 @@ At each control time step $t$, drone $i$ solves a finite-horizon **Quadratic
 Program (QP)** whose cost matrices are *dynamically scaled* by the MAPPO policy:
 
 $$
-\min_{\boldsymbol{x}, \boldsymbol{u}} \; \sum_{k=0}^{N-1} \Bigl[ \boldsymbol{e}_k^\top Q_{\text{eff}}^{(i)} \boldsymbol{e}_k + \boldsymbol{u}_k^\top R_{\text{eff}}^{(i)} \boldsymbol{u}_k \Bigr] + \boldsymbol{e}_N^\top P\, \boldsymbol{e}_N
+\min_{\boldsymbol{x}, \boldsymbol{u}}  \sum_{k=0}^{N-1} \Bigl[ \boldsymbol{e}_k^\top Q_{\text{eff}}^{(i)} \boldsymbol{e}_k + \boldsymbol{u}_k^\top R_{\text{eff}}^{(i)} \boldsymbol{u}_k \Bigr] + \boldsymbol{e}_N^\top P \boldsymbol{e}_N
 $$
 
 subject to:
 
 $$
-\boldsymbol{x}_{k+1} = A\,\boldsymbol{x}_k + B\,\boldsymbol{u}_k
+\boldsymbol{x}_{k+1} = A\boldsymbol{x}_k + B\boldsymbol{u}_k
   \quad (\text{linearised dynamics})
 $$
 
@@ -48,7 +48,7 @@ $$
 
 $$
 \lVert\boldsymbol{p}_k - \boldsymbol{p}_j\rVert_2 \ge r_{\min}
-  \quad \forall\, j \in \mathcal{N}(i)
+  \quad \forall j \in \mathcal{N}(i)
   \quad (\text{collision avoidance})
 $$
 
@@ -59,8 +59,8 @@ $$
 where:
 - $\boldsymbol{e}_k = \boldsymbol{x}_k - \boldsymbol{x}^{\text{ref}}_k$ — tracking error at prediction step $k$
 - $N$ — prediction horizon (default: 20 steps = 0.4 s at 50 Hz)
-- $Q_{\text{eff}}^{(i)} = Q \odot \operatorname{diag}(\boldsymbol{q}_s^{(i)}) \succ 0$ — effective state-error cost ($11 \times 11$)
-- $R_{\text{eff}}^{(i)} = R \odot \operatorname{diag}(\boldsymbol{r}_s^{(i)}) \succ 0$ — effective control-effort cost ($3 \times 3$)
+- $Q_{\text{eff}}^{(i)} = Q \odot \text{diag}(\boldsymbol{q}_s^{(i)}) \succ 0$ — effective state-error cost ($11 \times 11$)
+- $R_{\text{eff}}^{(i)} = R \odot \text{diag}(\boldsymbol{r}_s^{(i)}) \succ 0$ — effective control-effort cost ($3 \times 3$)
 - $P \succ 0$ — terminal cost matrix ($11 \times 11$), computed from DARE
 - $\boldsymbol{q}_s^{(i)}, \boldsymbol{r}_s^{(i)}$ — positive scaling vectors output by the MAPPO agent
 
@@ -77,15 +77,15 @@ The MAPPO agent (see [09_MAPPO_AGENT.md](09_MAPPO_AGENT.md)) outputs a 14-dimens
 action vector per drone:
 
 $$
-\boldsymbol{a}^{(i)} = \bigl[\underbrace{q_{s,0}, \ldots, q_{s,10}}_{\boldsymbol{q}_s \in \mathbb{R}^{11}},\;
+\boldsymbol{a}^{(i)} = \bigl[\underbrace{q_{s,0}, \ldots, q_{s,10}}_{\boldsymbol{q}_s \in \mathbb{R}^{11}},
   \underbrace{r_{s,0}, r_{s,1}, r_{s,2}}_{\boldsymbol{r}_s \in \mathbb{R}^{3}}\bigr]
 $$
 
 These are element-wise scale factors applied to the base cost matrices:
 
 $$
-Q_{\text{eff}}^{(i)} = Q \odot \operatorname{diag}(\boldsymbol{q}_s^{(i)}), \qquad
-R_{\text{eff}}^{(i)} = R \odot \operatorname{diag}(\boldsymbol{r}_s^{(i)})
+Q_{\text{eff}}^{(i)} = Q \odot \text{diag}(\boldsymbol{q}_s^{(i)}), \qquad
+R_{\text{eff}}^{(i)} = R \odot \text{diag}(\boldsymbol{r}_s^{(i)})
 $$
 
 where $\odot$ denotes element-wise (Hadamard) product.  All scale values are
@@ -108,8 +108,8 @@ directly when the cost varies online.
 
 | Variable | Shape | Description |
 | :--- | :--- | :--- |
-| `x_var` | $(11,\; N{+}1)$ | Predicted state trajectory |
-| `u_var` | $(3,\; N)$ | Predicted control sequence |
+| `x_var` | $(11, N{+}1)$ | Predicted state trajectory |
+| `u_var` | $(3, N)$ | Predicted control sequence |
 
 The first control in the sequence, `u_var[:, 0]`, is applied to the drone.
 The remaining $N{-}1$ controls are discarded (receding-horizon principle).
@@ -124,15 +124,15 @@ $$
 \ell(\boldsymbol{e}_k, \boldsymbol{u}_k) = \boldsymbol{e}_k^\top Q_{\text{eff}} \boldsymbol{e}_k + \boldsymbol{u}_k^\top R_{\text{eff}} \boldsymbol{u}_k
 $$
 
-- $\lVert\boldsymbol{e}_k\rVert^2_{Q_{\text{eff}}}$: penalises deviation from the reference trajectory
+- $\lVert\boldsymbol{e}\_k \rVert^2\_{Q\_{\text{eff}}}$: penalises deviation from the reference trajectory
   in each state channel, weighted by the MAPPO-adapted $Q_{\text{eff}}$.
-- $\lVert\boldsymbol{u}_k\rVert^2_{R_{\text{eff}}}$: penalises large control inputs, promoting smooth
+- $\lVert\boldsymbol{u}\_k \rVert^2\_{R_{\text{eff}}}$: penalises large control inputs, promoting smooth
   trajectories and limiting actuator wear.
 
 ### Terminal Cost
 
 $$
-V_f(\boldsymbol{e}_N) = \boldsymbol{e}_N^\top P\, \boldsymbol{e}_N
+V_f(\boldsymbol{e}_N) = \boldsymbol{e}_N^\top P \boldsymbol{e}_N
 $$
 
 $P$ is the LQR optimal cost-to-go matrix for the **base** cost matrices
@@ -161,7 +161,7 @@ to compute $P$, the terminal cost provides:
 ### Total Cost
 
 $$
-J = \sum_{k=0}^{N-1} \bigl(\boldsymbol{e}_k^\top Q_{\text{eff}} \boldsymbol{e}_k + \boldsymbol{u}_k^\top R_{\text{eff}} \boldsymbol{u}_k\bigr) + \boldsymbol{e}_N^\top P\, \boldsymbol{e}_N
+J = \sum_{k=0}^{N-1} \bigl(\boldsymbol{e}_k^\top Q_{\text{eff}} \boldsymbol{e}_k + \boldsymbol{u}_k^\top R_{\text{eff}} \boldsymbol{u}_k\bigr) + \boldsymbol{e}_N^\top P \boldsymbol{e}_N
 $$
 
 This is convex (sum of convex quadratics) and can be solved globally by a
@@ -174,7 +174,7 @@ convex QP solver.
 ### 5.1. Dynamics Constraints
 
 $$
-\boldsymbol{x}_{k+1} = A\,\boldsymbol{x}_k + B\,\boldsymbol{u}_k, \quad k = 0, 1, \ldots, N{-}1
+\boldsymbol{x}_{k+1} = A\boldsymbol{x}_k + B\boldsymbol{u}_k, \quad k = 0, 1, \ldots, N{-}1
 $$
 
 $$
@@ -191,13 +191,13 @@ $$
 \lVert\boldsymbol{u}_k\rVert_2 \le u_{\max}, \quad k = 0, \ldots, N{-}1
 $$
 
-$u_{\max} = 10.0\;\text{m/s}^2$ (default).  OSQP is a QP solver that accepts
+$u_{\max} = 10.0\text{m/s}^2$ (default).  OSQP is a QP solver that accepts
 only linear inequality constraints of the form $\boldsymbol{l} \le A\boldsymbol{y} \le \boldsymbol{u}$;
 it does not support second-order cone (SOC) or other conic constraints.  In the
 CVXPY/OSQP pipeline the Euclidean-norm bound is therefore enforced as per-axis
 box constraints $|u_{k,\ell}| \le u_{\max}$ for $\ell \in \{x,y,z\}$, which are
 linear and natively supported by OSQP.  This is a conservative inner
-approximation of the Euclidean ball $\lVert\boldsymbol{u}_k\rVert_2 \le u_{\max}$.
+approximation of the Euclidean ball $\lVert\boldsymbol{u}\_k\rVert_2 \le u\_{\max}$.
 
 ### 5.3. Collision Avoidance Constraints
 
@@ -216,7 +216,7 @@ where $r_{\min} = 0.9 \times r_{\text{collision}}$ (10% safety margin).
 The DARE is the fixed-point equation for the infinite-horizon discrete-time LQR cost:
 
 $$
-P = Q + A^\top P A - A^\top P B \,(R + B^\top P B)^{-1} B^\top P A
+P = Q + A^\top P A - A^\top P B (R + B^\top P B)^{-1} B^\top P A
 $$
 
 **Solution:** The unique symmetric positive-definite solution $P$ is found
@@ -256,13 +256,13 @@ $$
 A_{\text{cl}} = A - B K_{\text{LQR}}
 $$
 
-For the default $Q = I_{11}$, $R = 0.1\,I_3$, $\Delta t = 0.02\;\text{s}$, the spectral radius
+For the default $Q = I_{11}$, $R = 0.1I_3$, $\Delta t = 0.02\text{s}$, the spectral radius
 $\rho(A_{\text{cl}}) \approx 0.983$, confirming asymptotic stability ($|\lambda_i| < 1$).
 
 The **LQR value function**:
 
 $$
-V(\boldsymbol{e}) = \boldsymbol{e}^\top P\, \boldsymbol{e}
+V(\boldsymbol{e}) = \boldsymbol{e}^\top P \boldsymbol{e}
 $$
 
 is a valid Lyapunov function because $P \succ 0$ and $\Delta V < 0$ under the LQR
@@ -276,10 +276,10 @@ full proof).
 CVXPY canonicalises the DMPC problem into the standard OSQP form:
 
 $$
-\min_{\boldsymbol{y}} \; \tfrac{1}{2}\,\boldsymbol{y}^\top H_{\text{qp}}\,\boldsymbol{y} + \boldsymbol{c}^\top \boldsymbol{y} \quad \text{s.t.} \quad \boldsymbol{l} \le A_{\text{qp}}\,\boldsymbol{y} \le \boldsymbol{u}
+\min_{\boldsymbol{y}}  \tfrac{1}{2}\boldsymbol{y}^\top H_{\text{qp}}\boldsymbol{y} + \boldsymbol{c}^\top \boldsymbol{y} \quad \text{s.t.} \quad \boldsymbol{l} \le A_{\text{qp}}\boldsymbol{y} \le \boldsymbol{u}
 $$
 
-where $\boldsymbol{y} = [\operatorname{vec}(\mathtt{x\_var})^\top,\; \operatorname{vec}(\mathtt{u\_var})^\top]^\top$
+where $\boldsymbol{y} = [\vec{\mathtt{x\_var}^\top}, \vec{\mathtt{u\_var}^\top}]^\top$
 is the stacked decision variable vector.
 
 | Problem size (default, 1 drone, $N{=}20$) | Value |
@@ -326,7 +326,7 @@ $$
 **Dual update**:
 
 $$
-\boldsymbol{\mu}_i^{k+1} \leftarrow \boldsymbol{\mu}_i^k + \rho\,(\boldsymbol{z}_i^{k+1} - \boldsymbol{v}^{k+1})
+\boldsymbol{\mu}_i^{k+1} \leftarrow \boldsymbol{\mu}_i^k + \rho(\boldsymbol{z}_i^{k+1} - \boldsymbol{v}^{k+1})
 $$
 
 ---
@@ -371,10 +371,10 @@ for neighbor_pos in neighbor_positions:
 ```
 
 > **Convexity note:** The feasible set defined by
-> $\lVert\boldsymbol{p}_k - \boldsymbol{p}_j\rVert_2 \ge r_{\min}$ is the complement of a ball, which
+> $\lVert\boldsymbol{p}\_k - \boldsymbol{p}\_j\rVert_2 \ge r\_{\min}$ is the complement of a ball, which
 > is **nonconvex**.  Because neighbour positions $\boldsymbol{p}_j$ are treated as fixed
 > parameters (not optimisation variables) at each solve step, the constraint
-> becomes $\lVert\boldsymbol{p}_k - \hat{\boldsymbol{p}}_j\rVert_2 \ge r_{\min}$ with $\hat{\boldsymbol{p}}_j$
+> becomes $\lVert\boldsymbol{p}\_k - \hat{\boldsymbol{p}}\_j\rVert_2 \ge r\_{\min}$ with $\hat{\boldsymbol{p}}\_j$
 > constant, which is still nonconvex in $\boldsymbol{p}_k$.  The resulting optimisation
 > problem is therefore *not* a convex QP in the strict sense; CVXPY will attempt
 > to reformulate or reject such constraints when targeting OSQP.  In practice
@@ -389,11 +389,11 @@ A formally safe alternative replaces the distance constraint with a
 **Control Barrier Function (CBF)** inequality:
 
 $$
-h(\boldsymbol{p},\, \boldsymbol{p}_j) = \lVert\boldsymbol{p} - \boldsymbol{p}_j\rVert^2 - r_{\min}^2 \ge 0
+h(\boldsymbol{p}, \boldsymbol{p}_j) = \lVert\boldsymbol{p} - \boldsymbol{p}_j\rVert^2 - r_{\min}^2 \ge 0
 $$
 
 $$
-\text{CBF condition:} \quad \Delta h + \alpha\, h \ge 0
+\text{CBF condition:} \quad \Delta h + \alpha h \ge 0
 $$
 
 This keeps the feasibility set forward-invariant even when OSQP cannot
