@@ -175,7 +175,12 @@ Drones are evenly spaced along the heading direction:
 
 $$
 o_i = \left(i - \frac{N{-}1}{2}\right) \times s, \qquad
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + \begin{bmatrix} o_i \cos\theta \\ o_i \sin\theta \\ z_i \end{bmatrix}
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+\begin{bmatrix} 
+o_i \cos\theta \\ 
+o_i \sin\theta \\ 
+z_i 
+\end{bmatrix}
 $$
 
 where $z_i = \left(i - \frac{N{-}1}{2}\right) \times s_z$ stacks layers in altitude,
@@ -193,7 +198,8 @@ r_i = s \cdot \lceil i/2 \rceil, \qquad
 $$
 
 $$
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + \begin{bmatrix}
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+\begin{bmatrix}
   r_i \cos(\theta + \text{side}_i\varphi_i) \\
   r_i \sin(\theta + \text{side}_i\varphi_i) \\
   (i \bmod 2) \times s_z
@@ -205,7 +211,12 @@ $$
 Single-file queue along the heading direction:
 
 $$
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + \begin{bmatrix} is\cos\theta \\ is\sin\theta \\ 0 \end{bmatrix}
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+\begin{bmatrix} 
+is\cos\theta \\ 
+is\sin\theta \\ 
+0 
+\end{bmatrix}
 $$
 
 ### 5.4. Circular
@@ -214,7 +225,12 @@ Drones equally spaced on a circle of radius $r = \text{scale}/2$:
 
 $$
 \varphi_i = \frac{2\pi i}{N} + \theta, \qquad
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + \begin{bmatrix} r\cos\varphi_i \\ r\sin\varphi_i \\ 0 \end{bmatrix}
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+\begin{bmatrix} 
+r\cos\varphi_i \\ 
+r\sin\varphi_i \\ 
+0 
+\end{bmatrix}
 $$
 
 ### 5.5. Grid
@@ -228,7 +244,12 @@ x = (c_i - g/2)s, \quad y = (r_i - g/2)s
 $$
 
 $$
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + \begin{bmatrix} x\cos\theta - y\sin\theta \\ x\sin\theta + y\cos\theta \\ 0 \end{bmatrix}
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+\begin{bmatrix} 
+x\cos\theta - y\sin\theta \\ 
+x\sin\theta + y\cos\theta \\ 
+0 
+\end{bmatrix}
 $$
 
 ### 5.6. Sphere (Fibonacci)
@@ -242,7 +263,8 @@ r = \frac{\text{scale}}{2}
 $$
 
 $$
-\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + r\begin{bmatrix}
+\boldsymbol{p}^{\text{des}}_i = \boldsymbol{c} + 
+r\begin{bmatrix}
   \sin\varphi_i\cos\theta_i \\
   \sin\varphi_i\sin\theta_i \\
   \cos\varphi_i
