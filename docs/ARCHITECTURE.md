@@ -173,5 +173,6 @@ Key config files:
 | Terminal Cost | Discrete Algebraic Riccati Equation (SciPy) |
 | Task Allocation | Hungarian Algorithm (SciPy) |
 | Simulation | Gymnasium, 6-DOF rigid-body physics |
-| Visualisation | RViz2, TensorBoard, Matplotlib |
+| 3-D Visualisation | [PyBullet](https://pybullet.org/) (OpenGL interactive viewer) |
+| Metrics / Plotting | TensorBoard, Matplotlib |
 | Configuration | YAML with dataclass validation |

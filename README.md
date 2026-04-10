@@ -3,7 +3,7 @@
 **Autonomous Multi-Drone ISR Swarm using MARL-Adaptive Distributed MPC**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![ROS2 Jazzy](https://img.shields.io/badge/ROS2-Jazzy-brightgreen)](https://docs.ros.org/en/jazzy/)
+[![PyBullet](https://img.shields.io/badge/simulation-PyBullet-orange)](https://pybullet.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ISR-RL-DMPC is an autonomous Intelligence, Surveillance & Reconnaissance (ISR) platform for
@@ -16,8 +16,7 @@ ensure consensus on shared constraints and objectives.
 The MARL policy learns *which cost weights* (Q, R scales) to assign to each drone at every
 control step; the DMPC then solves the resulting constrained QP in real time using
 CVXPY/OSQP, and ADMM drives inter-drone consensus on reference trajectories and collision
-margins.  Simulation and visualisation run in **ROS2 + RViz2** — no third-party simulator
-required.
+margins.  Simulation and visualisation run in **PyBullet** — no ROS2 required.
 
 ## Key Features
 
@@ -40,14 +39,11 @@ required.
 - **6-DOF Physics Simulation** — Rigid-body dynamics with wind, battery depletion, and
   collision detection, tuned for the hector_quadrotor airframe (1.477 kg).
 - **Open-Source Drone Model** — Uses the [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor)
-  COLLADA mesh and self-contained URDF (`urdf/drone.urdf`) for both RViz2 visualisation
-  and hardware deployment.
-- **ROS2 / RViz2 Simulation** — A ready-to-launch ROS2 Python package
-  (`ros2_ws/src/isr_dmpc_sim`) publishes drone poses, target positions, DMPC metrics,
-  per-drone trajectory paths, and interactive TF frames, all rendered live in RViz2.
-- **Hardware Transfer Ready** — `hardware_bridge_node` translates DMPC acceleration
-  commands to MAVROS `setpoint_accel` topics (PX4 / ArduPilot).  Switch from
-  simulation to live hardware with a single launch argument (`use_sim:=false`).
+  STL mesh and self-contained URDF (`pybullet_sim/urdf/drone.urdf`) for both PyBullet
+  visualisation and hardware deployment.
+- **PyBullet Simulation** — A ready-to-run Python script (`pybullet_sim/swarm_pybullet_sim.py`)
+  visualises drone poses, target positions, DMPC metrics, and per-drone trajectory trails in
+  an interactive 3-D OpenGL window.  No external simulator or middleware required.
 - **Stability Analysis** — Lyapunov, eigenvalue, ISS, CBF, and recursive feasibility tools.
 - **Math Reference** — See [`math_docs/`](math_docs/) for full derivations of all algorithms.
 - **Math / Control Optimisation Guide** — See [`docs/MATH_OPTIMIZATION.md`](docs/MATH_OPTIMIZATION.md)
@@ -95,38 +91,33 @@ python scripts/run_dmpc_rl.py --scenario search_and_track --episodes 5
 jupyter notebook notebooks/05_comparison_analysis.ipynb
 ```
 
-### ROS2 / RViz2 Simulation
+### PyBullet Simulation
 
-Prerequisites: ROS2 Jazzy installed and sourced (Ubuntu 24.04 Noble).
+Prerequisites: `pybullet` installed (included in `requirements/base.txt`).
 
 ```bash
-# Source ROS2 Jazzy
-source /opt/ros/jazzy/setup.bash
-
-# Build the ROS2 workspace
-cd ros2_ws
-colcon build --symlink-install
-source install/setup.bash
-
-# Launch the full simulation (physics + DMPC + RViz2)
-ros2 launch isr_dmpc_sim swarm_simulation.launch.py
+# Interactive 3-D simulation (opens an OpenGL window)
+python pybullet_sim/swarm_pybullet_sim.py
 
 # Optional overrides:
-ros2 launch isr_dmpc_sim swarm_simulation.launch.py \
-    n_drones:=6 n_targets:=3 horizon:=20 dt:=0.02
+python pybullet_sim/swarm_pybullet_sim.py \
+    --n-drones 6 --n-targets 3 --horizon 20 --dt 0.02
 
-# Live hardware flight (PX4 via MAVROS, drone 0):
-# WARNING: arm_on_start:=true arms the vehicle 5 s after launch.
-# Ensure the drone is in a safe, flight-ready state before using this flag.
-ros2 launch isr_dmpc_sim swarm_simulation.launch.py \
-    use_sim:=false drone_id:=0 arm_on_start:=true
+# Headless mode (no window — suitable for CI / servers):
+python pybullet_sim/swarm_pybullet_sim.py --no-gui
+
+# Run for a fixed number of steps then exit:
+python pybullet_sim/swarm_pybullet_sim.py --max-steps 5000
+
+# Real-time pacing (slows simulation to match wall clock):
+python pybullet_sim/swarm_pybullet_sim.py --realtime
 ```
 
-RViz2 opens automatically with a pre-configured layout showing:
-- 3D hector_quadrotor mesh models (open-source COLLADA, TU Darmstadt) and trajectory ribbons
-- Target spheres colour-coded by threat level
-- TF frames for every drone
-- Live DMPC solve-time and tracking-error overlays
+The PyBullet window shows:
+- 3D hector_quadrotor STL mesh models (open-source, TU Darmstadt) with per-drone colour coding
+- Trajectory trail ribbons drawn with debug lines
+- Target spheres colour-coded by threat level (red = hostile, yellow = neutral, green = friendly)
+- Interactive camera: orbit with left-click drag, zoom with scroll wheel
 
 ## Project Structure
 
@@ -141,22 +132,13 @@ isr-rl-dmpc/
 │   │   └── meshes/hector_quadrotor/  # Open-source drone mesh source files
 │   ├── modules/               # 6 ISR modules + DMPC + ADMM + attitude controller + analytics
 │   └── utils/                 # Math, logging, visualization, unit conversions
-├── ros2_ws/                   # ROS2 workspace
-│   └── src/isr_dmpc_sim/      # ROS2 Python package
-│       ├── isr_dmpc_sim/
-│       │   ├── swarm_dmpc_sim_node.py   # Physics sim + DMPC loop (50 Hz)
-│       │   ├── rviz_bridge_node.py      # Mesh marker / TF / Path publisher (~15 Hz)
-│       │   └── hardware_bridge_node.py  # MAVROS hardware bridge (PX4/ArduPilot)
-│       ├── meshes/
-│       │   ├── quadrotor_base.dae       # hector_quadrotor COLLADA mesh (RViz2)
-│       │   ├── quadrotor_base.stl       # STL for collision geometry
-│       │   └── LICENSE.txt
-│       ├── urdf/
-│       │   └── drone.urdf               # Self-contained URDF (hardware deployment)
-│       ├── launch/
-│       │   └── swarm_simulation.launch.py
-│       └── config/
-│           └── simulation.rviz
+├── pybullet_sim/              # PyBullet simulation (replaces ros2_ws)
+│   ├── swarm_pybullet_sim.py  # Physics sim + DMPC loop + PyBullet visualisation
+│   ├── urdf/
+│   │   └── drone.urdf         # PyBullet-compatible URDF (hector_quadrotor airframe)
+│   └── meshes/
+│       ├── quadrotor_base.stl # hector_quadrotor STL (PyBullet visual)
+│       └── LICENSE.txt
 ├── scripts/                   # Standalone mission, training and evaluation scripts
 │   ├── run_dmpc.py            # Pure DMPC runner for all 3 task scenarios
 │   ├── run_dmpc_rl.py         # DMPC-RL (MAPPO) runner for all 3 task scenarios
@@ -218,11 +200,10 @@ isr-rl-dmpc/
 | Terminal Cost | Discrete Algebraic Riccati Equation (SciPy DARE) |
 | Task Allocation | Hungarian Algorithm (SciPy) |
 | Scientific Computing | NumPy, SciPy, scikit-learn |
-| Physics Simulation | 6-DOF rigid-body (hector_quadrotor airframe, no Gazebo) |
-| Drone Model | [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor) COLLADA mesh + self-contained URDF |
-| ROS2 Simulation | rclpy, geometry_msgs, visualization_msgs, tf2, nav_msgs |
-| Hardware Interface | MAVROS (PX4 / ArduPilot) via `hardware_bridge_node` |
-| Visualisation | RViz2, TensorBoard, Matplotlib |
+| Physics Simulation | 6-DOF rigid-body (hector_quadrotor airframe) |
+| Drone Model | [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor) STL mesh + self-contained URDF |
+| 3-D Simulation | [PyBullet](https://pybullet.org/) (OpenGL interactive viewer + collision) |
+| Visualisation | PyBullet debug lines (trajectory trails), TensorBoard, Matplotlib |
 | Configuration | YAML with dataclass validation |
 
 ## Mission Scenarios

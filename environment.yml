@@ -6,10 +6,6 @@
 #   conda env create -f environment.yml
 #   conda activate isr-rl-dmpc
 #
-# ROS2 Jazzy is installed via the Ubuntu 24.04 APT repository and cannot
-# be managed by conda.  After activating the environment, source ROS2:
-#   source /opt/ros/jazzy/setup.bash
-#
 # Usage:
 #   conda env create -f environment.yml
 #   conda activate isr-rl-dmpc
@@ -46,6 +42,9 @@ dependencies:
 
   # ── RL training framework ─────────────────────────────────────────────
   - conda-forge::gymnasium>=0.26.0
+
+  # ── Simulation / Visualisation (PyBullet) ─────────────────────────────
+  - conda-forge::pybullet>=3.2.5
 
   # ── Visualisation and monitoring ──────────────────────────────────────
   - conda-forge::matplotlib>=3.4.0
