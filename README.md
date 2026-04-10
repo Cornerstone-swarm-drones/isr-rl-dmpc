@@ -111,13 +111,18 @@ python pybullet_sim/swarm_pybullet_sim.py --max-steps 5000
 
 # Real-time pacing (slows simulation to match wall clock):
 python pybullet_sim/swarm_pybullet_sim.py --realtime
+
+# Disable auto-follow camera (use manual PyBullet orbit/zoom controls):
+python pybullet_sim/swarm_pybullet_sim.py --no-auto-camera
 ```
 
 The PyBullet window shows:
 - 3D hector_quadrotor STL mesh models (open-source, TU Darmstadt) with per-drone colour coding
+- Floating per-drone ID labels (D0 … Dn) that track each drone in real time
 - Trajectory trail ribbons drawn with debug lines
 - Target spheres colour-coded by threat level (red = hostile, yellow = neutral, green = friendly)
-- Interactive camera: orbit with left-click drag, zoom with scroll wheel
+- Auto-follow camera that tracks the swarm centroid with adaptive zoom (disable with `--no-auto-camera`)
+- Interactive camera: orbit with left-click drag, zoom with scroll wheel (2× sensitivity)
 
 ## Project Structure
 

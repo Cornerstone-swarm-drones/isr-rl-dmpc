@@ -97,6 +97,19 @@ _TARGET_COLORS = {
 _TRAJ_ALPHA: float = 0.6
 _TRAJ_HISTORY: int = 200  # trajectory trail length per drone
 
+# Per-drone floating label appearance
+_LABEL_HEIGHT_OFFSET: float = 4.5   # metres above the drone body
+_LABEL_TEXT_SIZE: float = 1.8
+
+# Drone visual scaling
+_DRONE_URDF_SCALE: float = 8.0  # globalScaling factor applied when loading the URDF
+_FALLBACK_DRONE_HALF_EXTENTS = [2.5, 2.5, 0.4]  # [x, y, z] half-extents for box fallback [m]
+
+# Auto-camera tracking tuning
+_CAMERA_SMOOTHING_ALPHA: float = 0.15   # exponential-smoothing weight per step
+_MIN_CAMERA_DISTANCE: float = 25.0     # metres — never zoom closer than this
+_CAMERA_DISTANCE_MULTIPLIER: float = 3.0  # camera distance = multiplier × max spread
+
 # Path to the drone URDF relative to this file
 _URDF_PATH = os.path.join(os.path.dirname(__file__), "urdf", "drone.urdf")
 
@@ -151,6 +164,7 @@ class SwarmPyBulletSim:
         traj_length: int = _TRAJ_HISTORY,
         gui: bool = True,
         realtime: bool = False,
+        auto_camera: bool = True,
     ) -> None:
         self.n_drones = n_drones
         self.n_targets = n_targets
@@ -162,6 +176,13 @@ class SwarmPyBulletSim:
         self.traj_length = traj_length
         self.gui = gui
         self.realtime = realtime
+        self.auto_camera = auto_camera
+
+        # Camera tracking state (smoothed each step when auto_camera=True)
+        self._cam_target = np.array([0.0, 0.0, 20.0], dtype=float)
+        self._cam_yaw: float = 45.0
+        self._cam_pitch: float = -40.0
+        self._cam_dist: float = 80.0
 
         # ── Physics simulator ──────────────────────────────────────────────
         env_cfg = EnvironmentConfig(timestep=dt)
@@ -197,6 +218,8 @@ class SwarmPyBulletSim:
         ]
         # Last debug-line IDs per drone (one per segment)
         self._traj_line_ids: List[List[int]] = [[] for _ in range(n_drones)]
+        # Per-drone floating label IDs (updated each step via replaceItemUniqueId)
+        self._drone_label_ids: List[int] = []
 
         if _PYBULLET_AVAILABLE:
             self._init_pybullet()
@@ -240,7 +263,7 @@ class SwarmPyBulletSim:
     def _init_pybullet(self) -> None:
         """Connect to PyBullet, load the scene, drones, and target markers."""
         mode = p.GUI if self.gui else p.DIRECT
-        self._pb_client = p.connect(mode, options="--mouse_wheel_multiplier=1")
+        self._pb_client = p.connect(mode, options="--mouse_wheel_multiplier=2")
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         p.setGravity(0, 0, 0)  # Gravity handled by the ISR physics engine
         p.setRealTimeSimulation(0)  # We drive the clock manually
@@ -249,11 +272,18 @@ class SwarmPyBulletSim:
         p.loadURDF("plane.urdf")
 
         if self.gui:
+            # Seed camera on the actual swarm centroid so it starts focused
+            positions = np.array([self._sim.drones[i].position for i in range(self.n_drones)])
+            centroid = positions.mean(axis=0)
+            spread = float(np.max(np.linalg.norm(positions - centroid, axis=1))) if self.n_drones > 1 else 0.0
+            self._cam_target = centroid.copy()
+            self._cam_dist = max(_MIN_CAMERA_DISTANCE, spread * _CAMERA_DISTANCE_MULTIPLIER)
+
             p.resetDebugVisualizerCamera(
-                cameraDistance=120,
-                cameraYaw=45,
-                cameraPitch=-35,
-                cameraTargetPosition=[30.0, 30.0, 20.0],
+                cameraDistance=self._cam_dist,
+                cameraYaw=self._cam_yaw,
+                cameraPitch=self._cam_pitch,
+                cameraTargetPosition=self._cam_target.tolist(),
             )
             p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 0)
 
@@ -267,6 +297,7 @@ class SwarmPyBulletSim:
                         _URDF_PATH,
                         basePosition=pos,
                         useFixedBase=False,
+                        globalScaling=_DRONE_URDF_SCALE,
                         flags=p.URDF_USE_INERTIA_FROM_FILE,
                     )
                 except Exception as exc:
@@ -284,6 +315,15 @@ class SwarmPyBulletSim:
                     rgbaColor=[r, g, b, 1.0],
                 )
 
+            # Floating ID label above each drone
+            label_id = p.addUserDebugText(
+                f"D{i}",
+                [pos[0], pos[1], pos[2] + _LABEL_HEIGHT_OFFSET],
+                textColorRGB=[r, g, b],
+                textSize=_LABEL_TEXT_SIZE,
+            )
+            self._drone_label_ids.append(label_id)
+
         # ── Create target sphere visuals ───────────────────────────────────
         for j in range(self._sim.num_targets):
             target = self._sim.targets[j]
@@ -291,12 +331,12 @@ class SwarmPyBulletSim:
             self._pb_target_ids.append(tgt_id)
 
     def _create_drone_visual(self, drone_id: int, pos: List[float]) -> int:
-        """Create a simple box visual when the URDF cannot be loaded."""
+        """Create a prominent flat-disc box visual when the URDF cannot be loaded."""
         r, g, b = _drone_color(drone_id)
-        col_shape = p.createCollisionShape(p.GEOM_BOX, halfExtents=[0.275, 0.275, 0.075])
+        col_shape = p.createCollisionShape(p.GEOM_BOX, halfExtents=_FALLBACK_DRONE_HALF_EXTENTS)
         vis_shape = p.createVisualShape(
             p.GEOM_BOX,
-            halfExtents=[0.275, 0.275, 0.075],
+            halfExtents=_FALLBACK_DRONE_HALF_EXTENTS,
             rgbaColor=[r, g, b, 1.0],
         )
         return p.createMultiBody(
@@ -368,6 +408,17 @@ class SwarmPyBulletSim:
             quat = _euler_to_quat_xyzw(0.0, 0.0, yaw)
             p.resetBasePositionAndOrientation(self._pb_drone_ids[i], pos, quat)
 
+            # Floating ID label
+            if i < len(self._drone_label_ids):
+                r, g, b = _drone_color(i)
+                self._drone_label_ids[i] = p.addUserDebugText(
+                    f"D{i}",
+                    [pos[0], pos[1], pos[2] + _LABEL_HEIGHT_OFFSET],
+                    textColorRGB=[r, g, b],
+                    textSize=_LABEL_TEXT_SIZE,
+                    replaceItemUniqueId=self._drone_label_ids[i],
+                )
+
             # Trajectory trail
             self._traj[i].append(pos)
             if len(self._traj[i]) > 1:
@@ -390,6 +441,52 @@ class SwarmPyBulletSim:
             p.resetBasePositionAndOrientation(
                 target_id, target.position.tolist(), [0, 0, 0, 1]
             )
+
+        # Auto-follow camera — tracks swarm centroid with adaptive zoom
+        self._update_camera()
+
+    # ------------------------------------------------------------------
+    # Auto-follow camera
+    # ------------------------------------------------------------------
+
+    def _update_camera(self) -> None:
+        """Smoothly recentre the camera on the swarm centroid with adaptive zoom.
+
+        Only active in GUI mode when ``auto_camera=True``.  The camera target
+        and distance are exponentially smoothed each step so motion is fluid
+        rather than jarring.  The zoom distance is proportional to the maximum
+        drone-to-centroid spread, ensuring all drones stay in frame.
+        """
+        if not self.auto_camera or not self.gui or not _PYBULLET_AVAILABLE or self._pb_client < 0:
+            return
+
+        active_positions = [
+            drone.position for drone in self._sim.drones if drone.is_active
+        ]
+        if not active_positions:
+            return
+
+        positions = np.array(active_positions)
+        centroid = positions.mean(axis=0)
+
+        # Adaptive distance: keep all drones comfortably in frame
+        if len(positions) > 1:
+            spread = float(np.max(np.linalg.norm(positions - centroid, axis=1)))
+        else:
+            spread = 0.0
+        target_dist = max(_MIN_CAMERA_DISTANCE, spread * _CAMERA_DISTANCE_MULTIPLIER)
+
+        # Exponential smoothing (α ≈ 0.15 → time-constant ~4 steps ≈ 0.08 s at 50 Hz)
+        alpha = _CAMERA_SMOOTHING_ALPHA
+        self._cam_target = (1.0 - alpha) * self._cam_target + alpha * centroid
+        self._cam_dist = (1.0 - alpha) * self._cam_dist + alpha * target_dist
+
+        p.resetDebugVisualizerCamera(
+            cameraDistance=self._cam_dist,
+            cameraYaw=self._cam_yaw,
+            cameraPitch=self._cam_pitch,
+            cameraTargetPosition=self._cam_target.tolist(),
+        )
 
     # ------------------------------------------------------------------
     # Main step
@@ -530,6 +627,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--max-steps",        type=int,   default=0,    help="Steps to run (0 = unlimited)")
     parser.add_argument("--no-gui",           action="store_true",      help="Headless mode (no window)")
     parser.add_argument("--realtime",         action="store_true",      help="Pace simulation to real time")
+    parser.add_argument("--no-auto-camera",   action="store_true",      help="Disable auto-follow camera (use manual PyBullet navigation)")
     return parser.parse_args()
 
 
@@ -546,6 +644,7 @@ def main() -> None:
         traj_length=args.traj_length,
         gui=not args.no_gui,
         realtime=args.realtime,
+        auto_camera=not args.no_auto_camera,
     )
     sim.run(max_steps=args.max_steps)
 
