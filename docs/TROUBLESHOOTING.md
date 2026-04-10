@@ -7,6 +7,10 @@ Common issues and solutions when working with ISR-DMPC.
 - [Installation Issues](#installation-issues)
 - [Environment Issues](#environment-issues)
 - [DMPC Solver Issues](#dmpc-solver-issues)
+  - [CVXPY DPP Warning — Simulation Running 100× Too Slowly](#cvxpy-dpp-warning--simulation-running-100-too-slowly)
+  - [DMPC Acceleration Not Applied to Drones](#dmpc-acceleration-not-applied-to-drones)
+  - [CVXPY Solver Timeout](#cvxpy-solver-timeout)
+  - [DMPC Returns Zero Control (Infeasible)](#dmpc-returns-zero-control-infeasible)
 - [Performance Issues](#performance-issues)
 - [Configuration Issues](#configuration-issues)
 - [Testing Issues](#testing-issues)
@@ -120,6 +124,72 @@ img = env.render()  # Returns numpy array
 ---
 
 ## DMPC Solver Issues
+
+### CVXPY DPP Warning — Simulation Running 100× Too Slowly
+
+**Symptom:**
+
+```
+PP. Because the problem is not DPP, subsequent solves will not be faster
+than the first one. For more information, see the documentation on
+Disciplined Parametrized Programming…
+```
+
+Wall time is 20–50× the simulated time even though CVXPY/OSQP reports
+solve times of only 1–5 ms.
+
+**Cause:**
+
+CVXPY's DPP (Disciplined Parametrized Programming) cache stores the
+compiled KKT system so that subsequent solves only update parameter values
+rather than re-canonicalising the full problem from scratch.  The cache
+is only active when **all** matrix–variable products use plain NumPy
+constants, not ``cp.Parameter`` objects.
+
+The DPP violation was:
+
+1. ``A_param @ x_var`` and ``B_param @ u_var`` — matrix parameters
+   multiplied by decision variables.
+2. ``cp.quad_form(x_err, Q_param)`` — matrix parameter inside a quadratic
+   form.
+3. A fresh ``cp.Problem(...)`` was constructed inside ``solve()`` on every
+   call, forcing full re-canonicalization regardless of DPP.
+
+**Fix (already applied):**
+
+``MPCSolver`` now embeds A, B, Q, R, P as NumPy constants at construction
+time and builds exactly **one** ``cp.Problem``.  Only ``x0_param`` and
+``x_ref_param`` are ``cp.Parameter`` objects; CBF constraints use
+pre-allocated vector-parameter slots (``cp.Parameter(3)`` inner products
+are DPP-compliant).  OSQP warm-starting is enabled.
+
+After the fix the first solve pays the canonicalization cost once (≈20 ms);
+all subsequent solves take ≈1–5 ms, giving near real-time performance.
+
+---
+
+### DMPC Acceleration Not Applied to Drones
+
+**Symptom:** Drones hover in place (zero commanded acceleration) even
+though the DMPC solver reports ``optimal`` status and non-zero control.
+
+**Cause:**
+
+``swarm_pybullet_sim.py`` reads:
+
+```python
+dmpc_u = info.get("u0", np.zeros(3))
+```
+
+But the ``info`` dict returned by ``DMPCAgent.act()`` did not contain the
+``"u0"`` key, so the fallback ``np.zeros(3)`` was silently used every step.
+
+**Fix (already applied):**
+
+``DMPCAgent.act()`` now explicitly inserts ``"u0": u0`` into the returned
+info dictionary before merging with the attitude-controller output.
+
+---
 
 ### CVXPY Solver Timeout
 

@@ -101,6 +101,10 @@ _TRAJ_HISTORY: int = 200  # trajectory trail length per drone
 _LABEL_HEIGHT_OFFSET: float = 4.5   # metres above the drone body
 _LABEL_TEXT_SIZE: float = 1.8
 
+# Drone visual scaling
+_DRONE_URDF_SCALE: float = 8.0  # globalScaling factor applied when loading the URDF
+_FALLBACK_DRONE_HALF_EXTENTS = [2.5, 2.5, 0.4]  # [x, y, z] half-extents for box fallback [m]
+
 # Auto-camera tracking tuning
 _CAMERA_SMOOTHING_ALPHA: float = 0.15   # exponential-smoothing weight per step
 _MIN_CAMERA_DISTANCE: float = 25.0     # metres — never zoom closer than this
@@ -293,7 +297,7 @@ class SwarmPyBulletSim:
                         _URDF_PATH,
                         basePosition=pos,
                         useFixedBase=False,
-                        globalScaling=8.0,
+                        globalScaling=_DRONE_URDF_SCALE,
                         flags=p.URDF_USE_INERTIA_FROM_FILE,
                     )
                 except Exception as exc:
@@ -329,10 +333,10 @@ class SwarmPyBulletSim:
     def _create_drone_visual(self, drone_id: int, pos: List[float]) -> int:
         """Create a prominent flat-disc box visual when the URDF cannot be loaded."""
         r, g, b = _drone_color(drone_id)
-        col_shape = p.createCollisionShape(p.GEOM_BOX, halfExtents=[2.5, 2.5, 0.4])
+        col_shape = p.createCollisionShape(p.GEOM_BOX, halfExtents=_FALLBACK_DRONE_HALF_EXTENTS)
         vis_shape = p.createVisualShape(
             p.GEOM_BOX,
-            halfExtents=[2.5, 2.5, 0.4],
+            halfExtents=_FALLBACK_DRONE_HALF_EXTENTS,
             rgbaColor=[r, g, b, 1.0],
         )
         return p.createMultiBody(

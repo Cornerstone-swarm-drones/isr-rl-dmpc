@@ -122,7 +122,7 @@ class DMPCAgent:
             objective=info.get("objective", float("inf")),
         )
 
-        return attitude_out["motor_thrusts"], {**info, **attitude_out}
+        return attitude_out["motor_thrusts"], {"u0": u0, **info, **attitude_out}
 
     def get_metrics(self) -> Dict:
         """Return aggregated DMPC performance metrics."""
