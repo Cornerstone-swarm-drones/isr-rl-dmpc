@@ -1,6 +1,6 @@
 # ISR-RL-DMPC Conda environment — GPU-accelerated MAPPO training
 #
-# Targets CUDA 12.4 (compatible with Ampere / Ada / Hopper GPUs).
+# Targets CUDA 12.1 (compatible with Ampere / Ada / Hopper GPUs).
 # For CPU-only machines replace the pytorch/torchvision lines below with
 # the matching pytorch-cpu variants, or run:
 #   conda env create -f environment.yml
@@ -17,6 +17,7 @@ name: isr-rl-dmpc
 
 channels:
   - pytorch        # official PyTorch channel (includes CUDA builds)
+  - nvidia         # CUDA runtime libraries [web:5]
   - conda-forge    # broad scientific / ROS-adjacent packages
   - defaults
 
@@ -24,12 +25,15 @@ dependencies:
   # ── Python runtime ────────────────────────────────────────────────────
   - python=3.10.*
 
+  # ── pip (fixes warning for pip-installed deps) ───────────────────────
+  - pip
+
   # ── GPU-accelerated deep learning ─────────────────────────────────────
-  # pytorch 2.x + torchvision built against CUDA 12.4.
+  # pytorch 2.x + torchvision built against CUDA 12.1.
   # stable-baselines3 ≥2.0 requires torch ≥1.13; 2.x is fully supported.
   - pytorch::pytorch>=2.3.0
   - pytorch::torchvision>=0.18.0
-  - pytorch::pytorch-cuda=12.4
+  - pytorch::pytorch-cuda=12.1  # Changed from 12.4 [web:5]
 
   # ── Scientific computing ───────────────────────────────────────────────
   - conda-forge::numpy>=1.21.0
@@ -61,4 +65,4 @@ dependencies:
 
   # ── pip-only packages (no conda builds available) ─────────────────────
   - pip:
-    - stable-baselines3>=2.0.0
+      - stable-baselines3>=2.0.0

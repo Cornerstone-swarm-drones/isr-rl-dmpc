@@ -240,7 +240,7 @@ class SwarmPyBulletSim:
     def _init_pybullet(self) -> None:
         """Connect to PyBullet, load the scene, drones, and target markers."""
         mode = p.GUI if self.gui else p.DIRECT
-        self._pb_client = p.connect(mode)
+        self._pb_client = p.connect(mode, options="--mouse_wheel_multiplier=1")
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         p.setGravity(0, 0, 0)  # Gravity handled by the ISR physics engine
         p.setRealTimeSimulation(0)  # We drive the clock manually
