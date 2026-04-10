@@ -1,26 +1,25 @@
 <?xml version="1.0"?>
 <!--
-  drone.urdf — Self-contained URDF for the ISR-DMPC swarm drone.
+  drone.urdf — PyBullet-compatible URDF for the ISR-DMPC swarm drone.
 
   Model source : hector_quadrotor (TU Darmstadt)
                  https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor
   Mesh licence : BSD (see meshes/LICENSE.txt)
 
   Physical parameters are tuned for the hector_quadrotor airframe used in
-  the ISR-DMPC simulation and match the values in config/drone_specs.yaml
-  (reconnaissance variant).
+  the ISR-DMPC simulation and match the values in config/drone_specs.yaml.
 
   Coordinate convention
   ---------------------
-  - base_link  : body-fixed frame, origin at CoM, +Z up (NED → ENU converted).
-  - camera_link: forward-facing camera, 15° downward tilt (typical ISR gimbal).
+  - base_link  : body-fixed frame, origin at CoM, +Z up (ENU).
+  - camera_link: forward-facing camera, 15° downward tilt.
   - imu_link   : co-located with base_link for inertial sensing.
-  - GPS_link   : co-located with base_link, +Z up.
+  - gps_link   : mounted on top of the body.
 
-  Usage with robot_state_publisher (hardware / HIL)
-  -------------------------------------------------
-    ros2 run robot_state_publisher robot_state_publisher \
-        --ros-args -p robot_description:="$(cat urdf/drone.urdf)"
+  Usage with PyBullet
+  -------------------
+    import pybullet as p
+    drone_id = p.loadURDF("pybullet_sim/urdf/drone.urdf", basePosition=[x, y, z])
 -->
 <robot name="isr_dmpc_drone">
 
@@ -41,15 +40,19 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://isr_dmpc_sim/meshes/quadrotor_base.dae"/>
+        <!-- STL is in millimeters; scale 0.001 converts to metres -->
+        <mesh filename="../meshes/quadrotor_base.stl" scale="0.001 0.001 0.001"/>
       </geometry>
+      <material name="drone_body">
+        <color rgba="0.2 0.5 1.0 1.0"/>
+      </material>
     </visual>
 
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <!-- Use STL for collision (lighter than COLLADA) -->
-        <mesh filename="package://isr_dmpc_sim/meshes/quadrotor_base.stl"/>
+        <!-- Use a bounding box for fast collision (rotor span ~0.55 m) -->
+        <box size="0.55 0.55 0.15"/>
       </geometry>
     </collision>
 
@@ -61,7 +64,6 @@
   <joint name="camera_joint" type="fixed">
     <parent link="base_link"/>
     <child  link="camera_link"/>
-    <!-- Offset: 0.10 m forward, 0.0 lateral, -0.02 m below CoM -->
     <origin xyz="0.10 0.0 -0.02" rpy="0 0.2618 0"/>
   </joint>
 
@@ -111,7 +113,6 @@
   <joint name="gps_joint" type="fixed">
     <parent link="base_link"/>
     <child  link="gps_link"/>
-    <!-- GPS puck mounted on top of the body -->
     <origin xyz="0 0 0.06" rpy="0 0 0"/>
   </joint>
 

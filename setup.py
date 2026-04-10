@@ -18,6 +18,7 @@ setup(
         "pyyaml>=5.4",
         "cvxpy>=1.2.0",
         "osqp>=0.6.0",
+        "pybullet>=3.2.5",
     ],
     extras_require={
         "dev": [
