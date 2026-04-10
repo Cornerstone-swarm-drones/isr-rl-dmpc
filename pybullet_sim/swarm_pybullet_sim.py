@@ -42,7 +42,7 @@ import os
 import sys
 import time
 from collections import deque
-from typing import Deque, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -192,7 +192,7 @@ class SwarmPyBulletSim:
         self._pb_client: int = -1
 
         # Trajectory history per drone [[x,y,z], ...]
-        self._traj: List[Deque[List[float]]] = [
+        self._traj: List[deque] = [
             deque(maxlen=traj_length) for _ in range(n_drones)
         ]
         # Last debug-line IDs per drone (one per segment)
@@ -269,7 +269,8 @@ class SwarmPyBulletSim:
                         useFixedBase=False,
                         flags=p.URDF_USE_INERTIA_FROM_FILE,
                     )
-                except Exception:
+                except Exception as exc:
+                    print(f"[WARNING] Failed to load URDF '{_URDF_PATH}': {exc} — using box fallback.")
                     drone_id = self._create_drone_visual(i, pos)
             else:
                 drone_id = self._create_drone_visual(i, pos)
@@ -501,8 +502,8 @@ class SwarmPyBulletSim:
         if _PYBULLET_AVAILABLE and self._pb_client >= 0:
             try:
                 p.disconnect(self._pb_client)
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[WARNING] PyBullet disconnect failed: {exc}")
         print(
             f"[SwarmPyBulletSim] finished — "
             f"{self._step} steps, {self._sim.simulation_time:.2f}s simulated."

@@ -40,7 +40,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <!-- STL mesh — path relative to URDF location -->
+        <!-- STL is in millimeters; scale 0.001 converts to metres -->
         <mesh filename="../meshes/quadrotor_base.stl" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="drone_body">
