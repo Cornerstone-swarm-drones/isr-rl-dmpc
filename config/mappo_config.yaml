@@ -27,7 +27,7 @@ training:
   checkpoint_freq: 50_000      # Save checkpoint every N steps
   log_dir: logs/mappo_dmpc
   model_dir: models/mappo_dmpc
-  device: auto                 # 'auto', 'cpu', 'cuda'
+  device: cpu                 # 'auto', 'cpu', 'cuda'
   seed: 42
 
 # ─────────────────────────────────────────────────────────────────────────────
