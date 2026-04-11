@@ -59,6 +59,7 @@ from isr_rl_dmpc.gym_env.simulator import (
     TargetType,
 )
 from isr_rl_dmpc.agents import DMPCAgent
+from isr_rl_dmpc.models.hector_quadrotor import get_urdf_path
 
 
 # ── Optional PyBullet import ─────────────────────────────────────────────────
@@ -110,8 +111,8 @@ _CAMERA_SMOOTHING_ALPHA: float = 0.15   # exponential-smoothing weight per step
 _MIN_CAMERA_DISTANCE: float = 25.0     # metres — never zoom closer than this
 _CAMERA_DISTANCE_MULTIPLIER: float = 3.0  # camera distance = multiplier × max spread
 
-# Path to the drone URDF relative to this file
-_URDF_PATH = os.path.join(os.path.dirname(__file__), "urdf", "drone.urdf")
+# Path to the drone URDF from the canonical src/models location
+_URDF_PATH = get_urdf_path()
 
 
 # ---------------------------------------------------------------------------
