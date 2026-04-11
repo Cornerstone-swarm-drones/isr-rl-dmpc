@@ -18,8 +18,8 @@ from pathlib import Path
 
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
+_URDF_PATH = _PACKAGE_DIR / "drone.urdf"
 _MODELS_DIR = _PACKAGE_DIR.parent          # src/isr_rl_dmpc/models/
-_URDF_PATH = _MODELS_DIR / "hector_quadrotor" / "drone.urdf"
 
 
 def get_urdf_path() -> str:

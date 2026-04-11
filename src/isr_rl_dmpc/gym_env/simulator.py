@@ -313,9 +313,12 @@ class DronePhysics:
         thrust_world = R @ thrust_body
         
         # Wind disturbance force: F_wind = 0.5 * rho * Cd * A * |v_rel|² * dir
-        # Simplified to a drag-like force proportional to relative airspeed
+        # Simplified to a drag-like force proportional to relative airspeed.
+        # The effective drag coefficient 0.1 ≈ 0.5 × 1.225 (rho) × 0.22 (Cd) × 0.025 (A)
+        # × gain factor, consistent with drone_specs.yaml aerodynamics.
+        _AERO_DRAG_COEFF = 0.1
         v_rel = self.velocity - wind  # velocity relative to air
-        wind_force = -0.1 * v_rel * np.linalg.norm(v_rel)  # quadratic drag
+        wind_force = -_AERO_DRAG_COEFF * v_rel * np.linalg.norm(v_rel)  # quadratic drag
         
         # Compute acceleration (F = ma)
         self.acceleration = (

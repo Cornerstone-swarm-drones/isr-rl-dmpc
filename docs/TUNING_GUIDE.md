@@ -78,8 +78,8 @@ Q penalises tracking error `e_k = x_k − x_ref_k` across the 11-D state:
 | 0–2   | p (3)    | Position            | ↑ = tighter position tracking |
 | 3–5   | v (3)    | Velocity            | ↑ = faster velocity convergence |
 | 6–8   | a (3)    | Acceleration        | ↑ = smoother accel profile |
-| 9     | ψ        | Yaw angle           | ↑ = tighter heading hold |
-| 10    | ψ̇        | Yaw rate            | ↑ = less yaw overshoot |
+| 9     | ψ (yaw)  | Yaw angle           | ↑ = tighter heading hold |
+| 10    | ψ̇ (yaw rate) | Yaw rate      | ↑ = less yaw overshoot |
 
 **Recommended starting point:**
 
