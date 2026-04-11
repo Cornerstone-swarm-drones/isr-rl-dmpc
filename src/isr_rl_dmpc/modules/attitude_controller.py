@@ -31,12 +31,12 @@ from scipy.spatial.transform import Rotation as R_tool
 class DroneParameters:
     """Physical parameters of quadrotor drone."""
 
-    mass: float = 1.0  # kg
+    mass: float = 1.477  # kg  (hector_quadrotor)
     inertia: np.ndarray = None  # 3×3 inertia matrix
 
     motor_speed_max: float = 800.0  # rad/s
     motor_constant: float = 8.27e-6  # N/(rad/s)²
-    thrust_max_per_rotor: float = 25.0  # N
+    thrust_max_per_rotor: float = 9.5  # N  (hector_quadrotor: 4×9.5 = 38 N peak)
 
     arm_length: float = 0.215  # metres
 
@@ -48,7 +48,8 @@ class DroneParameters:
 
     def __post_init__(self) -> None:
         if self.inertia is None:
-            Ixx, Iyy, Izz = 0.0083, 0.0083, 0.0166
+            # hector_quadrotor URDF inertia values
+            Ixx, Iyy, Izz = 0.01152, 0.01152, 0.02180
             self.inertia = np.diag([Ixx, Iyy, Izz])
 
 
@@ -99,7 +100,7 @@ class GeometricController:
         y_body /= np.linalg.norm(y_body) + 1e-6
         x_body = np.cross(y_body, z_body)
 
-        return np.stack([x_body, y_body, z_body])
+        return np.column_stack([x_body, y_body, z_body])
 
     def control_law(
         self,

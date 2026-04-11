@@ -312,12 +312,20 @@ class DronePhysics:
         thrust_body = np.array([0.0, 0.0, total_thrust])
         thrust_world = R @ thrust_body
         
-        # Compute acceleration (F = ma)
-        self.acceleration = (thrust_world + self.config.mass * gravity_vec) / self.config.mass
+        # Wind disturbance force: F_wind = 0.5 * rho * Cd * A * |v_rel|² * dir
+        # Simplified to a drag-like force proportional to relative airspeed
+        v_rel = self.velocity - wind  # velocity relative to air
+        wind_force = -0.1 * v_rel * np.linalg.norm(v_rel)  # quadratic drag
         
-        # Add drag (proportional to velocity)
-        drag_coeff = 0.1
-        self.acceleration -= drag_coeff * self.velocity
+        # Compute acceleration (F = ma)
+        self.acceleration = (
+            thrust_world
+            + self.config.mass * gravity_vec
+            + wind_force
+        ) / self.config.mass
+        
+        # Store wind effect for diagnostics
+        self.last_wind_effect = wind_force / self.config.mass
         
         # Integrate velocity and position
         self.velocity += self.acceleration * dt
