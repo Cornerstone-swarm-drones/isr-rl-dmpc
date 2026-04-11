@@ -89,6 +89,10 @@ class MARLDMPCEnv(gym.Env):
     W_SAFE = 10.0
     W_EFF = 0.1
 
+    # Formation defaults
+    FORMATION_SPACING_FACTOR = 2.5  # multiplier on collision_radius
+    DEFAULT_ALTITUDE = 30.0  # metres AGL
+
     def __init__(
         self,
         num_drones: int = 4,
@@ -438,13 +442,13 @@ class MARLDMPCEnv(gym.Env):
         Spacing is at least ``2 * collision_radius`` so that CBF constraints
         are comfortably satisfied from the first time-step.
         """
-        spacing = self.collision_radius * 2.5  # generous margin
+        spacing = self.collision_radius * self.FORMATION_SPACING_FACTOR
         cols = int(np.ceil(np.sqrt(self.num_drones)))
         for i in range(self.num_drones):
             row, col = divmod(i, cols)
             x = col * spacing
             y = row * spacing
-            z = 30.0  # default surveillance altitude (m AGL)
+            z = self.DEFAULT_ALTITUDE
             self._simulator.set_drone_initial_state(
                 i, np.array([x, y, z], dtype=np.float64)
             )
