@@ -63,7 +63,8 @@ def _load_scenarios(config_dir: Path) -> dict:
 
 
 def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
-                             max_steps_override: int | None, dmpc_cfg: dict) -> dict:
+                             max_steps_override: int | None, dmpc_cfg: dict,
+                             scenario_name: str) -> dict:
     """Map mission_scenarios.yaml entries to MARLDMPCEnv constructor kwargs."""
     num_drones = num_drones_override or scenario_cfg.get("num_drones", 4)
     max_targets = scenario_cfg.get("num_targets", 3)
@@ -81,6 +82,10 @@ def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
         dmpc_override.get("collision_radius", dmpc_cfg.get("collision_radius", 3.0))
     )
 
+    # Area size from scenario config
+    raw_area = scenario_cfg.get("area_size", [400.0, 400.0])
+    area_size = (float(raw_area[0]), float(raw_area[1]))
+
     return dict(
         num_drones=num_drones,
         max_targets=max(max_targets, 0),
@@ -91,6 +96,8 @@ def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
         collision_radius=collision_radius,
         solver_timeout=float(dmpc_cfg.get("solver_timeout", 0.02)),
         osqp_max_iter=int(dmpc_cfg.get("osqp_max_iter", 4000)),
+        scenario=scenario_name,
+        area_size=area_size,
     )
 
 
@@ -99,13 +106,18 @@ def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
 def _run_episode(env: MARLDMPCEnv, max_steps: int, render: bool) -> dict:
     """Run one episode with all-ones Q/R scales (pure DMPC, no RL)."""
     obs, _ = env.reset()
-    terminated = False
-    truncated = False
+    terminated = False  # guard against empty loop (zero max_steps)
     done = False
     step = 0
     total_reward = 0.0
     solve_times: list[float] = []
     battery_levels: list[float] = []
+    coverage_history: list[float] = []
+    # Accumulate reward components over the episode
+    ep_components: dict[str, float] = {
+        "r_track": 0.0, "r_form": 0.0, "r_safe": 0.0,
+        "r_eff": 0.0, "r_cov": 0.0,
+    }
 
     # All Q/R scales set to 1.0 → baseline DMPC cost matrices, no RL adaptation
     neutral_action = np.ones(env.num_drones * ACT_DIM, dtype=np.float32)
@@ -124,6 +136,13 @@ def _run_episode(env: MARLDMPCEnv, max_steps: int, render: bool) -> dict:
         if bat:
             battery_levels.append(float(np.mean(bat)))
 
+        cov = info.get("coverage")
+        if cov is not None:
+            coverage_history.append(float(cov))
+
+        for key in ep_components:
+            ep_components[key] += info.get("reward_components", {}).get(key, 0.0)
+
         if render:
             env.render()
 
@@ -134,7 +153,10 @@ def _run_episode(env: MARLDMPCEnv, max_steps: int, render: bool) -> dict:
         "mean_solve_time_ms": float(np.mean(solve_times) * 1e3) if solve_times else 0.0,
         "final_battery_mean": float(battery_levels[-1]) if battery_levels else 1.0,
         "min_battery": float(np.min(battery_levels)) if battery_levels else 1.0,
+        "final_coverage_pct": float(coverage_history[-1] * 100.0) if coverage_history else 0.0,
+        "mean_coverage_pct": float(np.mean(coverage_history) * 100.0) if coverage_history else 0.0,
         "terminated_early": bool(terminated),
+        "reward_components": ep_components,
     }
     return metrics
 
@@ -177,7 +199,7 @@ def main() -> None:
     scenario_cfg = scenarios[args.scenario]
 
     env_kwargs = _scenario_to_env_kwargs(
-        scenario_cfg, args.num_drones, args.max_steps, dmpc_cfg
+        scenario_cfg, args.num_drones, args.max_steps, dmpc_cfg, args.scenario
     )
 
     print("=" * 60)
@@ -204,13 +226,24 @@ def main() -> None:
         metrics["wall_time_s"] = round(elapsed, 3)
 
         logger.info(
-            "Episode %d/%d | reward=%.2f  steps=%d  solve=%.2f ms  bat=%.3f  (%.1f s)",
+            "Episode %d/%d | reward=%.2f  steps=%d  solve=%.2f ms  bat=%.3f  "
+            "coverage=%.1f%%  (%.1f s)",
             ep, args.episodes,
             metrics["total_reward"],
             metrics["episode_steps"],
             metrics["mean_solve_time_ms"],
             metrics["final_battery_mean"],
+            metrics["final_coverage_pct"],
             elapsed,
+        )
+        comps = metrics.get("reward_components", {})
+        logger.info(
+            "  Components: track=%.1f  form=%.1f  safe=%.1f  eff=%.1f  cov=%.1f",
+            comps.get("r_track", 0.0),
+            comps.get("r_form",  0.0),
+            comps.get("r_safe",  0.0),
+            comps.get("r_eff",   0.0),
+            comps.get("r_cov",   0.0),
         )
         all_metrics.append(metrics)
 
@@ -226,7 +259,11 @@ def main() -> None:
     logger.info("Results saved → %s", out_file)
 
     rewards = [m["total_reward"] for m in all_metrics]
-    print(f"\nSummary: mean_reward={np.mean(rewards):.2f}  std={np.std(rewards):.2f}")
+    coverages = [m.get("final_coverage_pct", 0.0) for m in all_metrics]
+    print(
+        f"\nSummary: mean_reward={np.mean(rewards):.2f}  std={np.std(rewards):.2f}"
+        f"  mean_coverage={np.mean(coverages):.1f}%"
+    )
 
 
 if __name__ == "__main__":

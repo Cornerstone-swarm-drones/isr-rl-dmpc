@@ -8,6 +8,12 @@ Combines 5 reward components:
 4. Threat (r_threat): Engagement outcome assessment
 5. Learning (r_learn): TD-error gradient signal
 
+Scenario presets
+----------------
+Use :func:`get_scenario_preset` to obtain a :class:`RewardWeights` tuned for
+one of the three ISR missions (``"area_surveillance"``, ``"threat_response"``,
+``"search_and_track"``).  Legacy presets (``"recon"``, ``"intel"``,
+``"target_pursuit"``) are kept for backwards compatibility.
 """
 
 import numpy as np
@@ -25,7 +31,50 @@ class RewardWeights:
     w_learning: float = 0.1  # Learning signal
 
 
-# Task-specific weight presets that produce well-scaled rewards.
+# ── Scenario-specific presets ──────────────────────────────────────────────
+#
+# Weight rationale per scenario:
+#
+#   area_surveillance — Wide-area persistent coverage; no targets to engage.
+#     * Coverage is the PRIMARY objective → highest w_coverage.
+#     * Energy conservation matters for long (~17 min) endurance missions.
+#     * Threat weight = 0 because num_targets = 0.
+#
+#   threat_response — Detect & intercept hostile targets quickly.
+#     * Threat engagement dominates → highest w_threat.
+#     * Coverage is background (maintain situational awareness of perimeter).
+#     * Energy penalty relaxed so aggressive intercept manoeuvres are allowed.
+#
+#   search_and_track — Locate then continuously track mobile targets.
+#     * Balanced coverage (search phase) + threat (track phase).
+#     * Moderate energy conservation (long endurance needed).
+#     * Safety always critical regardless of mission.
+#
+SCENARIO_REWARD_PRESETS: Dict[str, RewardWeights] = {
+    "area_surveillance": RewardWeights(
+        w_coverage=50.0,   # Primary: maximise coverage fraction
+        w_energy=1.5,      # Penalise inefficient flight on long missions
+        w_safety=10.0,     # Always critical
+        w_threat=0.0,      # No targets in this scenario
+        w_learning=0.1,
+    ),
+    "threat_response": RewardWeights(
+        w_coverage=5.0,    # Background situational awareness
+        w_energy=0.5,      # Aggressive manoeuvres are acceptable
+        w_safety=10.0,
+        w_threat=30.0,     # Primary: rapid detection & classification
+        w_learning=0.1,
+    ),
+    "search_and_track": RewardWeights(
+        w_coverage=20.0,   # Search phase: important to cover area
+        w_energy=1.5,      # Long endurance needed
+        w_safety=10.0,
+        w_threat=15.0,     # Track phase: maintain contact with targets
+        w_learning=0.1,
+    ),
+}
+
+# ── Legacy task presets (kept for backwards compatibility) ─────────────────
 # Coverage reward is delta-based (max ~0.01/step), energy is ~[-0.01,0],
 # safety gives +0.1 per safe step, threat up to ±500 per detection.
 # Weights are scaled so that no single component dominates.
@@ -52,6 +101,26 @@ TASK_REWARD_PRESETS = {
         w_learning=0.1,
     ),
 }
+
+
+def get_scenario_preset(scenario: str) -> RewardWeights:
+    """Return the :class:`RewardWeights` preset for *scenario*.
+
+    Checks :data:`SCENARIO_REWARD_PRESETS` first, then
+    :data:`TASK_REWARD_PRESETS`, and finally returns the default
+    :class:`RewardWeights` if the name is not found.
+
+    Args:
+        scenario: Scenario name, e.g. ``"area_surveillance"``.
+
+    Returns:
+        Matching :class:`RewardWeights` instance (never ``None``).
+    """
+    if scenario in SCENARIO_REWARD_PRESETS:
+        return SCENARIO_REWARD_PRESETS[scenario]
+    if scenario in TASK_REWARD_PRESETS:
+        return TASK_REWARD_PRESETS[scenario]
+    return RewardWeights()
 
 
 class RewardShaper:
@@ -99,8 +168,10 @@ class RewardShaper:
             }
         
         # Previous state for computing deltas
+        # prev_coverage: fraction of grid covered (0–1)
+        # prev_energy_sum: sum of normalised battery levels across all drones (0–num_drones)
         self.prev_coverage = 0.0
-        self.prev_energy_sum = 0.0
+        self.prev_energy_sum = float(self.num_drones)  # start fully charged
 
     def compute_reward(
         self,
@@ -154,7 +225,7 @@ class RewardShaper:
         
         # Update previous state
         self.prev_coverage = np.mean(coverage_map)
-        self.prev_energy_sum = np.sum(drone_states[:, 13])  # Battery energy column
+        self.prev_energy_sum = float(np.sum(drone_states[:, 13]))  # normalised battery sum
         
         return r_total
 
@@ -202,19 +273,23 @@ class RewardShaper:
         Returns:
             Energy penalty in [-0.01, 0]
         """
-        # Get battery energy from states (column 13)
-        battery_energy = drone_states[:, 13]
-        current_energy_sum = np.sum(battery_energy)
-        
-        # Energy consumed this step
+        # Column 13 is normalised battery level (0 = empty, 1 = full).
+        # Typical hover consumption ≈ 8e-6 per drone per 0.02 s step
+        # (64 W × 0.02 s / 266 400 J battery capacity, rounded up slightly).
+        # Scale so that r_eng ≈ -0.01 when all drones consume at hover rate.
+        _HOVER_NORM_RATE = 8e-6  # normalised battery consumed at hover per step
+        battery_level = drone_states[:, 13]
+        current_energy_sum = float(np.sum(battery_level))
+
+        # Energy consumed this step (positive = consumed)
         delta_energy = self.prev_energy_sum - current_energy_sum
-        
-        # Penalty: scaled to max -0.01 per step
-        # Assume max consumption = 1000 J per step
-        r_eng = -0.05 * (delta_energy / 1000.0)
-        r_eng = np.clip(r_eng, -0.01, 0.0)
-        
-        return float(r_eng)
+
+        # Normalise: -1.0 when consuming at rated hover power, 0 at rest
+        denominator = max(self.num_drones * _HOVER_NORM_RATE, 1e-9)
+        r_eng = -delta_energy / denominator * 0.01
+        r_eng = float(np.clip(r_eng, -0.01, 0.0))
+
+        return r_eng
 
     def _safety_reward(
         self,
@@ -374,10 +449,12 @@ class RewardShaper:
         return stats
 
     def reset_stats(self) -> None:
-        """Reset component statistics."""
+        """Reset component statistics and previous-state accumulators."""
         if self.enable_component_stats:
             for key in self.stats:
                 self.stats[key] = []
+        self.prev_coverage = 0.0
+        self.prev_energy_sum = float(self.num_drones)
 
     def update_weights(self, **kwargs) -> None:
         """
