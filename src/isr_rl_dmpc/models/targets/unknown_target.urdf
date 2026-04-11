@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<!--
+  unknown_target.urdf — PyBullet URDF for unknown / unclassified targets.
+
+  Mesh source: CesiumGS Box.glb converted to OBJ (Apache 2.0)
+  https://github.com/CesiumGS/cesium
+
+  A flattened rectangular marker for unclassified entities, coloured grey.
+  Raw mesh extent = 1 × 1 × 1 m.  Scaled to a flat 2.5 × 2.5 × 0.5 m marker.
+-->
+<robot name="unknown_target">
+
+  <link name="base_link">
+
+    <inertial>
+      <mass value="0.0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0"/>
+    </inertial>
+
+    <visual>
+      <origin xyz="0 0 0.25" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="../meshes/box.obj" scale="2.5 2.5 0.5"/>
+      </geometry>
+      <material name="unknown_grey">
+        <color rgba="0.7 0.7 0.7 0.85"/>
+      </material>
+    </visual>
+
+    <collision>
+      <origin xyz="0 0 0.25" rpy="0 0 0"/>
+      <geometry>
+        <box size="2.5 2.5 0.5"/>
+      </geometry>
+    </collision>
+
+  </link>
+
+</robot>
