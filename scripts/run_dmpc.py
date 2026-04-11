@@ -106,6 +106,7 @@ def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
 def _run_episode(env: MARLDMPCEnv, max_steps: int, render: bool) -> dict:
     """Run one episode with all-ones Q/R scales (pure DMPC, no RL)."""
     obs, _ = env.reset()
+    terminated = False  # guard against empty loop (zero max_steps)
     done = False
     step = 0
     total_reward = 0.0

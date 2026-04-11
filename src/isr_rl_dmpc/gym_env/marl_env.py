@@ -559,18 +559,19 @@ class MARLDMPCEnv(gym.Env):
             # Formation: penalty only for violating minimum separation.
             # Drones are allowed (and expected) to spread out for coverage.
             r_form = 0.0
+            n_neighbours_checked = 0
             for j in range(self.num_drones):
                 if j != i:
                     dist = float(np.linalg.norm(
                         self._drone_states[j][:3] - state[:3]
                     ))
+                    n_neighbours_checked += 1
                     if dist < desired_spacing:
                         # Linear penalty proportional to how much closer than desired
                         r_form -= (desired_spacing - dist) / desired_spacing
 
-            # Normalise formation penalty by number of neighbours
-            n_neighbours = max(self.num_drones - 1, 1)
-            r_form /= n_neighbours
+            # Normalise by actual number of neighbours checked
+            r_form /= max(n_neighbours_checked, 1)
 
             # Safety: CBF-style continuous penalty for proximity < collision_radius
             r_safe = 0.0

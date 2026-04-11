@@ -274,8 +274,8 @@ class RewardShaper:
             Energy penalty in [-0.01, 0]
         """
         # Column 13 is normalised battery level (0 = empty, 1 = full).
-        # Typical hover consumption ≈ 7e-6 per drone per 0.02 s step
-        # (64 W × 0.02 s / 266 400 J battery capacity).
+        # Typical hover consumption ≈ 8e-6 per drone per 0.02 s step
+        # (64 W × 0.02 s / 266 400 J battery capacity, rounded up slightly).
         # Scale so that r_eng ≈ -0.01 when all drones consume at hover rate.
         _HOVER_NORM_RATE = 8e-6  # normalised battery consumed at hover per step
         battery_level = drone_states[:, 13]
