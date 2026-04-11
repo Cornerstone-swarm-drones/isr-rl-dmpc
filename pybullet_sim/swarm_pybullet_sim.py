@@ -263,7 +263,7 @@ class SwarmPyBulletSim:
     def _init_pybullet(self) -> None:
         """Connect to PyBullet, load the scene, drones, and target markers."""
         mode = p.GUI if self.gui else p.DIRECT
-        self._pb_client = p.connect(mode, options="--mouse_wheel_multiplier=2")
+        self._pb_client = p.connect(mode, options="--mouse_wheel_multiplier=1")
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         p.setGravity(0, 0, 0)  # Gravity handled by the ISR physics engine
         p.setRealTimeSimulation(0)  # We drive the clock manually
@@ -627,7 +627,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--max-steps",        type=int,   default=0,    help="Steps to run (0 = unlimited)")
     parser.add_argument("--no-gui",           action="store_true",      help="Headless mode (no window)")
     parser.add_argument("--realtime",         action="store_true",      help="Pace simulation to real time")
-    parser.add_argument("--no-auto-camera",   action="store_true",      help="Disable auto-follow camera (use manual PyBullet navigation)")
+    parser.add_argument("--auto-camera",      action="store_true",      help="Disable auto-follow camera (use manual PyBullet navigation)")
     return parser.parse_args()
 
 
@@ -644,7 +644,7 @@ def main() -> None:
         traj_length=args.traj_length,
         gui=not args.no_gui,
         realtime=args.realtime,
-        auto_camera=not args.no_auto_camera,
+        auto_camera=args.auto_camera,
     )
     sim.run(max_steps=args.max_steps)
 
