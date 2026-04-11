@@ -89,6 +89,8 @@ def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
         dt=float(dmpc_cfg.get("dt", 0.02)),
         accel_max=accel_max,
         collision_radius=collision_radius,
+        solver_timeout=float(dmpc_cfg.get("solver_timeout", 0.02)),
+        osqp_max_iter=int(dmpc_cfg.get("osqp_max_iter", 4000)),
     )
 
 
