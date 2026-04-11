@@ -59,6 +59,7 @@ from isr_rl_dmpc.gym_env.simulator import (
     TargetType,
 )
 from isr_rl_dmpc.agents import DMPCAgent
+from isr_rl_dmpc.models.hector_quadrotor import get_urdf_path
 
 
 # ── Optional PyBullet import ─────────────────────────────────────────────────
@@ -110,8 +111,8 @@ _CAMERA_SMOOTHING_ALPHA: float = 0.15   # exponential-smoothing weight per step
 _MIN_CAMERA_DISTANCE: float = 25.0     # metres — never zoom closer than this
 _CAMERA_DISTANCE_MULTIPLIER: float = 3.0  # camera distance = multiplier × max spread
 
-# Path to the drone URDF relative to this file
-_URDF_PATH = os.path.join(os.path.dirname(__file__), "urdf", "drone.urdf")
+# Path to the drone URDF from the canonical src/models location
+_URDF_PATH = get_urdf_path()
 
 
 # ---------------------------------------------------------------------------
@@ -506,20 +507,19 @@ class SwarmPyBulletSim:
 
         # ── Run DMPC for each drone ────────────────────────────────────────
         solve_times: List[float] = []
+        motor_commands: List[np.ndarray] = []
         for i, (agent, state) in enumerate(zip(self._agents, states)):
             neighbor_states = [states[j] for j in range(self.n_drones) if j != i]
             ref = self._build_reference(i)
-            _, info = agent.act(state, ref, neighbor_states=neighbor_states)
+            motor_thrusts, info = agent.act(state, ref, neighbor_states=neighbor_states)
             solve_times.append(float(info.get("solve_time", 0.0)))
-            dmpc_u = info.get("u0", np.zeros(3))
-            self._sim.drones[i].acceleration = np.asarray(dmpc_u, dtype=float)
+            motor_commands.append(np.asarray(motor_thrusts, dtype=float))
 
         # ── Step physics ───────────────────────────────────────────────────
         wind = self._sim.wind_model.update(self.dt)
-        for drone in self._sim.drones:
+        for i, drone in enumerate(self._sim.drones):
             if drone.is_active:
-                motor_thrusts = np.full(4, drone.config.hover_thrust)
-                drone.step(motor_thrusts, wind, self.dt)
+                drone.step(motor_commands[i], wind, self.dt)
 
         self._sim.simulation_time += self.dt
         self._sim.update_target_detections()
