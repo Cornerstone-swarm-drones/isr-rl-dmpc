@@ -488,7 +488,7 @@ class MARLDMPCEnv(gym.Env):
         elif self.scenario == "search_and_track":
             # Line: drones equally spaced along x-axis
             patterns = [
-                [(-n / 2 + i + 0.5) * d, 0.0, 0.0]
+                [(-n // 2 + i + 0.5) * d, 0.0, 0.0]
                 for i in range(n)
             ]
         else:
@@ -552,18 +552,20 @@ class MARLDMPCEnv(gym.Env):
 
         elif self.scenario == "threat_response":
             # Four waypoints at the corners of a 100 m square, cycled every 400 steps
+            WAYPOINT_APPROACH_DISTANCE = 50.0  # m — half-width of the patrol square
             waypoints = [
-                np.array([50.0, 50.0]),
-                np.array([-50.0, 50.0]),
-                np.array([-50.0, -50.0]),
-                np.array([50.0, -50.0]),
+                np.array([WAYPOINT_APPROACH_DISTANCE,  WAYPOINT_APPROACH_DISTANCE]),
+                np.array([-WAYPOINT_APPROACH_DISTANCE, WAYPOINT_APPROACH_DISTANCE]),
+                np.array([-WAYPOINT_APPROACH_DISTANCE, -WAYPOINT_APPROACH_DISTANCE]),
+                np.array([WAYPOINT_APPROACH_DISTANCE,  -WAYPOINT_APPROACH_DISTANCE]),
             ]
             cycle = 400  # steps per waypoint
             wp_idx = (t // cycle) % len(waypoints)
             wp_next = waypoints[wp_idx]
             t_in_wp = (t % cycle) * dt
-            centroid_x = wp_next[0] * min(t_in_wp * SPEED / 50.0, 1.0)
-            centroid_y = wp_next[1] * min(t_in_wp * SPEED / 50.0, 1.0)
+            approach_frac = min(t_in_wp * SPEED / WAYPOINT_APPROACH_DISTANCE, 1.0)
+            centroid_x = wp_next[0] * approach_frac
+            centroid_y = wp_next[1] * approach_frac
             centroid_z = self.DEFAULT_ALTITUDE
             direction = wp_next / max(np.linalg.norm(wp_next), 1e-6)
             vel_x = direction[0] * SPEED

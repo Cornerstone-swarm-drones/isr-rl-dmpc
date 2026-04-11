@@ -191,18 +191,18 @@ def main() -> None:
         args.scenario, scenario_cfg, args.num_drones, args.max_steps, dmpc_cfg
     )
 
-    print("=" * 60)
-    print("  ISR-RL-DMPC — Pure DMPC Runner")
-    print("=" * 60)
-    print(f"  Scenario      : {args.scenario}")
-    print(f"  Drones        : {env_kwargs['num_drones']}")
-    print(f"  Max targets   : {env_kwargs['max_targets']}")
-    print(f"  Duration      : {env_kwargs['mission_duration']} steps")
-    print(f"  Episodes      : {args.episodes}")
-    print(f"  Solver timeout: {env_kwargs['solver_timeout'] * 1000:.0f} ms")
-    print(f"  OSQP max iter : {env_kwargs['osqp_max_iter']}")
-    print(f"  Output        : {args.output}")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("  ISR-RL-DMPC — Pure DMPC Runner")
+    logger.info("=" * 60)
+    logger.info("  Scenario      : %s", args.scenario)
+    logger.info("  Drones        : %d", env_kwargs['num_drones'])
+    logger.info("  Max targets   : %d", env_kwargs['max_targets'])
+    logger.info("  Duration      : %d steps", env_kwargs['mission_duration'])
+    logger.info("  Episodes      : %d", args.episodes)
+    logger.info("  Solver timeout: %.0f ms", env_kwargs['solver_timeout'] * 1000)
+    logger.info("  OSQP max iter : %d", env_kwargs['osqp_max_iter'])
+    logger.info("  Output        : %s", args.output)
+    logger.info("=" * 60)
 
     env = MARLDMPCEnv(**env_kwargs)
     env.reset(seed=args.seed)
@@ -239,8 +239,10 @@ def main() -> None:
     logger.info("Results saved → %s", out_file)
 
     rewards = [m["total_reward"] for m in all_metrics]
-    print(f"\nSummary: mean_reward={np.mean(rewards):.2f}  std={np.std(rewards):.2f}")
-    print(f"         min={np.min(rewards):.2f}  max={np.max(rewards):.2f}")
+    logger.info(
+        "Summary: mean_reward=%.2f  std=%.2f  min=%.2f  max=%.2f",
+        np.mean(rewards), np.std(rewards), np.min(rewards), np.max(rewards),
+    )
 
 
 if __name__ == "__main__":
