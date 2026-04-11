@@ -19,11 +19,11 @@ dmpc:
                                #  drone_specs.yaml reconnaissance.dmpc.accel_max)
   collision_radius: 3.0        # Minimum inter-drone separation [m]
                                # (~5× hector_quadrotor rotor span of 0.55 m)
-  solver_timeout: 0.015        # OSQP time limit per solve [s]
-                               # (raised from 0.01 s for hardware margin)
+  solver_timeout: 0.020        # OSQP time limit per solve [s]
+                               # (raised from 0.015 s for solve stability)
 
   # OSQP convergence tolerances
-  osqp_max_iter: 3000
+  osqp_max_iter: 4000
   osqp_eps_abs: 1.0e-3
   osqp_eps_rel: 1.0e-3
 

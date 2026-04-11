@@ -24,11 +24,14 @@ with the OSQP QP solver.  See 03_DMPC_FORMULATION.md §11 and
 04_LYAPUNOV_AND_STABILITY.md §5 for the derivation.
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import Tuple, List, Optional, Dict
 import numpy as np
 import cvxpy as cp
 from scipy.linalg import solve_discrete_are
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -52,7 +55,8 @@ class DMPCConfig:
     collision_radius: float = 5.0
 
     # CVXPY solver settings
-    solver_timeout: float = 0.01  # 10 ms solver time budget
+    solver_timeout: float = 0.02  # 20 ms solver time budget
+    osqp_max_iter: int = 4000     # OSQP iteration limit
 
     def __post_init__(self) -> None:
         if self.P_base is None:
@@ -258,13 +262,13 @@ class MPCSolver:
         try:
             problem.solve(
                 solver=cp.OSQP,
-                max_iter=3000,
+                max_iter=self.config.osqp_max_iter,
                 eps_abs=1e-3,
                 eps_rel=1e-3,
                 time_limit=self.config.solver_timeout,
             )
         except Exception as e:
-            print(f"Solver warning: {e}")
+            logger.debug("Solver warning: %s", e)
             return np.zeros((self.horizon, self.config.control_dim)), {
                 "status": "error",
                 "solve_time": 0,
@@ -272,6 +276,15 @@ class MPCSolver:
             }
 
         if problem.status in ("optimal", "optimal_inaccurate"):
+            # On optimal_inaccurate, re-solve with CLARABEL for a more accurate result.
+            # CLARABEL handles second-order cone constraints natively and is more
+            # accurate than OSQP for problems near constraint boundaries.
+            if problem.status == "optimal_inaccurate":
+                try:
+                    problem.solve(solver=cp.CLARABEL, eps_abs=1e-4, eps_rel=1e-4)
+                except Exception:
+                    pass  # keep the OSQP result if CLARABEL also fails
+
             u_val = self.u_var.value
             x_val = self.x_var.value
             u_opt = np.array(u_val).T if u_val is not None else \
@@ -288,7 +301,23 @@ class MPCSolver:
                 "x_trajectory": np.array(x_val).T if x_val is not None else None,
             }
         else:
-            print(f"Solver status: {problem.status}")
+            # For non-optimal statuses, use the current iterate if available
+            # (avoids returning zeros which can destabilise the controller).
+            u_val = self.u_var.value
+            if u_val is not None:
+                logger.debug("Solver status %s — using current iterate", problem.status)
+                u_opt = np.array(u_val).T
+                solve_time = (
+                    problem.solver_stats.solve_time
+                    if problem.solver_stats is not None
+                    else 0.0
+                )
+                return u_opt, {
+                    "status": problem.status,
+                    "solve_time": solve_time,
+                    "objective": problem.value if problem.value is not None else np.inf,
+                }
+            logger.debug("Solver status: %s — no iterate available", problem.status)
             return np.zeros((self.horizon, self.config.control_dim)), {
                 "status": problem.status,
                 "solve_time": 0,
@@ -427,7 +456,7 @@ class DMPC:
             accel_max=np.array(self.config.accel_max),
             collision_radius=np.array(self.config.collision_radius),
         )
-        print(f"DMPC config saved to {path}")
+        logger.debug("DMPC config saved to %s", path)
 
     def load_config(self, path: str) -> None:
         """Restore cost matrices from a NumPy archive."""
@@ -435,7 +464,7 @@ class DMPC:
         self.Q = data["Q"]
         self.R = data["R"]
         self.P = data["P"]
-        print(f"DMPC config loaded from {path}")
+        logger.debug("DMPC config loaded from %s", path)
 
 
 if __name__ == "__main__":

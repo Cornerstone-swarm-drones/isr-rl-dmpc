@@ -85,9 +85,13 @@ class MARLDMPCEnv(gym.Env):
 
     # Reward weights
     W_TRACK = 5.0
-    W_FORM = 2.0
+    W_FORM = 1.0   # reduced: formation reward is now normalised to [-1, 0]
     W_SAFE = 10.0
     W_EFF = 0.1
+
+    # Formation geometry
+    FORMATION_SPACING_FACTOR = 2.5   # multiplier on collision_radius
+    DEFAULT_ALTITUDE = 30.0          # metres AGL
 
     def __init__(
         self,
@@ -100,6 +104,9 @@ class MARLDMPCEnv(gym.Env):
         render_mode: Optional[str] = None,
         accel_max: float = 8.0,
         collision_radius: float = 3.0,
+        solver_timeout: float = 0.02,
+        osqp_max_iter: int = 4000,
+        scenario: str = "area_surveillance",
     ) -> None:
         super().__init__()
 
@@ -112,6 +119,7 @@ class MARLDMPCEnv(gym.Env):
         self.render_mode = render_mode
         self.accel_max = accel_max
         self.collision_radius = collision_radius
+        self.scenario = scenario
 
         # ── Gymnasium spaces ────────────────────────────────────────────
         total_obs = num_drones * OBS_DIM
@@ -147,6 +155,8 @@ class MARLDMPCEnv(gym.Env):
             control_dim=CONTROL_DIM,
             accel_max=accel_max,
             collision_radius=collision_radius,
+            solver_timeout=solver_timeout,
+            osqp_max_iter=osqp_max_iter,
         )
         self._dmpc: List[DMPC] = [DMPC(dmpc_cfg) for _ in range(num_drones)]
 
@@ -200,14 +210,13 @@ class MARLDMPCEnv(gym.Env):
         self._battery[:] = 1.0
         self._health[:] = 1.0
 
-        # Reset physics simulator
-        sim_obs = self._simulator.reset()
+        # Reset physics simulator (returns None — do not unpack)
+        self._simulator.reset()
+        self._place_drones_in_formation()
         self._sync_states_from_sim()
 
-        # Generate initial references (hover in place)
-        for i in range(self.num_drones):
-            for k in range(self.horizon + 1):
-                self._references[i, k] = self._drone_states[i].copy()
+        # Generate initial references based on the mission scenario
+        self._update_references()
 
         obs = self._build_observation()
         return obs, {}
@@ -266,18 +275,19 @@ class MARLDMPCEnv(gym.Env):
             controls[i] = 0.8 * raw_proposals[i] + 0.2 * consensus_ref
 
         # ── Apply controls to simulator ──────────────────────────────────
-        motor_cmds = self._accel_to_motor_cmds(controls)
-        sim_obs, sim_reward, terminated, truncated, sim_info = self._simulator.step(
-            motor_cmds.flatten()
-        )
+        # simulator.step() expects shape (num_drones, 4) and returns None
+        motor_cmds = self._accel_to_motor_cmds(controls)  # (num_drones, 4)
+        self._simulator.step(motor_cmds)
+        terminated = not all(d.is_active for d in self._simulator.drones)
+        truncated = False
         self._sync_states_from_sim()
 
-        # Update battery (simple linear discharge)
-        self._battery = np.clip(
-            self._battery - 0.0001 * np.linalg.norm(controls, axis=1),
-            0.0,
-            1.0,
-        )
+        # Sync battery level from physics simulator (single ground-truth battery model)
+        for i in range(self.num_drones):
+            drone = self._simulator.drones[i]
+            self._battery[i] = max(
+                drone.battery_energy / drone.config.battery_capacity, 0.0
+            )
 
         # ── Store diagnostics ────────────────────────────────────────────
         self._last_controls = controls.copy()
@@ -286,6 +296,9 @@ class MARLDMPCEnv(gym.Env):
         self._admm_residuals = admm_residuals
 
         self._step_count += 1
+
+        # Advance scenario-specific reference trajectories
+        self._update_references()
 
         # ── Reward ───────────────────────────────────────────────────────
         reward = self._compute_reward(controls)
@@ -387,34 +400,53 @@ class MARLDMPCEnv(gym.Env):
     # ──────────────────────────────────────────────────────────────────
 
     def _compute_reward(self, controls: np.ndarray) -> float:
-        """Scalar reward combining tracking, formation, safety, and efficiency."""
+        """Scalar reward combining tracking, formation, safety, and efficiency.
+
+        All component rewards are normalised to [-1, 0] so that the weight
+        constants are directly comparable:
+
+        * r_track: exp(-0.01 * ‖e_p‖²) - 1   ∈ [-1, 0]
+        * r_form:  exp(-μ² / d²) - 1           ∈ [-1, 0], μ = mean formation error,
+                   d = desired_spacing (normalises by scale)
+        * r_safe:  sum_j min(0, dist_ij - r_coll) / r_coll ∈ (-∞, 0]
+        * r_eff:   -‖u‖² / (u_max² · control_dim)          ∈ [-1, 0]
+        """
         total = 0.0
+        desired_spacing = self.collision_radius * self.FORMATION_SPACING_FACTOR
         for i in range(self.num_drones):
             state = self._drone_states[i]
             ref_pos = self._references[i, 0, :3]
             track_err = np.linalg.norm(state[:3] - ref_pos)
 
-            # Tracking reward: exp(-0.1 * ‖e_p‖²) - 1
-            r_track = float(np.exp(-0.1 * track_err ** 2) - 1.0)
+            # Tracking reward: α=0.01 keeps reward meaningful up to ~10 m error
+            r_track = float(np.exp(-0.01 * track_err ** 2) - 1.0)
 
-            # Formation reward: penalise deviation from desired spacing
+            # Formation reward: normalised by desired_spacing² → range [-1, 0]
             form_errs = []
-            desired_spacing = self.collision_radius * 2.0
             for j in range(self.num_drones):
                 if j != i:
                     dist = np.linalg.norm(self._drone_states[j][:3] - state[:3])
                     form_errs.append(abs(dist - desired_spacing))
-            r_form = -float(np.mean(form_errs)) if form_errs else 0.0
+            if form_errs:
+                mean_form_err = float(np.mean(form_errs))
+                r_form = float(
+                    np.exp(-mean_form_err ** 2 / max(desired_spacing ** 2, 1e-6)) - 1.0
+                )
+            else:
+                r_form = 0.0
 
-            # Safety reward: penalty for proximity violations
+            # Safety reward: penalty for proximity violations (normalised by r_coll)
             r_safe = 0.0
             for j in range(self.num_drones):
                 if j != i:
                     dist = np.linalg.norm(self._drone_states[j][:3] - state[:3])
-                    r_safe += min(0.0, dist - self.collision_radius)
+                    r_safe += min(0.0, dist - self.collision_radius) / max(
+                        self.collision_radius, 1e-6
+                    )
 
-            # Efficiency reward: penalise large control inputs
-            r_eff = -float(np.dot(controls[i], controls[i]))
+            # Efficiency reward: normalised by accel_max² so it stays in [-1, 0]
+            u_sq = float(np.dot(controls[i], controls[i]))
+            r_eff = -u_sq / max(self.accel_max ** 2 * CONTROL_DIM, 1e-6)
 
             total += (
                 self.W_TRACK * r_track
@@ -429,16 +461,179 @@ class MARLDMPCEnv(gym.Env):
     # Helpers
     # ──────────────────────────────────────────────────────────────────
 
-    def _sync_states_from_sim(self) -> None:
-        """Pull drone states from the physics simulator."""
-        sim_state = self._simulator.get_state()
+    def _formation_offsets(self) -> np.ndarray:
+        """Return per-drone 3-D offsets (relative to formation centroid).
+
+        Formation shapes are chosen to match the mission scenario:
+        * area_surveillance → 2×2 grid
+        * threat_response   → wedge (lead + two wings + tail)
+        * search_and_track  → line (drones equally spaced along x-axis)
+
+        Returns:
+            Array of shape ``(num_drones, 3)`` with x/y offsets in metres
+            and z offset of 0 (all drones fly at the same altitude).
+        """
+        d = self.collision_radius * self.FORMATION_SPACING_FACTOR
+        n = self.num_drones
+        offsets = np.zeros((n, 3), dtype=np.float64)
+
+        if self.scenario == "threat_response":
+            # Wedge: drone 0 leads, 1 & 2 flank, rest trail
+            patterns = [
+                [0.0, 0.0, 0.0],
+                [-d, d, 0.0],
+                [d, d, 0.0],
+                [0.0, 2 * d, 0.0],
+            ]
+        elif self.scenario == "search_and_track":
+            # Line: drones equally spaced along x-axis
+            patterns = [
+                [(-n / 2 + i + 0.5) * d, 0.0, 0.0]
+                for i in range(n)
+            ]
+        else:
+            # Grid (area_surveillance default)
+            cols = int(np.ceil(np.sqrt(n)))
+            patterns = []
+            for i in range(n):
+                row, col = divmod(i, cols)
+                cx = (cols - 1) / 2.0
+                ry = (int(np.ceil(n / cols)) - 1) / 2.0
+                patterns.append([(col - cx) * d, (row - ry) * d, 0.0])
+
+        for i in range(n):
+            if i < len(patterns):
+                offsets[i] = patterns[i]
+        return offsets
+
+    def _place_drones_in_formation(self) -> None:
+        """Place drones in the scenario formation at DEFAULT_ALTITUDE."""
+        offsets = self._formation_offsets()
         for i in range(self.num_drones):
-            drone_key = f"drone_{i}"
-            if isinstance(sim_state, dict) and drone_key in sim_state:
-                raw = sim_state[drone_key]
-                n = min(len(raw), STATE_DIM)
-                self._drone_states[i, :n] = raw[:n]
-            # else keep previous state (warm-start)
+            pos = np.array([
+                offsets[i, 0],
+                offsets[i, 1],
+                self.DEFAULT_ALTITUDE,
+            ], dtype=np.float64)
+            self._simulator.set_drone_initial_state(i, pos)
+
+    def _update_references(self) -> None:
+        """Compute scenario-specific reference trajectories for the current step.
+
+        The formation centroid follows a mission path; each drone's reference
+        is the centroid plus its fixed formation offset.  Lookahead references
+        (for the DMPC horizon) are filled by projecting the centroid forward
+        along the path at the mission speed.
+
+        Scenarios:
+        * area_surveillance: lawnmower (rows at constant speed in y, step in x)
+        * threat_response:   wedge converges toward patrol waypoints
+        * search_and_track:  expanding square outward from origin
+        """
+        SPEED = 5.0  # m/s mission speed (consistent with ~10 m/s max)
+        t = self._step_count  # current step index
+        dt = self.dt
+        offsets = self._formation_offsets()
+
+        if self.scenario == "area_surveillance":
+            # Lawnmower over an implicit 400×400 m area centred on initial position
+            row_width = 50.0  # metres between lawnmower rows
+            row_len = 200.0   # metres per row segment
+            steps_per_row = int(row_len / (SPEED * dt)) or 1
+            row_idx = t // steps_per_row
+            pos_in_row = (t % steps_per_row) * SPEED * dt
+            centroid_y = pos_in_row if row_idx % 2 == 0 else row_len - pos_in_row
+            centroid_x = row_idx * row_width - row_len / 2
+            centroid_z = self.DEFAULT_ALTITUDE
+
+            # Velocity of centroid (used for horizon lookahead)
+            vel_x = 0.0
+            vel_y = SPEED if row_idx % 2 == 0 else -SPEED
+
+        elif self.scenario == "threat_response":
+            # Four waypoints at the corners of a 100 m square, cycled every 400 steps
+            waypoints = [
+                np.array([50.0, 50.0]),
+                np.array([-50.0, 50.0]),
+                np.array([-50.0, -50.0]),
+                np.array([50.0, -50.0]),
+            ]
+            cycle = 400  # steps per waypoint
+            wp_idx = (t // cycle) % len(waypoints)
+            wp_next = waypoints[wp_idx]
+            t_in_wp = (t % cycle) * dt
+            centroid_x = wp_next[0] * min(t_in_wp * SPEED / 50.0, 1.0)
+            centroid_y = wp_next[1] * min(t_in_wp * SPEED / 50.0, 1.0)
+            centroid_z = self.DEFAULT_ALTITUDE
+            direction = wp_next / max(np.linalg.norm(wp_next), 1e-6)
+            vel_x = direction[0] * SPEED
+            vel_y = direction[1] * SPEED
+
+        else:  # search_and_track: expanding square
+            # Spiral outward: each leg grows by row_step; switch direction every leg
+            leg_step = 20.0  # metres per leg
+            steps_per_metre = 1.0 / (SPEED * dt)
+            leg_idx = 0
+            leg_start = 0.0
+            cx, cy = 0.0, 0.0
+            dirs = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+            t_rem = float(t)
+            while True:
+                leg_len = leg_step * (leg_idx // 2 + 1)
+                leg_steps = leg_len * steps_per_metre
+                if t_rem < leg_steps:
+                    frac = t_rem / max(leg_steps, 1)
+                    d_idx = leg_idx % 4
+                    cx += dirs[d_idx][0] * leg_len * frac
+                    cy += dirs[d_idx][1] * leg_len * frac
+                    vel_x = dirs[d_idx][0] * SPEED
+                    vel_y = dirs[d_idx][1] * SPEED
+                    break
+                t_rem -= leg_steps
+                d_idx = leg_idx % 4
+                cx += dirs[d_idx][0] * leg_len
+                cy += dirs[d_idx][1] * leg_len
+                leg_idx += 1
+            centroid_x, centroid_y = cx, cy
+            centroid_z = self.DEFAULT_ALTITUDE
+
+        centroid_ref = np.array([centroid_x, centroid_y, centroid_z],
+                                dtype=np.float64)
+        vel_ref = np.array([vel_x, vel_y, 0.0], dtype=np.float64)
+
+        for i in range(self.num_drones):
+            for k in range(self.horizon + 1):
+                # Project centroid forward k steps along current velocity
+                future_centroid = centroid_ref + vel_ref * (k * dt)
+                ref = np.zeros(STATE_DIM, dtype=np.float64)
+                ref[:3] = future_centroid + offsets[i]
+                ref[3:6] = vel_ref
+                self._references[i, k] = ref
+
+    def _sync_states_from_sim(self) -> None:
+        """Pull drone states from the physics simulator.
+
+        Maps the simulator's DronePhysics object attributes directly to the
+        11-D DMPC state ``[pos(3), vel(3), accel(3), yaw, yaw_rate]``.
+        """
+        for i in range(self.num_drones):
+            drone = self._simulator.drones[i]
+            pos = drone.position          # (3,)
+            vel = drone.velocity          # (3,)
+            acc = drone.acceleration      # (3,)
+            # Yaw from quaternion: atan2(2(wz + xy), 1 − 2(y² + z²))
+            w, qx, qy, qz = drone.q
+            yaw = float(np.arctan2(
+                2.0 * (w * qz + qx * qy),
+                1.0 - 2.0 * (qy * qy + qz * qz),
+            ))
+            yaw_rate = float(drone.angular_velocity[2])
+            self._drone_states[i] = np.array([
+                pos[0], pos[1], pos[2],
+                vel[0], vel[1], vel[2],
+                acc[0], acc[1], acc[2],
+                yaw, yaw_rate,
+            ], dtype=np.float64)
 
     def _accel_to_motor_cmds(self, controls: np.ndarray) -> np.ndarray:
         """Convert per-drone acceleration commands to normalised motor commands.

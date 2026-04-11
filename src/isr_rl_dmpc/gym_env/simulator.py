@@ -347,8 +347,16 @@ class DronePhysics:
         # Update attitude
         self.update_attitude(angular_velocity_new, dt)
         
-        # Battery depletion (energy-based)
-        power_consumed = np.sum(self.motor_thrusts) * np.linalg.norm(self.velocity) * 0.01
+        # Battery depletion using a physics-motivated model:
+        # P_total = P_hover + P_extra
+        # P_hover: baseline power to maintain altitude (from config)
+        # P_extra: additional mechanical power for maneuvering, proportional
+        #          to thrust above hover level times velocity magnitude
+        hover_thrust_total = self.config.hover_thrust * 4  # 4 motors × 3.62 N ≈ 14.48 N
+        total_thrust = float(np.sum(self.motor_thrusts))
+        extra_thrust = max(0.0, total_thrust - hover_thrust_total)
+        maneuvering_power = extra_thrust * (np.linalg.norm(self.velocity) + 1.0)
+        power_consumed = self.config.battery_energy_rate + maneuvering_power
         self.battery_energy -= power_consumed * dt
         
         # Check battery status
