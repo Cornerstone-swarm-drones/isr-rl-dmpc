@@ -200,11 +200,12 @@ class MARLDMPCEnv(gym.Env):
         self._battery[:] = 1.0
         self._health[:] = 1.0
 
-        # Reset physics simulator
+        # Reset physics simulator and place drones in a spaced formation
         self._simulator.reset()
+        self._place_drones_in_formation()
         self._sync_states_from_sim()
 
-        # Generate initial references (hover in place)
+        # Generate initial references (hover in place at the spaced positions)
         for i in range(self.num_drones):
             for k in range(self.horizon + 1):
                 self._references[i, k] = self._drone_states[i].copy()
@@ -431,13 +432,57 @@ class MARLDMPCEnv(gym.Env):
     # Helpers
     # ──────────────────────────────────────────────────────────────────
 
-    def _sync_states_from_sim(self) -> None:
-        """Pull drone states from the physics simulator."""
-        drone_states = self._simulator.get_drone_states()  # (num_drones, 18)
+    def _place_drones_in_formation(self) -> None:
+        """Place drones in a grid formation with sufficient spacing.
+
+        Spacing is at least ``2 * collision_radius`` so that CBF constraints
+        are comfortably satisfied from the first time-step.
+        """
+        spacing = self.collision_radius * 2.5  # generous margin
+        cols = int(np.ceil(np.sqrt(self.num_drones)))
         for i in range(self.num_drones):
-            raw = drone_states[i]
-            n = min(len(raw), STATE_DIM)
-            self._drone_states[i, :n] = raw[:n]
+            row, col = divmod(i, cols)
+            x = col * spacing
+            y = row * spacing
+            z = 30.0  # default surveillance altitude (m AGL)
+            self._simulator.set_drone_initial_state(
+                i, np.array([x, y, z], dtype=np.float64)
+            )
+
+    def _sync_states_from_sim(self) -> None:
+        """Pull drone states from the physics simulator.
+
+        The simulator's ``DronePhysics.get_state_vector()`` returns an 18-D
+        vector::
+
+            [pos(3), vel(3), quat(4), ang_vel(3), battery, health,
+             active, motor_avg, temp]
+
+        The DMPC state layout is 11-D::
+
+            [pos(3), vel(3), accel(3), yaw, yaw_rate]
+
+        This helper performs the correct mapping, extracting acceleration
+        from ``DronePhysics.acceleration`` and computing yaw from the
+        quaternion.
+        """
+        for i in range(self.num_drones):
+            drone = self._simulator.drones[i]
+            # Position & velocity come directly from the drone
+            pos = drone.position  # (3,)
+            vel = drone.velocity  # (3,)
+            acc = drone.acceleration  # (3,)
+            # Yaw from quaternion: atan2(2(wz + xy), 1 - 2(y² + z²))
+            w, qx, qy, qz = drone.q
+            yaw = float(np.arctan2(2.0 * (w * qz + qx * qy),
+                                   1.0 - 2.0 * (qy * qy + qz * qz)))
+            yaw_rate = float(drone.angular_velocity[2])  # body z-axis rate
+            self._drone_states[i] = np.array([
+                pos[0], pos[1], pos[2],
+                vel[0], vel[1], vel[2],
+                acc[0], acc[1], acc[2],
+                yaw, yaw_rate,
+            ], dtype=np.float64)
 
     def _accel_to_motor_cmds(self, controls: np.ndarray) -> np.ndarray:
         """Convert per-drone acceleration commands to normalised motor commands.
