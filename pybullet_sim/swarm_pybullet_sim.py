@@ -95,6 +95,8 @@ _TARGET_COLORS = {
     TargetType.FRIENDLY: (0.1, 0.9, 0.2),
     TargetType.UNKNOWN:  (0.7, 0.7, 0.7),
 }
+_DEFAULT_TARGET_COLOR: Tuple[float, float, float] = (0.7, 0.7, 0.7)
+_TARGET_VISUAL_ALPHA: float = 0.85
 
 _TRAJ_ALPHA: float = 0.6
 _TRAJ_HISTORY: int = 200  # trajectory trail length per drone
@@ -381,11 +383,11 @@ class SwarmPyBulletSim:
                     globalScaling=_TARGET_URDF_SCALE,
                 )
                 # Apply the canonical target colour to every link
-                r, g, b = _TARGET_COLORS.get(target_type, (0.7, 0.7, 0.7))
+                r, g, b = _TARGET_COLORS.get(target_type, _DEFAULT_TARGET_COLOR)
                 for link_idx in range(-1, p.getNumJoints(tgt_body)):
                     p.changeVisualShape(
                         tgt_body, link_idx,
-                        rgbaColor=[r, g, b, 0.85],
+                        rgbaColor=[r, g, b, _TARGET_VISUAL_ALPHA],
                     )
                 return tgt_body
             except Exception as exc:
@@ -395,12 +397,12 @@ class SwarmPyBulletSim:
                 )
 
         # Sphere fallback (original behaviour)
-        r, g, b = _TARGET_COLORS.get(target_type, (0.7, 0.7, 0.7))
+        r, g, b = _TARGET_COLORS.get(target_type, _DEFAULT_TARGET_COLOR)
         col_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=1.0)
         vis_shape = p.createVisualShape(
             p.GEOM_SPHERE,
             radius=1.0,
-            rgbaColor=[r, g, b, 0.85],
+            rgbaColor=[r, g, b, _TARGET_VISUAL_ALPHA],
         )
         return p.createMultiBody(
             baseMass=0,  # static

@@ -57,7 +57,7 @@ def get_target_urdf_path(target_type: str) -> str:
     return str(_TARGET_URDFS[key])
 
 
-def available_target_types() -> list:
+def available_target_types() -> list[str]:
     """Return a sorted list of available target type names."""
     return sorted(_TARGET_URDFS)
 
