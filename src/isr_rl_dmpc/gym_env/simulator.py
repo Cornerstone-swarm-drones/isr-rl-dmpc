@@ -361,11 +361,14 @@ class DronePhysics:
         # Battery depletion — power model
         # Hover baseline: the drone uses battery_energy_rate [W] at hover.
         # Additional power for thrust above hover (aggressive manoeuvres).
+        # The extra-thrust coefficient [W/N] converts surplus force into
+        # additional electrical power drawn by the motor controllers.
+        _EXTRA_THRUST_POWER_COEFF = 5.0  # W per Newton above hover thrust
         hover_power = self.config.battery_energy_rate  # W  (64 W default)
         thrust_above_hover = max(
             0.0, np.sum(self.motor_thrusts) - 4 * self.config.hover_thrust
         )
-        extra_power = thrust_above_hover * 5.0  # ~5 W per extra Newton
+        extra_power = thrust_above_hover * _EXTRA_THRUST_POWER_COEFF
         total_power = hover_power + extra_power
         self.battery_energy -= total_power * dt
         

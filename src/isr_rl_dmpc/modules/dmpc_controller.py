@@ -330,7 +330,7 @@ class MPCSolver:
             }
 
         status = self._problem.status
-        if status in ("optimal", "optimal_inaccurate", "solved_inaccurate"):
+        if status in ("optimal", "optimal_inaccurate"):
             u_val = self.u_var.value
             x_val = self.x_var.value
             u_opt = (
