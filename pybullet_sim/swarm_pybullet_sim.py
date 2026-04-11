@@ -60,6 +60,7 @@ from isr_rl_dmpc.gym_env.simulator import (
 )
 from isr_rl_dmpc.agents import DMPCAgent
 from isr_rl_dmpc.models.hector_quadrotor import get_urdf_path
+from isr_rl_dmpc.models.targets import get_target_urdf_path
 
 
 # ── Optional PyBullet import ─────────────────────────────────────────────────
@@ -94,6 +95,8 @@ _TARGET_COLORS = {
     TargetType.FRIENDLY: (0.1, 0.9, 0.2),
     TargetType.UNKNOWN:  (0.7, 0.7, 0.7),
 }
+_DEFAULT_TARGET_COLOR: Tuple[float, float, float] = (0.7, 0.7, 0.7)
+_TARGET_VISUAL_ALPHA: float = 0.85
 
 _TRAJ_ALPHA: float = 0.6
 _TRAJ_HISTORY: int = 200  # trajectory trail length per drone
@@ -105,6 +108,17 @@ _LABEL_TEXT_SIZE: float = 1.8
 # Drone visual scaling
 _DRONE_URDF_SCALE: float = 8.0  # globalScaling factor applied when loading the URDF
 _FALLBACK_DRONE_HALF_EXTENTS = [2.5, 2.5, 0.4]  # [x, y, z] half-extents for box fallback [m]
+
+# Target visual scaling
+_TARGET_URDF_SCALE: float = 2.0  # globalScaling factor applied when loading target URDFs
+
+# Mapping from TargetType enum to the target URDF type string
+_TARGET_TYPE_TO_URDF = {
+    TargetType.HOSTILE:  "hostile",
+    TargetType.NEUTRAL:  "neutral",
+    TargetType.FRIENDLY: "friendly",
+    TargetType.UNKNOWN:  "unknown",
+}
 
 # Auto-camera tracking tuning
 _CAMERA_SMOOTHING_ALPHA: float = 0.15   # exponential-smoothing weight per step
@@ -350,13 +364,45 @@ class SwarmPyBulletSim:
     def _create_target_visual(
         self, target_id: int, pos: List[float], target_type: TargetType
     ) -> int:
-        """Create a sphere visual for a target."""
-        r, g, b = _TARGET_COLORS.get(target_type, (0.7, 0.7, 0.7))
+        """Create a 3-D model visual for a target using a URDF.
+
+        Falls back to a coloured sphere when the URDF cannot be loaded.
+        """
+        urdf_key = _TARGET_TYPE_TO_URDF.get(target_type, "unknown")
+        try:
+            urdf_path = get_target_urdf_path(urdf_key)
+        except ValueError:
+            urdf_path = None
+
+        if urdf_path and os.path.isfile(urdf_path):
+            try:
+                tgt_body = p.loadURDF(
+                    urdf_path,
+                    basePosition=pos,
+                    useFixedBase=True,
+                    globalScaling=_TARGET_URDF_SCALE,
+                )
+                # Apply the canonical target colour to every link
+                r, g, b = _TARGET_COLORS.get(target_type, _DEFAULT_TARGET_COLOR)
+                for link_idx in range(-1, p.getNumJoints(tgt_body)):
+                    p.changeVisualShape(
+                        tgt_body, link_idx,
+                        rgbaColor=[r, g, b, _TARGET_VISUAL_ALPHA],
+                    )
+                return tgt_body
+            except Exception as exc:
+                print(
+                    f"[WARNING] Failed to load target URDF '{urdf_path}': {exc} "
+                    "— using sphere fallback."
+                )
+
+        # Sphere fallback (original behaviour)
+        r, g, b = _TARGET_COLORS.get(target_type, _DEFAULT_TARGET_COLOR)
         col_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=1.0)
         vis_shape = p.createVisualShape(
             p.GEOM_SPHERE,
             radius=1.0,
-            rgbaColor=[r, g, b, 0.85],
+            rgbaColor=[r, g, b, _TARGET_VISUAL_ALPHA],
         )
         return p.createMultiBody(
             baseMass=0,  # static

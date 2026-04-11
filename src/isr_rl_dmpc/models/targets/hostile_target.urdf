@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<!--
+  hostile_target.urdf — PyBullet URDF for hostile (threat) targets.
+
+  Mesh source: CesiumGS Cesium_Air.glb converted to OBJ (Apache 2.0)
+  https://github.com/CesiumGS/cesium
+
+  The Cesium Air model is an airplane silhouette that serves as a
+  recognisable hostile/threat marker in the ISR simulation.
+
+  Raw mesh extent ≈ 25.7 × 7.8 × 21.4 m.  Scaled to ≈ 3.9 m span.
+-->
+<robot name="hostile_target">
+
+  <link name="base_link">
+
+    <inertial>
+      <mass value="0.0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0"/>
+    </inertial>
+
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <!-- Scale raw ~25.7 m span down to ~3.9 m (factor 0.15) -->
+        <mesh filename="../meshes/cesium_air.obj" scale="0.15 0.15 0.15"/>
+      </geometry>
+      <material name="hostile_red">
+        <color rgba="1.0 0.1 0.1 0.85"/>
+      </material>
+    </visual>
+
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="3.0 1.5 2.0"/>
+      </geometry>
+    </collision>
+
+  </link>
+
+</robot>

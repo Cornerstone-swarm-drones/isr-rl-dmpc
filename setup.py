@@ -9,6 +9,17 @@ setup(
     url="https://github.com/Cornerstone-swarm-drones/isr-rl-dmpc.git",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
+    include_package_data=True,
+    package_data={
+        "isr_rl_dmpc": [
+            "models/hector_quadrotor/*.urdf",
+            "models/targets/*.urdf",
+            "models/meshes/*.obj",
+            "models/meshes/*.mtl",
+            "models/meshes/*.glb",
+            "models/meshes/hector_quadrotor/*",
+        ],
+    },
     python_requires=">=3.10",
     install_requires=[
         "numpy>=1.21.0",
