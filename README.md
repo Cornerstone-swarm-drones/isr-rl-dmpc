@@ -39,8 +39,10 @@ margins.  Simulation and visualisation run in **PyBullet** — no ROS2 required.
 - **6-DOF Physics Simulation** — Rigid-body dynamics with wind, battery depletion, and
   collision detection, tuned for the hector_quadrotor airframe (1.477 kg).
 - **Open-Source Drone Model** — Uses the [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor)
-  STL mesh and self-contained URDF (`pybullet_sim/urdf/drone.urdf`) for both PyBullet
+  STL mesh and self-contained URDF (`src/isr_rl_dmpc/models/hector_quadrotor/drone.urdf`) for both PyBullet
   visualisation and hardware deployment.
+- **3D Target Models** — Targets rendered as distinct 3D models in PyBullet: hostile (airplane),
+  neutral (truck), friendly (cube), unknown (slab).  Meshes from [CesiumGS](https://github.com/CesiumGS/cesium) (Apache 2.0).
 - **PyBullet Simulation** — A ready-to-run Python script (`pybullet_sim/swarm_pybullet_sim.py`)
   visualises drone poses, target positions, DMPC metrics, and per-drone trajectory trails in
   an interactive 3-D OpenGL window.  No external simulator or middleware required.
@@ -117,10 +119,10 @@ python pybullet_sim/swarm_pybullet_sim.py --no-auto-camera
 ```
 
 The PyBullet window shows:
-- 3D hector_quadrotor STL mesh models (open-source, TU Darmstadt) with per-drone colour coding
+- 3D hector_quadrotor URDF mesh models (open-source, TU Darmstadt) with per-drone colour coding
 - Floating per-drone ID labels (D0 … Dn) that track each drone in real time
 - Trajectory trail ribbons drawn with debug lines
-- Target spheres colour-coded by threat level (red = hostile, yellow = neutral, green = friendly)
+- 3D target models colour-coded by threat level: hostile (red, airplane), neutral (yellow, truck), friendly (green, cube), unknown (grey, slab)
 - Auto-follow camera that tracks the swarm centroid with adaptive zoom (disable with `--no-auto-camera`)
 - Interactive camera: orbit with left-click drag, zoom with scroll wheel (2× sensitivity)
 
@@ -134,16 +136,18 @@ isr-rl-dmpc/
 │   ├── core/                  # Data structures (DroneState, TargetState, MissionState)
 │   ├── gym_env/               # MARLDMPCEnv (40-D obs, 14-D action) + 6-DOF physics
 │   ├── models/
-│   │   └── meshes/hector_quadrotor/  # Open-source drone mesh source files
+│   │   ├── hector_quadrotor/          # Drone URDF + mesh (TU Darmstadt, BSD)
+│   │   │   └── drone.urdf
+│   │   ├── targets/                   # Target URDFs (hostile, neutral, friendly, unknown)
+│   │   └── meshes/                    # OBJ/STL/DAE mesh assets
+│   │       ├── hector_quadrotor/      # Drone mesh source files
+│   │       ├── cesium_air.obj         # Hostile target mesh (CesiumGS, Apache 2.0)
+│   │       ├── cesium_milk_truck.obj  # Neutral target mesh (CesiumGS, Apache 2.0)
+│   │       └── box.obj               # Friendly/unknown target mesh (CesiumGS, Apache 2.0)
 │   ├── modules/               # 6 ISR modules + DMPC + ADMM + attitude controller + analytics
 │   └── utils/                 # Math, logging, visualization, unit conversions
 ├── pybullet_sim/              # PyBullet simulation (replaces ros2_ws)
-│   ├── swarm_pybullet_sim.py  # Physics sim + DMPC loop + PyBullet visualisation
-│   ├── urdf/
-│   │   └── drone.urdf         # PyBullet-compatible URDF (hector_quadrotor airframe)
-│   └── meshes/
-│       ├── quadrotor_base.stl # hector_quadrotor STL (PyBullet visual)
-│       └── LICENSE.txt
+│   └── swarm_pybullet_sim.py  # Physics sim + DMPC loop + PyBullet visualisation
 ├── scripts/                   # Standalone mission, training and evaluation scripts
 │   ├── run_dmpc.py            # Pure DMPC runner for all 3 task scenarios
 │   ├── run_dmpc_rl.py         # DMPC-RL (MAPPO) runner for all 3 task scenarios
@@ -207,6 +211,7 @@ isr-rl-dmpc/
 | Scientific Computing | NumPy, SciPy, scikit-learn |
 | Physics Simulation | 6-DOF rigid-body (hector_quadrotor airframe) |
 | Drone Model | [hector_quadrotor](https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor) STL mesh + self-contained URDF |
+| Target Models | [CesiumGS](https://github.com/CesiumGS/cesium) OBJ meshes (Apache 2.0) — airplane, truck, cube |
 | 3-D Simulation | [PyBullet](https://pybullet.org/) (OpenGL interactive viewer + collision) |
 | Visualisation | PyBullet debug lines (trajectory trails), TensorBoard, Matplotlib |
 | Configuration | YAML with dataclass validation |

@@ -4,7 +4,7 @@
 
   Model source : hector_quadrotor (TU Darmstadt)
                  https://github.com/tu-darmstadt-ros-pkg/hector_quadrotor
-  Mesh licence : BSD (see meshes/LICENSE.txt)
+  Mesh licence : BSD (see meshes/hector_quadrotor/LICENSE.txt)
 
   Physical parameters are tuned for the hector_quadrotor airframe used in
   the ISR-DMPC simulation and match the values in config/drone_specs.yaml.
@@ -19,7 +19,8 @@
   Usage with PyBullet
   -------------------
     import pybullet as p
-    drone_id = p.loadURDF("pybullet_sim/urdf/drone.urdf", basePosition=[x, y, z])
+    from isr_rl_dmpc.models.hector_quadrotor import get_urdf_path
+    drone_id = p.loadURDF(get_urdf_path(), basePosition=[x, y, z])
 -->
 <robot name="isr_dmpc_drone">
 
@@ -41,7 +42,7 @@
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
         <!-- STL is in millimeters; scale 0.001 converts to metres -->
-        <mesh filename="../meshes/quadrotor_base.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="../meshes/hector_quadrotor/quadrotor_base.stl" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="drone_body">
         <color rgba="0.2 0.5 1.0 1.0"/>

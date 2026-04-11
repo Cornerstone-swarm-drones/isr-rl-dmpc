@@ -18,7 +18,7 @@ class TestDroneParameters:
 
     def test_defaults(self):
         params = DroneParameters()
-        assert params.mass == 1.0
+        assert params.mass == 1.477  # hector_quadrotor airframe
         assert params.Kp_attitude == 4.5
         assert params.Kd_attitude == 1.5
         assert params.inertia is not None
