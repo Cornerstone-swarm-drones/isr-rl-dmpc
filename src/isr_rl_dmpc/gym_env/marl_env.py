@@ -104,6 +104,8 @@ class MARLDMPCEnv(gym.Env):
         render_mode: Optional[str] = None,
         accel_max: float = 8.0,
         collision_radius: float = 3.0,
+        solver_timeout: float = 0.02,
+        osqp_max_iter: int = 4000,
     ) -> None:
         super().__init__()
 
@@ -151,6 +153,8 @@ class MARLDMPCEnv(gym.Env):
             control_dim=CONTROL_DIM,
             accel_max=accel_max,
             collision_radius=collision_radius,
+            solver_timeout=solver_timeout,
+            osqp_max_iter=osqp_max_iter,
         )
         self._dmpc: List[DMPC] = [DMPC(dmpc_cfg) for _ in range(num_drones)]
 
@@ -279,12 +283,13 @@ class MARLDMPCEnv(gym.Env):
         truncated = False
         self._sync_states_from_sim()
 
-        # Update battery (simple linear discharge)
-        self._battery = np.clip(
-            self._battery - 0.0001 * np.linalg.norm(controls, axis=1),
-            0.0,
-            1.0,
-        )
+        # Sync battery level from the physics simulator so that there is
+        # only one ground-truth battery model (the one in DronePhysics).
+        for i in range(self.num_drones):
+            drone = self._simulator.drones[i]
+            self._battery[i] = max(
+                drone.battery_energy / drone.config.battery_capacity, 0.0
+            )
 
         # ── Store diagnostics ────────────────────────────────────────────
         self._last_controls = controls.copy()
@@ -401,12 +406,15 @@ class MARLDMPCEnv(gym.Env):
             ref_pos = self._references[i, 0, :3]
             track_err = np.linalg.norm(state[:3] - ref_pos)
 
-            # Tracking reward: exp(-0.1 * ‖e_p‖²) - 1
-            r_track = float(np.exp(-0.1 * track_err ** 2) - 1.0)
+            # Tracking reward: exp(-α * ‖e_p‖²) - 1
+            # α = 0.01 keeps the reward meaningful up to ~10 m tracking error
+            r_track = float(np.exp(-0.01 * track_err ** 2) - 1.0)
 
             # Formation reward: penalise deviation from desired spacing
+            # Use the same spacing factor as initial placement so the reward
+            # starts near zero and only penalises actual drift.
             form_errs = []
-            desired_spacing = self.collision_radius * 2.0
+            desired_spacing = self.collision_radius * self.FORMATION_SPACING_FACTOR
             for j in range(self.num_drones):
                 if j != i:
                     dist = np.linalg.norm(self._drone_states[j][:3] - state[:3])
@@ -420,8 +428,10 @@ class MARLDMPCEnv(gym.Env):
                     dist = np.linalg.norm(self._drone_states[j][:3] - state[:3])
                     r_safe += min(0.0, dist - self.collision_radius)
 
-            # Efficiency reward: penalise large control inputs
-            r_eff = -float(np.dot(controls[i], controls[i]))
+            # Efficiency reward: normalised by accel_max² so that it is in
+            # [-1, 0] regardless of the acceleration limit.
+            u_sq = float(np.dot(controls[i], controls[i]))
+            r_eff = -u_sq / max(self.accel_max ** 2 * CONTROL_DIM, 1e-6)
 
             total += (
                 self.W_TRACK * r_track

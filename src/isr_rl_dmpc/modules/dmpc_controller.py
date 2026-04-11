@@ -52,9 +52,12 @@ per-step overhead from ~100–500 ms to ~1–5 ms.
 
 from dataclasses import dataclass, field
 from typing import Tuple, List, Optional, Dict
+import logging
 import numpy as np
 import cvxpy as cp
 from scipy.linalg import solve_discrete_are
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -78,7 +81,8 @@ class DMPCConfig:
     collision_radius: float = 5.0
 
     # CVXPY solver settings
-    solver_timeout: float = 0.01  # 10 ms solver time budget
+    solver_timeout: float = 0.02  # 20 ms solver time budget
+    osqp_max_iter: int = 4000     # OSQP iteration limit
 
     def __post_init__(self) -> None:
         if self.P_base is None:
@@ -311,21 +315,22 @@ class MPCSolver:
         try:
             self._problem.solve(
                 solver=cp.OSQP,
-                max_iter=3000,
+                max_iter=self.config.osqp_max_iter,
                 eps_abs=1e-3,
                 eps_rel=1e-3,
                 time_limit=self.config.solver_timeout,
                 warm_starting=True,
             )
         except Exception as e:
-            print(f"Solver warning: {e}")
+            logger.debug("Solver exception: %s", e)
             return np.zeros((self.horizon, self.config.control_dim)), {
                 "status": "error",
                 "solve_time": 0.0,
                 "objective": np.inf,
             }
 
-        if self._problem.status in ("optimal", "optimal_inaccurate"):
+        status = self._problem.status
+        if status in ("optimal", "optimal_inaccurate", "solved_inaccurate"):
             u_val = self.u_var.value
             x_val = self.x_var.value
             u_opt = (
@@ -339,7 +344,7 @@ class MPCSolver:
                 else 0.0
             )
             return u_opt, {
-                "status": self._problem.status,
+                "status": status,
                 "solve_time": solve_time,
                 "objective": (
                     self._problem.value
@@ -351,9 +356,29 @@ class MPCSolver:
                 ),
             }
         else:
-            print(f"Solver status: {self._problem.status}")
+            # For user_limit / solver_inaccurate: use the warm-start iterate
+            # instead of returning zeros, which can destabilise the controller.
+            u_val = self.u_var.value
+            if u_val is not None:
+                logger.debug("Solver status %s — using current iterate", status)
+                u_opt = np.array(u_val).T
+                solve_time = (
+                    self._problem.solver_stats.solve_time
+                    if self._problem.solver_stats is not None
+                    else 0.0
+                )
+                return u_opt, {
+                    "status": status,
+                    "solve_time": solve_time,
+                    "objective": (
+                        self._problem.value
+                        if self._problem.value is not None
+                        else np.inf
+                    ),
+                }
+            logger.debug("Solver status: %s — no iterate available", status)
             return np.zeros((self.horizon, self.config.control_dim)), {
-                "status": self._problem.status,
+                "status": status,
                 "solve_time": 0.0,
                 "objective": np.inf,
             }

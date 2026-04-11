@@ -61,7 +61,16 @@ class TestMPCSolver:
 
     @pytest.fixture
     def solver(self):
-        return MPCSolver(DMPCConfig())
+        config = DMPCConfig()
+        A = np.eye(config.state_dim)
+        A[0:3, 3:6] = config.dt * np.eye(3)
+        A[3:6, 6:9] = config.dt * np.eye(3)
+        B = np.zeros((config.state_dim, config.control_dim))
+        B[6:9, 0:3] = config.dt * np.eye(3)
+        Q = config.Q_base
+        R = config.R_base
+        P = config.P_base
+        return MPCSolver(config, A, B, Q, R, P)
 
     def test_solver_initialization(self, solver):
         assert solver is not None
@@ -70,28 +79,18 @@ class TestMPCSolver:
     def test_solve_mpc_returns_correct_shape(self, solver):
         x0 = np.zeros(11)
         x_ref = np.zeros((21, 11))
-        A = np.eye(11)
-        B = np.zeros((11, 3))
-        Q = np.eye(11)
-        R = np.eye(3)
-        P = np.eye(11)
 
-        u_opt, info = solver.solve(x0, x_ref, A, B, Q, R, P)
+        u_opt, info = solver.solve(x0, x_ref)
         assert u_opt.shape == (20, 3)
         assert "status" in info
 
     def test_solve_with_collision_constraints(self, solver):
         x0 = np.zeros(11)
         x_ref = np.zeros((21, 11))
-        A = np.eye(11)
-        B = np.zeros((11, 3))
-        Q = np.eye(11)
-        R = np.eye(3)
-        P = np.eye(11)
         neighbor_pos = np.array([2.0, 0.0, 0.0])
 
         u_opt, info = solver.solve(
-            x0, x_ref, A, B, Q, R, P, neighbor_positions=[neighbor_pos]
+            x0, x_ref, neighbor_positions=[neighbor_pos]
         )
         assert u_opt.shape == (20, 3)
 
@@ -105,7 +104,7 @@ class TestDMPC:
 
     def test_initialization(self, controller):
         assert controller is not None
-        assert hasattr(controller, "cvxpy_solver")
+        assert hasattr(controller, "_solver_cache")
         assert hasattr(controller, "Q")
         assert hasattr(controller, "R")
         assert hasattr(controller, "P")
