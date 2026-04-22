@@ -26,6 +26,21 @@ area_surveillance:
   max_altitude: 100.0          # m  AGL
   drone_type: "reconnaissance"
   sensor: "optical"
+  belief_coverage:
+    base_station: [200.0, 200.0]
+    sensor_range: 120.0
+    growth_rate: 0.03
+    global_sync_steps: 25
+    persistent_threats:
+      enabled: true
+      max_cycles: 3
+    suspicious_zones:
+      - center: [120.0, 120.0]
+        radius: 45.0
+        score: 0.55
+      - center: [280.0, 260.0]
+        radius: 55.0
+        score: 0.8
   notes: >
     Expand to 800×800 m by adding 4 more drones (8 total).  Ensure BVLOS
     waiver or maintain visual line of sight from one ground operator.

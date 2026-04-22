@@ -31,13 +31,12 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from isr_rl_dmpc.gym_env.marl_env import MARLDMPCEnv
-from isr_rl_dmpc.agents.mappo_agent import MAPPOAgent
+from isr_rl_dmpc.gym_env import BeliefCoverageEnv, MARLDMPCEnv
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Train MAPPO policy on MARLDMPCEnv"
+        description="Train MAPPO policy on MARLDMPCEnv or BeliefCoverageEnv"
     )
     parser.add_argument(
         "--config",
@@ -64,6 +63,17 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Random seed",
     )
+    parser.add_argument(
+        "--env-kind",
+        default="marl",
+        choices=["marl", "belief_coverage"],
+        help="Select the training environment. Defaults to the legacy MARL env.",
+    )
+    parser.add_argument(
+        "--scenario-config",
+        default=str(ROOT / "config" / "mission_scenarios.yaml"),
+        help="Scenario YAML used to seed belief-coverage defaults.",
+    )
     return parser.parse_args()
 
 
@@ -72,9 +82,63 @@ def _load_config(path: str) -> dict:
         return yaml.safe_load(f)
 
 
+def _load_scenarios(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as handle:
+        return yaml.safe_load(handle) or {}
+
+
+def _build_belief_env_kwargs(env_cfg: dict, scenario_cfg: dict) -> dict:
+    belief_cfg = dict(scenario_cfg.get("belief_coverage", {}))
+    scenario_name = str(env_cfg.get("scenario", "area_surveillance"))
+    return {
+        "scenario": scenario_name,
+        "num_drones": int(env_cfg.get("num_drones", scenario_cfg.get("num_drones", 4))),
+        "mission_duration": int(
+            env_cfg.get("mission_duration", scenario_cfg.get("max_duration", 1000))
+        ),
+        "horizon": int(env_cfg.get("horizon", 20)),
+        "dt": float(env_cfg.get("dt", 0.02)),
+        "accel_max": float(env_cfg.get("accel_max", 8.0)),
+        "collision_radius": float(env_cfg.get("collision_radius", 3.0)),
+        "area_size": tuple(env_cfg.get("area_size", scenario_cfg.get("area_size", [400.0, 400.0]))),
+        "communication_range": float(
+            env_cfg.get(
+                "communication_range",
+                scenario_cfg.get("communication_range", 250.0),
+            )
+        ),
+        "fixed_altitude": float(
+            env_cfg.get("fixed_altitude", scenario_cfg.get("min_altitude", 30.0))
+        ),
+        "sensor_range": float(belief_cfg.get("sensor_range", 120.0)),
+        "growth_rate": float(belief_cfg.get("growth_rate", 0.03)),
+        "global_sync_steps": int(belief_cfg.get("global_sync_steps", 25)),
+        "base_station": tuple(belief_cfg.get("base_station", [20.0, 20.0])),
+        "suspicious_zones": belief_cfg.get("suspicious_zones", []),
+    }
+
+
+def _make_env(args: argparse.Namespace, env_cfg: dict):
+    if args.env_kind == "marl":
+        return MARLDMPCEnv(**env_cfg)
+
+    scenario_name = str(env_cfg.get("scenario", "area_surveillance"))
+    scenarios = _load_scenarios(args.scenario_config)
+    if scenario_name not in scenarios:
+        available = ", ".join(sorted(scenarios)) or "<none>"
+        raise KeyError(
+            f"Scenario '{scenario_name}' not found in {args.scenario_config}. "
+            f"Available: {available}"
+        )
+    belief_env_cfg = _build_belief_env_kwargs(env_cfg, scenarios[scenario_name])
+    return BeliefCoverageEnv(**belief_env_cfg)
+
+
 def main() -> None:
     args = _parse_args()
     cfg = _load_config(args.config)
+
+    from isr_rl_dmpc.agents.mappo_agent import MAPPOAgent
 
     env_cfg: dict = cfg.get("environment", {})
     train_cfg: dict = cfg.get("training", {})
@@ -104,6 +168,7 @@ def main() -> None:
     print("  ISR-RL-DMPC  — MAPPO Training")
     print("=" * 60)
     print(f"  Config        : {args.config}")
+    print(f"  Env kind      : {args.env_kind}")
     print(f"  Num drones    : {env_cfg.get('num_drones', 4)}")
     print(f"  Total steps   : {total_timesteps:,}")
     print(f"  Device        : {device}")
@@ -112,10 +177,10 @@ def main() -> None:
     print("=" * 60)
 
     # ── Create training environment ──────────────────────────────────────
-    train_env = MARLDMPCEnv(**env_cfg)
+    train_env = _make_env(args, env_cfg)
 
     # ── Optional evaluation environment ─────────────────────────────────
-    eval_env = MARLDMPCEnv(**env_cfg) if args.eval else None
+    eval_env = _make_env(args, env_cfg) if args.eval else None
 
     # ── Build agent ──────────────────────────────────────────────────────
     agent = MAPPOAgent(

@@ -31,6 +31,21 @@ class RewardWeights:
     w_learning: float = 0.1  # Learning signal
 
 
+@dataclass
+class BeliefCoverageRewardWeights:
+    """Weights for belief-based Phase 1 coverage rewards."""
+
+    w_uncertainty_reduction: float = 4.0
+    w_neglect: float = 2.5
+    w_distance: float = 0.05
+    w_energy: float = 0.75
+    w_low_soc: float = 1.0
+    w_connectivity: float = 1.5
+    neglect_beta: float = 2.5
+    low_soc_threshold: float = 0.2
+    low_soc_cap: float = 1.0
+
+
 # ── Scenario-specific presets ──────────────────────────────────────────────
 #
 # Weight rationale per scenario:
@@ -121,6 +136,105 @@ def get_scenario_preset(scenario: str) -> RewardWeights:
     if scenario in TASK_REWARD_PRESETS:
         return TASK_REWARD_PRESETS[scenario]
     return RewardWeights()
+
+
+class BeliefCoverageRewardShaper:
+    """Reward helper for Phase 1 belief-based coverage."""
+
+    def __init__(
+        self,
+        num_drones: int,
+        weights: Optional[BeliefCoverageRewardWeights] = None,
+    ) -> None:
+        self.num_drones = int(num_drones)
+        self.weights = weights or BeliefCoverageRewardWeights()
+        self.prev_total_uncertainty: float = 0.0
+        self.prev_battery_levels = np.ones(self.num_drones, dtype=np.float64)
+
+    def reset(
+        self,
+        total_uncertainty: float,
+        battery_levels: Optional[np.ndarray] = None,
+    ) -> None:
+        self.prev_total_uncertainty = float(total_uncertainty)
+        if battery_levels is not None:
+            self.prev_battery_levels = np.asarray(battery_levels, dtype=np.float64).copy()
+        else:
+            self.prev_battery_levels = np.ones(self.num_drones, dtype=np.float64)
+
+    def compute(
+        self,
+        *,
+        total_uncertainty: float,
+        uncertainty_values: np.ndarray,
+        distance_norm: np.ndarray,
+        battery_levels: np.ndarray,
+        dist_to_base_norm: np.ndarray,
+        connected_components: int,
+    ) -> tuple[float, Dict[str, float]]:
+        """
+        Compute the aggregate belief-coverage reward and its components.
+        """
+        uncertainty_values = np.asarray(uncertainty_values, dtype=np.float64)
+        distance_norm = np.asarray(distance_norm, dtype=np.float64)
+        battery_levels = np.asarray(battery_levels, dtype=np.float64)
+        dist_to_base_norm = np.asarray(dist_to_base_norm, dtype=np.float64)
+
+        uncertainty_reduction = self.prev_total_uncertainty - float(total_uncertainty)
+        beta = float(self.weights.neglect_beta)
+        neglect_pressure = float(
+            np.mean(np.expm1(beta * np.clip(uncertainty_values, 0.0, 1.0)))
+            / max(np.expm1(beta), 1e-6)
+        )
+
+        distance_penalty = float(np.mean(np.clip(distance_norm, 0.0, 1.0)))
+        battery_drop = np.clip(self.prev_battery_levels - battery_levels, 0.0, 1.0)
+        energy_penalty = float(np.mean(battery_drop))
+        low_soc_penalties = self.low_soc_penalty(
+            battery_levels,
+            dist_to_base_norm,
+            threshold=self.weights.low_soc_threshold,
+            cap=self.weights.low_soc_cap,
+        )
+        connectivity_penalty = float(
+            max(connected_components - 1, 0) / max(self.num_drones - 1, 1)
+        )
+
+        reward = (
+            self.weights.w_uncertainty_reduction * uncertainty_reduction
+            - self.weights.w_neglect * neglect_pressure
+            - self.weights.w_distance * distance_penalty
+            - self.weights.w_energy * energy_penalty
+            - self.weights.w_low_soc * float(np.mean(low_soc_penalties))
+            - self.weights.w_connectivity * connectivity_penalty
+        )
+
+        self.prev_total_uncertainty = float(total_uncertainty)
+        self.prev_battery_levels = battery_levels.copy()
+
+        return float(reward), {
+            "uncertainty_reduction": float(uncertainty_reduction),
+            "neglect_pressure": float(neglect_pressure),
+            "distance_penalty": float(distance_penalty),
+            "energy_penalty": float(energy_penalty),
+            "low_soc_penalty": float(np.mean(low_soc_penalties)),
+            "connectivity_penalty": float(connectivity_penalty),
+        }
+
+    @staticmethod
+    def low_soc_penalty(
+        battery_levels: np.ndarray,
+        dist_to_base_norm: np.ndarray,
+        *,
+        threshold: float,
+        cap: float,
+    ) -> np.ndarray:
+        """Stable capped low-SOC penalty with distance-to-base scaling."""
+        soc = np.clip(np.asarray(battery_levels, dtype=np.float64), 0.0, 1.0)
+        base_dist = np.clip(np.asarray(dist_to_base_norm, dtype=np.float64), 0.0, 1.0)
+        deficit = np.maximum(0.0, threshold - soc) / max(threshold, 1e-6)
+        penalty = cap * (deficit ** 2) * (0.5 + 0.5 * base_dist)
+        return np.clip(penalty, 0.0, cap)
 
 
 class RewardShaper:

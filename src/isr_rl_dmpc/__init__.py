@@ -2,6 +2,10 @@ from .core import (
     DroneState,
     TargetState,
     MissionState,
+    BeliefGridConfig,
+    BeliefCellState,
+    BeliefGrid,
+    LocalBeliefGrid,
     StateManager,
     DroneStateEstimator,
     TargetStateEstimator,
@@ -12,7 +16,14 @@ from .core import (
     AcousticMeasurement,
     TargetTrackingEKF,
 )
-from .config import Config, load_config, create_default_config_yaml
+# Config helpers depend on PyYAML. Keep the package importable for
+# environment-only workflows when YAML support is absent.
+try:  # pragma: no cover
+    from .config import Config, load_config, create_default_config_yaml
+except (ModuleNotFoundError, ImportError):
+    Config = None
+    load_config = None
+    create_default_config_yaml = None
 from .utils import *
 
 # Modules 1–9 and agents/models. Guard against missing optional deps
@@ -43,6 +54,7 @@ except (ModuleNotFoundError, ImportError):
 __all__ = [
     # Core
     "DroneState", "TargetState", "MissionState", "StateManager",
+    "BeliefGridConfig", "BeliefCellState", "BeliefGrid", "LocalBeliefGrid",
     "DroneStateEstimator", "TargetStateEstimator", "SensorType",
     "RadarMeasurement", "OpticalMeasurement", "RFMeasurement",
     "AcousticMeasurement", "TargetTrackingEKF",
