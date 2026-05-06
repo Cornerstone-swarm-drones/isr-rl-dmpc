@@ -48,6 +48,7 @@ from isr_rl_dmpc.gym_env.patrol_pomdp import (
     PatrolTransitionModel,
 )
 from isr_rl_dmpc.gym_env.sensor_model import ForwardFOVSensorModel, VisionSensorConfig
+from isr_rl_dmpc.gym_env.shared_track_ekf import SharedTrackEKF, SharedTrackEKFConfig
 from isr_rl_dmpc.gym_env.simulator import (
     DroneConfig,
     EnvironmentConfig,
@@ -86,6 +87,16 @@ class ThreatPatchCandidate:
     weight: float
 
 
+@dataclass(frozen=True)
+class BaseSensorConfig:
+    """Explicit central-command sensor used by the Phase 2 base-defense path."""
+
+    enabled: bool = True
+    range_m: Optional[float] = None
+    noise_std: Optional[float] = None
+    delay_steps: int = 1
+
+
 class BeliefCoverageEnv(gym.Env):
     """Parallel Phase 1 environment for belief-based coverage."""
 
@@ -118,7 +129,23 @@ class BeliefCoverageEnv(gym.Env):
     THREAT_BASE_REACH_SPEED = 18.0
     THREAT_LATERAL_BIAS = 0.35
     THREAT_BASE_REACH_RADIUS_FACTOR = 0.8
+    THREAT_MEASUREMENT_STALENESS_GAIN = 0.4
+    THREAT_COMM_DELAY_PER_HOP_STEPS = 2
+    INTERCEPTOR_GUIDANCE_MODES = {"oracle", "ekf"}
+    RESPONSE_POLICIES = {"baseline", "improved", "phase2"}
+    THREAT_BELIEF_MODES = {"shared", "limited"}
+    INTERCEPTOR_EKF_LAUNCH_CONFIDENCE = 0.55
+    INTERCEPTOR_MIN_LAUNCH_CONFIDENCE = 0.2
+    INTERCEPTOR_URGENCY_LAUNCH_RELAX = 0.55
+    INTERCEPTOR_INTERCEPT_MAX_LOOKAHEAD_SECONDS = 8.0
+    THREAT_URGENCY_HIGH = 0.58
+    THREAT_URGENCY_CRITICAL = 0.68
+    THREAT_URGENCY_ETA_SECONDS = 8.0
+    THREAT_MAX_URGENT_TRACKERS = 3
+    PHASE2_BASE_DEFENSE_LAUNCH_URGENCY = 0.42
     INTERCEPTOR_SPEED = 90.0
+    INTERCEPTOR_PHASE2_MAX_SPEED = 85.0
+    INTERCEPTOR_PHASE2_MAX_ACCEL = 220.0
     INTERCEPTOR_HIT_RADIUS_FACTOR = 0.45
     MISSION_FAILURE_PENALTY = 5.0
 
@@ -149,6 +176,15 @@ class BeliefCoverageEnv(gym.Env):
         max_threat_cycles: int = 3,
         persistent_threat_speed_case: str = "medium",
         persistent_threat_speed: Optional[float] = None,
+        interceptor_guidance_mode: str = "oracle",
+        response_policy: str = "baseline",
+        interceptor_launch_confidence: float = 0.55,
+        threat_comm_delay_per_hop_steps: int = 2,
+        threat_measurement_noise_std: float = 2.0,
+        threat_measurement_staleness_gain: float = 0.4,
+        base_sensor: Optional[BaseSensorConfig | Dict[str, object]] = None,
+        validation_dynamics: str = "full",
+        threat_belief_mode: str = "shared",
         reward_weights: Optional[BeliefCoverageRewardWeights] = None,
     ) -> None:
         super().__init__()
@@ -172,6 +208,7 @@ class BeliefCoverageEnv(gym.Env):
         self.observation_mode = observation_mode
         self.fixed_altitude = float(fixed_altitude)
         self.communication_range = float(communication_range)
+        self.sensor_range = float(sensor_range)
         self.enable_neighbor_sharing = bool(enable_neighbor_sharing)
         self.enable_goal_projection = bool(enable_goal_projection)
         self.enable_persistent_threats = bool(enable_persistent_threats)
@@ -181,6 +218,32 @@ class BeliefCoverageEnv(gym.Env):
             speed_case=self.persistent_threat_speed_case,
             speed_override=persistent_threat_speed,
         )
+        self.interceptor_guidance_mode = str(interceptor_guidance_mode).lower()
+        if self.interceptor_guidance_mode not in self.INTERCEPTOR_GUIDANCE_MODES:
+            available = ", ".join(sorted(self.INTERCEPTOR_GUIDANCE_MODES))
+            raise ValueError(
+                f"Unknown interceptor_guidance_mode '{self.interceptor_guidance_mode}'. Expected one of: {available}"
+            )
+        self.response_policy = str(response_policy).lower()
+        if self.response_policy not in self.RESPONSE_POLICIES:
+            available = ", ".join(sorted(self.RESPONSE_POLICIES))
+            raise ValueError(
+                f"Unknown response_policy '{self.response_policy}'. Expected one of: {available}"
+            )
+        self.interceptor_launch_confidence = float(np.clip(interceptor_launch_confidence, 0.0, 1.0))
+        self.threat_comm_delay_per_hop_steps = max(1, int(threat_comm_delay_per_hop_steps))
+        self.threat_measurement_noise_std = max(float(threat_measurement_noise_std), 1e-6)
+        self.threat_measurement_staleness_gain = max(float(threat_measurement_staleness_gain), 0.0)
+        self.base_sensor = self._normalize_base_sensor_config(base_sensor)
+        self.validation_dynamics = str(validation_dynamics).lower()
+        if self.validation_dynamics not in {"full", "fast_planar"}:
+            raise ValueError("validation_dynamics must be 'full' or 'fast_planar'.")
+        self.threat_belief_mode = str(threat_belief_mode).lower()
+        if self.threat_belief_mode not in self.THREAT_BELIEF_MODES:
+            available = ", ".join(sorted(self.THREAT_BELIEF_MODES))
+            raise ValueError(
+                f"Unknown threat_belief_mode '{self.threat_belief_mode}'. Expected one of: {available}"
+            )
         self.policy_name = "home_strip_boustrophedon"
         if base_station is None:
             base_station = (self.area_size[0] * 0.5, self.area_size[1] * 0.5)
@@ -283,9 +346,12 @@ class BeliefCoverageEnv(gym.Env):
         self._active_threat_patch_index = -1
         self._active_threat_position = np.full(2, np.nan, dtype=np.float64)
         self._active_threat_velocity = np.zeros(2, dtype=np.float64)
+        self._active_threat_path_phase = 0.0
+        self._active_threat_weave_gain = 1.0
         self._active_threat_confirmation_level = 0.0
         self._active_threat_lateral_sign = 1.0
         self._threat_confirmed = False
+        self._threat_suspected = False
         self._threat_cycles_spawned = 0
         self._threat_cycles_completed = 0
         self._threat_removed_this_step = False
@@ -297,6 +363,7 @@ class BeliefCoverageEnv(gym.Env):
         self._tracking_target_cells = np.full(self.num_drones, -1, dtype=np.int32)
         self._mission_failed = False
         self._mission_fail_reason = ""
+        self._tracking_cap_current = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
         self._threat_base_eta_steps = -1
         self._threat_base_timeout_steps = -1
         self._threat_patch_history: List[int] = []
@@ -307,6 +374,45 @@ class BeliefCoverageEnv(gym.Env):
         self._interceptor_target = np.full(2, np.nan, dtype=np.float64)
         self._interceptor_trace: List[np.ndarray] = [self.base_station.copy()]
         self._interceptor_dispatch_count = 0
+        self._shared_track_filter = SharedTrackEKF(
+            SharedTrackEKFConfig(
+                dt=self.dt,
+                measurement_noise_std=self.threat_measurement_noise_std,
+            )
+        )
+        self._shared_track_queue: List[Dict[str, object]] = []
+        self._shared_track_trace: List[np.ndarray] = []
+        self._shared_track_recent_contributors = np.zeros(self.num_drones, dtype=np.int32)
+        self._shared_track_hops_to_base = np.full(self.num_drones, np.inf, dtype=np.float64)
+        self._shared_track_last_measurement_age_steps = -1
+        self._shared_track_last_update_step = -1
+        self._shared_track_received_this_step = 0
+        self._shared_track_stale_received_this_step = 0
+        self._shared_track_base_received_this_step = 0
+        self._base_sensor_detected_this_step = False
+        self._base_sensor_queued_this_step = False
+        self._base_sensor_last_distance = np.inf
+        self._base_sensor_last_quality = 0.0
+        self._base_sensor_total_detections = 0
+        self._base_sensor_total_updates = 0
+        self._shared_track_confidence = 0.0
+        self._shared_track_error = np.nan
+        self._local_threat_confirmation_levels = np.zeros(self.num_drones, dtype=np.float64)
+        self._local_threat_confirmed = np.zeros(self.num_drones, dtype=bool)
+        self._local_threat_last_observed_step = np.full(self.num_drones, -1, dtype=np.int32)
+        self._local_threat_last_confirmed_step = np.full(self.num_drones, -1, dtype=np.int32)
+        self._threat_confirmation_queue: List[Dict[str, object]] = []
+        self._threat_confirmation_received_this_step = 0
+        self._threat_confirmation_stale_received_this_step = 0
+        self._base_threat_confirmation_level = 0.0
+        self._base_threat_confirmed = False
+        self._first_threat_observed_step = -1
+        self._base_first_track_update_step = -1
+        self._base_first_confirmation_step = -1
+        self._threat_urgency_score = 0.0
+        self._threat_estimated_time_to_base = np.inf
+        self._tracking_cap_current = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
+        self._interceptor_launch_confidence_active = float(self.interceptor_launch_confidence)
 
         total_obs_dim = self.num_drones * self.n_cells * 3 + self.num_drones * 7 + 8
         self.observation_space = spaces.Box(
@@ -400,6 +506,7 @@ class BeliefCoverageEnv(gym.Env):
         connectivity = self._compute_connectivity()
         belief_metrics = self._update_beliefs(step=0, connectivity=connectivity, grow=False, apply_global_sync=False)
         truth_metrics = self._update_truth_risk(step=0, grow=False)
+        track_metrics = self._update_shared_threat_track(step=0, connectivity=connectivity)
         threat_metrics = self._update_threat_response(
             belief_metrics=belief_metrics,
             connectivity=connectivity,
@@ -419,6 +526,7 @@ class BeliefCoverageEnv(gym.Env):
             reward_components={},
             solve_times=np.zeros(self.num_drones, dtype=np.float64),
             truth_metrics=truth_metrics,
+            track_metrics=track_metrics,
             threat_metrics=threat_metrics,
         )
         return observation, info
@@ -435,32 +543,11 @@ class BeliefCoverageEnv(gym.Env):
         self._current_target_cells = selected_cells
         self._update_target_references(selected_cells)
 
-        controls = np.zeros((self.num_drones, CONTROL_DIM), dtype=np.float64)
-        raw_proposals = np.zeros((self.num_drones, CONTROL_DIM), dtype=np.float64)
         solve_times = np.zeros(self.num_drones, dtype=np.float64)
-
-        for i in range(self.num_drones):
-            neighbour_states = [
-                self._drone_states[j]
-                for j in range(self.num_drones)
-                if j != i
-            ]
-            u_seq, info = self._dmpc[i](
-                self._drone_states[i],
-                self._references[i],
-                neighbour_states,
-            )
-            u0 = u_seq[0] if u_seq.ndim == 2 and u_seq.shape[0] > 0 else np.zeros(CONTROL_DIM)
-            raw_proposals[i] = u0
-            solve_times[i] = float(info.get("solve_time", 0.0))
-
-        consensus_ref = self._admm.step(raw_proposals)
-        for i in range(self.num_drones):
-            controls[i] = 0.8 * raw_proposals[i] + 0.2 * consensus_ref
-
-        motor_cmds = self._accel_to_motor_cmds(controls)
-        self._simulator.step(motor_cmds)
-        self._apply_planar_tracking(selected_cells)
+        if self.validation_dynamics == "fast_planar":
+            self._apply_fast_validation_dynamics(selected_cells)
+        else:
+            solve_times = self._apply_full_validation_dynamics(selected_cells)
         self._sync_states_from_sim()
         self._align_heading_to_targets(selected_cells)
         self._time_away_from_home_steps += 1 - self._positions_in_home_region()
@@ -477,6 +564,10 @@ class BeliefCoverageEnv(gym.Env):
             connectivity=connectivity,
             grow=True,
             apply_global_sync=(self._step_count % self.global_belief.config.global_sync_steps == 0),
+        )
+        track_metrics = self._update_shared_threat_track(
+            step=self._step_count,
+            connectivity=connectivity,
         )
         threat_metrics = self._update_threat_response(
             belief_metrics=belief_metrics,
@@ -513,9 +604,54 @@ class BeliefCoverageEnv(gym.Env):
             shared_cell_count=int(belief_metrics["shared_cell_count"]),
             global_sync_applied=bool(belief_metrics["global_sync_applied"]),
             truth_metrics=truth_metrics,
+            track_metrics=track_metrics,
             threat_metrics=threat_metrics,
         )
         return observation, float(reward), bool(terminated), bool(truncated), info
+
+    def _apply_full_validation_dynamics(self, selected_cells: np.ndarray) -> np.ndarray:
+        """Run the existing DMPC/ADMM/motor path before planar patrol tracking."""
+        controls = np.zeros((self.num_drones, CONTROL_DIM), dtype=np.float64)
+        raw_proposals = np.zeros((self.num_drones, CONTROL_DIM), dtype=np.float64)
+        solve_times = np.zeros(self.num_drones, dtype=np.float64)
+
+        for i in range(self.num_drones):
+            neighbour_states = [
+                self._drone_states[j]
+                for j in range(self.num_drones)
+                if j != i
+            ]
+            u_seq, info = self._dmpc[i](
+                self._drone_states[i],
+                self._references[i],
+                neighbour_states,
+            )
+            u0 = u_seq[0] if u_seq.ndim == 2 and u_seq.shape[0] > 0 else np.zeros(CONTROL_DIM)
+            raw_proposals[i] = u0
+            solve_times[i] = float(info.get("solve_time", 0.0))
+
+        consensus_ref = self._admm.step(raw_proposals)
+        for i in range(self.num_drones):
+            controls[i] = 0.8 * raw_proposals[i] + 0.2 * consensus_ref
+
+        motor_cmds = self._accel_to_motor_cmds(controls)
+        self._simulator.step(motor_cmds)
+        self._apply_planar_tracking(selected_cells)
+        return solve_times
+
+    def _apply_fast_validation_dynamics(self, selected_cells: np.ndarray) -> None:
+        """
+        Low-cost deterministic dynamics for broad Phase 2 validation sweeps.
+
+        This intentionally skips the DMPC/ADMM convex solves and motor-level
+        integration while preserving the same high-level patrol target tracker,
+        sensing geometry, threat motion, EKF, base sensor, and interceptor logic.
+        """
+        self._apply_planar_tracking(selected_cells)
+        for drone in self._simulator.drones:
+            speed = float(np.linalg.norm(drone.velocity[:2]))
+            drain = drone.config.battery_energy_rate * self.dt * (1.0 + 0.02 * speed)
+            drone.battery_energy = max(0.0, float(drone.battery_energy) - drain)
 
     def get_structured_observation(self) -> Dict[str, np.ndarray]:
         """Return a copy of the latest structured observation."""
@@ -567,10 +703,10 @@ class BeliefCoverageEnv(gym.Env):
         light tracking bias while the rest continue patrol. This remains a
         structured heuristic policy, not a learned POMDP controller.
         """
-        risk_scores = self._current_risk_scores()
         chosen = np.zeros(self.num_drones, dtype=np.int32)
 
         for drone_idx in range(self.num_drones):
+            risk_scores = self._policy_risk_scores_for_drone(drone_idx)
             patrol_target = self._select_home_patrol_target(drone_idx, risk_scores)
             home_target_risk = float(risk_scores[int(patrol_target)])
             home_cells = self._home_cell_indices[drone_idx]
@@ -586,9 +722,19 @@ class BeliefCoverageEnv(gym.Env):
                     self._active_threat_cells,
                 ).size > 0
             )
+            if self.threat_belief_mode == "limited" and self._tracking_target_cells[drone_idx] >= 0:
+                local_tracking_overlap = bool(
+                    risk_scores[int(self._tracking_target_cells[drone_idx])] >= self.THREAT_SUSPECT_THRESHOLD
+                )
+            tracking_home_return_risk = self.PATROL_HOME_RETURN_RISK
+            if self.response_policy == "improved" and bool(self._tracking_bias_drones[drone_idx]):
+                tracking_home_return_risk = min(
+                    1.0,
+                    self.PATROL_HOME_RETURN_RISK + 0.25 * self._threat_urgency_score,
+                )
 
             if bool(self._tracking_bias_drones[drone_idx]) and self._tracking_target_cells[drone_idx] >= 0:
-                if local_tracking_overlap or home_region_risk <= self.PATROL_HOME_RETURN_RISK:
+                if local_tracking_overlap or home_region_risk <= tracking_home_return_risk:
                     self._clear_patrol_detour(drone_idx)
                     chosen[drone_idx] = int(self._tracking_target_cells[drone_idx])
                     continue
@@ -643,8 +789,450 @@ class BeliefCoverageEnv(gym.Env):
             available = ", ".join(sorted(self.THREAT_SPEED_CASES))
             raise ValueError(
                 f"Unknown persistent_threat_speed_case '{speed_case}'. Expected one of: {available}"
-            )
+        )
         return float(self.THREAT_SPEED_CASES[speed_case])
+
+    def _normalize_base_sensor_config(
+        self,
+        base_sensor: Optional[BaseSensorConfig | Dict[str, object]],
+    ) -> BaseSensorConfig:
+        """Normalize the explicit base-defense sensor configuration."""
+        if base_sensor is None:
+            return BaseSensorConfig()
+        if isinstance(base_sensor, BaseSensorConfig):
+            return base_sensor
+        return BaseSensorConfig(
+            enabled=bool(base_sensor.get("enabled", True)),
+            range_m=(
+                None
+                if base_sensor.get("range_m", None) is None
+                else float(base_sensor["range_m"])
+            ),
+            noise_std=(
+                None
+                if base_sensor.get("noise_std", None) is None
+                else float(base_sensor["noise_std"])
+            ),
+            delay_steps=int(base_sensor.get("delay_steps", 1)),
+        )
+
+    def _base_sensor_range(self) -> float:
+        """Return modeled central-command sensor range in meters."""
+        if self.base_sensor.range_m is not None:
+            return max(float(self.base_sensor.range_m), 0.0)
+        return max(3.0 * self.grid_resolution, 1.1 * self.sensor_range)
+
+    def _base_sensor_noise_std(self) -> float:
+        """Return modeled central-command sensor measurement noise in meters."""
+        if self.base_sensor.noise_std is not None:
+            return max(float(self.base_sensor.noise_std), 1e-6)
+        return max(0.6 * self.threat_measurement_noise_std, 1e-6)
+
+    def _reset_shared_track_state(self) -> None:
+        self._shared_track_filter.reset()
+        self._shared_track_queue.clear()
+        self._shared_track_trace = []
+        self._shared_track_recent_contributors.fill(0)
+        self._shared_track_hops_to_base.fill(np.inf)
+        self._shared_track_last_measurement_age_steps = -1
+        self._shared_track_last_update_step = -1
+        self._shared_track_received_this_step = 0
+        self._shared_track_stale_received_this_step = 0
+        self._shared_track_base_received_this_step = 0
+        self._base_sensor_detected_this_step = False
+        self._base_sensor_queued_this_step = False
+        self._base_sensor_last_distance = np.inf
+        self._base_sensor_last_quality = 0.0
+        self._shared_track_confidence = 0.0
+        self._shared_track_error = np.nan
+        self._threat_urgency_score = 0.0
+        self._threat_estimated_time_to_base = np.inf
+        self._interceptor_launch_confidence_active = float(self.interceptor_launch_confidence)
+
+    def _reset_limited_threat_belief_state(self) -> None:
+        """Reset per-drone and base threat-confirmation diagnostics for a new threat."""
+        self._local_threat_confirmation_levels.fill(0.0)
+        self._local_threat_confirmed.fill(False)
+        self._local_threat_last_observed_step.fill(-1)
+        self._local_threat_last_confirmed_step.fill(-1)
+        self._threat_confirmation_queue.clear()
+        self._threat_confirmation_received_this_step = 0
+        self._threat_confirmation_stale_received_this_step = 0
+        self._base_threat_confirmation_level = 0.0
+        self._base_threat_confirmed = False
+        self._first_threat_observed_step = -1
+        self._base_first_track_update_step = -1
+        self._base_first_confirmation_step = -1
+
+    def _compute_hops_to_base(self, connectivity: Dict[str, np.ndarray | int | float]) -> np.ndarray:
+        """
+        Compute shortest relay hops from each drone to base through the comm graph.
+
+        A direct drone-to-base link counts as one hop. Multi-hop relay delay is
+        then modeled as hops * fixed per-hop delay.
+        """
+        adjacency = np.asarray(connectivity["adjacency"], dtype=np.int32)
+        hops = np.full(self.num_drones, np.inf, dtype=np.float64)
+        if self.num_drones == 0:
+            return hops
+
+        base_distances = np.linalg.norm(self._drone_states[:, :2] - self.base_station[None, :], axis=1)
+        frontier = [int(idx) for idx in np.flatnonzero(base_distances <= self.communication_range)]
+        for idx in frontier:
+            hops[idx] = 1.0
+
+        queue = frontier.copy()
+        while queue:
+            current = queue.pop(0)
+            neighbour_ids = np.flatnonzero(adjacency[current])
+            for neighbour in neighbour_ids:
+                candidate = hops[current] + 1.0
+                if candidate < hops[int(neighbour)]:
+                    hops[int(neighbour)] = candidate
+                    queue.append(int(neighbour))
+        return hops
+
+    def _collect_shared_track_measurements(
+        self,
+        *,
+        step: int,
+        connectivity: Dict[str, np.ndarray | int | float],
+    ) -> None:
+        if not self._active_threat_exists():
+            return
+        patch_centroid = self._active_threat_centroid()
+        if patch_centroid is None:
+            return
+
+        hops_to_base = self._compute_hops_to_base(connectivity)
+        self._shared_track_hops_to_base = hops_to_base.copy()
+        active_set = set(self._active_threat_cells.tolist())
+        for drone_idx in range(self.num_drones):
+            if not np.isfinite(hops_to_base[drone_idx]):
+                continue
+            position = self._drone_states[drone_idx, :2]
+            yaw = float(self._drone_states[drone_idx, 9])
+            cell_idx, qualities, _, _ = self.observation_model.observe_cells(
+                position,
+                yaw,
+                self.cell_centers_xy,
+                rng=self.np_random,
+            )
+            if cell_idx.size == 0:
+                continue
+            overlap_mask = np.array([int(cell) in active_set for cell in cell_idx], dtype=bool)
+            if not np.any(overlap_mask):
+                continue
+            overlap_quality = float(np.max(qualities[overlap_mask]))
+            noise_scale = self.threat_measurement_noise_std / max(overlap_quality, 1e-3)
+            measurement = patch_centroid + self.np_random.normal(0.0, noise_scale, size=2)
+            hops = int(hops_to_base[drone_idx])
+            arrival_step = int(step + hops * self.threat_comm_delay_per_hop_steps)
+            self._shared_track_queue.append(
+                {
+                    "source_drone": int(drone_idx),
+                    "observed_step": int(step),
+                    "arrival_step": int(arrival_step),
+                    "measurement_xy": np.asarray(measurement, dtype=np.float64),
+                    "source_type": "drone",
+                    "hops": int(hops),
+                    "quality": float(overlap_quality),
+                }
+            )
+
+        self._collect_base_sensor_measurement(step=step, patch_centroid=patch_centroid)
+
+    def _collect_base_sensor_measurement(self, *, step: int, patch_centroid: np.ndarray) -> None:
+        """
+        Add an explicit central-command/base sensor measurement when the threat
+        enters the modeled base-defense sensing region.
+        """
+        if not self.base_sensor.enabled or self.response_policy not in {"improved", "phase2"}:
+            return
+        sensor_range = self._base_sensor_range()
+        base_distance = float(np.linalg.norm(patch_centroid - self.base_station))
+        self._base_sensor_last_distance = base_distance
+        if base_distance > sensor_range:
+            return
+
+        quality = float(np.clip(1.0 - base_distance / max(sensor_range, 1e-6), 0.05, 1.0))
+        noise = self._base_sensor_noise_std() / max(quality, 0.2)
+        base_measurement = patch_centroid + self.np_random.normal(0.0, noise, size=2)
+        delay = max(0, int(self.base_sensor.delay_steps))
+        self._shared_track_queue.append(
+            {
+                "source_drone": -1,
+                "observed_step": int(step),
+                "arrival_step": int(step + delay),
+                "measurement_xy": np.asarray(base_measurement, dtype=np.float64),
+                "source_type": "base_sensor",
+                "hops": 0,
+                "quality": float(quality),
+            }
+        )
+        self._base_sensor_detected_this_step = True
+        self._base_sensor_queued_this_step = True
+        self._base_sensor_last_quality = quality
+        self._base_sensor_total_detections += 1
+
+    def _update_shared_threat_track(
+        self,
+        *,
+        step: int,
+        connectivity: Dict[str, np.ndarray | int | float],
+    ) -> Dict[str, object]:
+        self._shared_track_recent_contributors.fill(0)
+        self._shared_track_received_this_step = 0
+        self._shared_track_stale_received_this_step = 0
+        self._shared_track_base_received_this_step = 0
+        self._base_sensor_detected_this_step = False
+        self._base_sensor_queued_this_step = False
+        self._base_sensor_last_quality = 0.0
+        self._shared_track_last_measurement_age_steps = -1
+        self._shared_track_error = np.nan
+
+        if self._shared_track_filter.initialized:
+            self._shared_track_filter.predict()
+
+        self._collect_shared_track_measurements(step=step, connectivity=connectivity)
+
+        ready = [m for m in self._shared_track_queue if int(m["arrival_step"]) <= int(step)]
+        self._shared_track_queue = [m for m in self._shared_track_queue if int(m["arrival_step"]) > int(step)]
+
+        for measurement in ready:
+            age_steps = max(int(step) - int(measurement["observed_step"]), 0)
+            measurement_scale = 1.0 + self.threat_measurement_staleness_gain * float(age_steps)
+            self._shared_track_filter.update(
+                np.asarray(measurement["measurement_xy"], dtype=np.float64),
+                step=int(step),
+                measurement_scale=measurement_scale,
+            )
+            source = int(measurement["source_drone"])
+            if source >= 0:
+                self._shared_track_recent_contributors[source] = 1
+            else:
+                self._shared_track_base_received_this_step += 1
+                self._base_sensor_total_updates += 1
+            self._shared_track_received_this_step += 1
+            if self._base_first_track_update_step < 0:
+                self._base_first_track_update_step = int(step)
+            if age_steps > 0:
+                self._shared_track_stale_received_this_step += 1
+            if self._shared_track_last_measurement_age_steps < 0:
+                self._shared_track_last_measurement_age_steps = age_steps
+            else:
+                self._shared_track_last_measurement_age_steps = min(
+                    self._shared_track_last_measurement_age_steps,
+                    age_steps,
+                )
+
+        if self._shared_track_filter.initialized:
+            estimate_xy = self._shared_track_filter.state[:2].copy()
+            if self._shared_track_trace:
+                self._shared_track_trace.append(estimate_xy)
+            else:
+                self._shared_track_trace = [estimate_xy]
+            self._shared_track_confidence = self._shared_track_filter.confidence(step=step)
+            self._shared_track_last_update_step = (
+                int(self._shared_track_filter.last_update_step)
+                if self._shared_track_filter.last_update_step is not None
+                else -1
+            )
+            true_centroid = self._active_threat_centroid()
+            if true_centroid is not None:
+                self._shared_track_error = float(np.linalg.norm(estimate_xy - true_centroid))
+        else:
+            self._shared_track_confidence = 0.0
+
+        return {
+            "track_initialized": bool(self._shared_track_filter.initialized),
+            "track_confidence": float(self._shared_track_confidence),
+            "track_error": float(self._shared_track_error)
+            if np.isfinite(self._shared_track_error)
+            else np.nan,
+            "received_measurements": int(self._shared_track_received_this_step),
+            "stale_measurements": int(self._shared_track_stale_received_this_step),
+            "base_measurements": int(self._shared_track_base_received_this_step),
+            "base_sensor_detected": bool(self._base_sensor_detected_this_step),
+            "base_sensor_queued": bool(self._base_sensor_queued_this_step),
+            "base_sensor_quality": float(self._base_sensor_last_quality),
+            "queue_size": int(len(self._shared_track_queue)),
+        }
+
+    def _estimated_response_track_state(self) -> tuple[np.ndarray | None, np.ndarray | None, float]:
+        """
+        Return the best currently available target state estimate for response logic.
+
+        In EKF mode this uses the shared estimate when initialized; otherwise we
+        retain a conservative hidden-state fallback only for urgency shaping.
+        Guidance itself remains estimate-driven in EKF mode.
+        """
+        if self._shared_track_filter.initialized:
+            state = self._shared_track_filter.state
+            return state[:2].copy(), state[2:].copy(), float(self._shared_track_confidence)
+
+        if self.threat_belief_mode == "limited":
+            return None, None, 0.0
+
+        centroid = self._active_threat_centroid()
+        if centroid is None:
+            return None, None, 0.0
+        return centroid.copy(), self._active_threat_velocity.copy(), 0.0
+
+    def _infer_threat_urgency(self) -> float:
+        """
+        Infer response urgency from geometry/track confidence rather than speed labels.
+        """
+        self._threat_estimated_time_to_base = np.inf
+        if not self._active_threat_exists():
+            self._threat_urgency_score = 0.0
+            return 0.0
+
+        est_pos, est_vel, est_conf = self._estimated_response_track_state()
+        if est_pos is None or est_vel is None:
+            self._threat_urgency_score = 0.0
+            return 0.0
+
+        to_base = self.base_station - est_pos
+        distance_to_base = float(np.linalg.norm(to_base))
+        map_diag = max(float(np.linalg.norm(np.asarray(self.area_size, dtype=np.float64))), 1e-6)
+        closeness = float(np.clip(1.0 - distance_to_base / map_diag, 0.0, 1.0))
+
+        closing_speed = 0.0
+        if distance_to_base > 1e-6:
+            closing_speed = float(np.dot(est_vel, to_base / distance_to_base))
+        closing_speed = max(closing_speed, 0.0)
+        speed_norm = float(np.linalg.norm(est_vel))
+        eta_from_closing = (
+            distance_to_base / closing_speed
+            if closing_speed > 1e-3
+            else float("inf")
+        )
+        eta_from_speed = (
+            distance_to_base / speed_norm
+            if speed_norm > 1e-3
+            else float("inf")
+        )
+        self._threat_estimated_time_to_base = min(eta_from_closing, eta_from_speed)
+
+        eta_score = (
+            float(np.exp(-self._threat_estimated_time_to_base / self.THREAT_URGENCY_ETA_SECONDS))
+            if np.isfinite(self._threat_estimated_time_to_base)
+            else 0.0
+        )
+        confirm_score = float(np.clip(self._active_threat_confirmation_level, 0.0, 1.0))
+        conf_score = float(np.clip(est_conf, 0.0, 1.0))
+
+        urgency = (
+            0.25 * closeness
+            + 0.45 * eta_score
+            + 0.20 * confirm_score
+            + 0.10 * conf_score
+        )
+        self._threat_urgency_score = float(np.clip(urgency, 0.0, 1.0))
+        return self._threat_urgency_score
+
+    def _dynamic_launch_confidence_threshold(self) -> float:
+        """Return current launch confidence threshold with urgency-aware relaxation."""
+        threshold = float(self.interceptor_launch_confidence)
+        if self.response_policy in {"improved", "phase2"}:
+            relaxed = threshold * (1.0 - self.INTERCEPTOR_URGENCY_LAUNCH_RELAX * self._threat_urgency_score)
+            threshold = max(self.INTERCEPTOR_MIN_LAUNCH_CONFIDENCE, float(relaxed))
+            if self.response_policy == "phase2" and self._base_sensor_detected_this_step:
+                threshold = max(self.INTERCEPTOR_MIN_LAUNCH_CONFIDENCE, 0.85 * threshold)
+        self._interceptor_launch_confidence_active = float(np.clip(threshold, 0.0, 1.0))
+        return self._interceptor_launch_confidence_active
+
+    def _interceptor_guidance_speed(self) -> float:
+        """Return the speed that the current guidance mode should plan around."""
+        if self.response_policy == "phase2":
+            return float(self.INTERCEPTOR_PHASE2_MAX_SPEED)
+        return float(self.INTERCEPTOR_SPEED)
+
+    @staticmethod
+    def _solve_intercept_time(
+        interceptor_pos: np.ndarray,
+        target_pos: np.ndarray,
+        target_vel: np.ndarray,
+        interceptor_speed: float,
+    ) -> float | None:
+        rel = np.asarray(target_pos, dtype=np.float64) - np.asarray(interceptor_pos, dtype=np.float64)
+        vel = np.asarray(target_vel, dtype=np.float64)
+        speed_sq = float(interceptor_speed * interceptor_speed)
+        a = float(np.dot(vel, vel) - speed_sq)
+        b = float(2.0 * np.dot(rel, vel))
+        c = float(np.dot(rel, rel))
+
+        if c <= 1e-9:
+            return 0.0
+        if abs(a) <= 1e-9:
+            if abs(b) <= 1e-9:
+                return None
+            t_linear = -c / b
+            return float(t_linear) if t_linear >= 0.0 else None
+
+        discriminant = b * b - 4.0 * a * c
+        if discriminant < 0.0:
+            return None
+        sqrt_disc = float(np.sqrt(discriminant))
+        t1 = (-b - sqrt_disc) / (2.0 * a)
+        t2 = (-b + sqrt_disc) / (2.0 * a)
+        candidates = [t for t in (t1, t2) if t >= 0.0]
+        if not candidates:
+            return None
+        return float(min(candidates))
+
+    def _predict_intercept_point(
+        self,
+        *,
+        interceptor_pos: np.ndarray,
+        est_pos: np.ndarray,
+        est_vel: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Predict a lead intercept point from estimated position/velocity.
+        """
+        intercept_time = self._solve_intercept_time(
+            interceptor_pos=interceptor_pos,
+            target_pos=est_pos,
+            target_vel=est_vel,
+            interceptor_speed=self._interceptor_guidance_speed(),
+        )
+        if intercept_time is None:
+            guidance_speed = max(self._interceptor_guidance_speed(), 1e-6)
+            intercept_time = float(
+                np.linalg.norm(est_pos - interceptor_pos) / guidance_speed
+            )
+        intercept_time = float(
+            np.clip(intercept_time, 0.0, self.INTERCEPTOR_INTERCEPT_MAX_LOOKAHEAD_SECONDS)
+        )
+        lead = np.asarray(est_pos, dtype=np.float64) + np.asarray(est_vel, dtype=np.float64) * intercept_time
+        return np.clip(
+            lead,
+            np.array([0.0, 0.0], dtype=np.float64),
+            np.array([self.area_size[0], self.area_size[1]], dtype=np.float64),
+        )
+
+    def _interceptor_guidance_target(self) -> np.ndarray | None:
+        if not self._active_threat_exists():
+            return None
+        if self.interceptor_guidance_mode == "oracle":
+            return self._active_threat_centroid()
+        if self._shared_track_filter.initialized:
+            state = self._shared_track_filter.state
+            if self.response_policy in {"improved", "phase2"}:
+                interceptor_pos = (
+                    self._interceptor_position
+                    if self._interceptor_active
+                    else self.base_station
+                )
+                return self._predict_intercept_point(
+                    interceptor_pos=interceptor_pos,
+                    est_pos=state[:2],
+                    est_vel=state[2:],
+                )
+            return state[:2].copy()
+        return None
 
     def _normalize_suspicious_zones(
         self,
@@ -926,6 +1514,13 @@ class BeliefCoverageEnv(gym.Env):
             0.0,
             1.0,
         )
+        if self.response_policy == "phase2":
+            # Phase 2 keeps the 2x2 patch abstraction but avoids perfectly
+            # repeatable centerline motion by adding a deterministic weave.
+            weave = 0.65 + 0.35 * np.sin(
+                self._active_threat_path_phase + 0.17 * float(self._step_count)
+            )
+            lateral_scale *= float(self._active_threat_weave_gain * weave)
         direction = base_direction + self._active_threat_lateral_sign * lateral_scale * lateral_direction
         direction_norm = float(np.linalg.norm(direction))
         if direction_norm > 1e-9:
@@ -966,6 +1561,8 @@ class BeliefCoverageEnv(gym.Env):
         self._active_threat_velocity[:] = 0.0
         self._active_threat_confirmation_level = 0.0
         self._active_threat_lateral_sign = 1.0
+        self._active_threat_path_phase = 0.0
+        self._active_threat_weave_gain = 1.0
         self._threat_confirmed = False
         self._threat_cycles_spawned = 0
         self._threat_cycles_completed = 0
@@ -988,6 +1585,10 @@ class BeliefCoverageEnv(gym.Env):
         self._interceptor_target[:] = np.nan
         self._interceptor_trace = [self.base_station.copy()]
         self._interceptor_dispatch_count = 0
+        self._base_sensor_total_detections = 0
+        self._base_sensor_total_updates = 0
+        self._reset_shared_track_state()
+        self._reset_limited_threat_belief_state()
 
         if self.enable_persistent_threats and self.max_threat_cycles > 0:
             self._spawn_next_threat_patch()
@@ -1051,6 +1652,7 @@ class BeliefCoverageEnv(gym.Env):
         self._active_threat_confirmation_level = 0.0
         self._confirmed_threat_mask.fill(False)
         self._threat_confirmed = False
+        self._threat_suspected = False
         self._central_command_notified = False
         self._tracking_bias_drones.fill(False)
         self._tracking_target_cells.fill(-1)
@@ -1060,6 +1662,9 @@ class BeliefCoverageEnv(gym.Env):
             patch=patch,
         )
         self._active_threat_velocity[:] = 0.0
+        phase_seed = float((chosen_candidate_index if chosen_candidate_index >= 0 else int(np.sum(patch))) % 17)
+        self._active_threat_path_phase = 0.37 * phase_seed
+        self._active_threat_weave_gain = 0.8 + 0.08 * (phase_seed % 5.0)
         if self._threat_trace:
             self._threat_trace.append(np.array([np.nan, np.nan], dtype=np.float64))
             self._threat_trace.append(centroid_xy.copy())
@@ -1080,6 +1685,8 @@ class BeliefCoverageEnv(gym.Env):
             )
         )
         self._threat_base_timeout_steps = self._threat_base_eta_steps
+        self._reset_shared_track_state()
+        self._reset_limited_threat_belief_state()
         if count_as_spawn and patch.size > 0:
             self._threat_cycles_spawned += 1
             if chosen_candidate_index >= 0:
@@ -1136,6 +1743,13 @@ class BeliefCoverageEnv(gym.Env):
         """
         return self.get_belief_state().combined_global_risk_belief
 
+    def _policy_risk_scores_for_drone(self, drone_idx: int) -> np.ndarray:
+        """Return the risk field available to one drone's local policy."""
+        if self.threat_belief_mode != "limited":
+            return self._current_risk_scores()
+        local = self.local_beliefs[int(drone_idx)]
+        return np.maximum(local.uncertainty, local.anomaly_score)
+
     def get_belief_risk_scores(self) -> np.ndarray:
         """Return the fused Phase 1 belief-risk score for each cell."""
         return self._current_risk_scores().copy()
@@ -1170,6 +1784,10 @@ class BeliefCoverageEnv(gym.Env):
     def get_threat_trace(self) -> np.ndarray:
         """Return the moving threat-centroid trajectory accumulated so far."""
         return np.asarray(self._threat_trace, dtype=np.float64).copy()
+
+    def get_shared_track_trace(self) -> np.ndarray:
+        """Return the shared EKF estimated trajectory accumulated so far."""
+        return np.asarray(self._shared_track_trace, dtype=np.float64).copy()
 
     def get_truth_risk_scores(self) -> np.ndarray:
         """Return the backend truth-risk score for each cell."""
@@ -1691,6 +2309,9 @@ class BeliefCoverageEnv(gym.Env):
         global_sync_applied = False
         observed_mask = np.zeros(self.n_cells, dtype=bool)
         best_threat_evidence = np.zeros(self.n_cells, dtype=np.float64)
+        threat_observed_by_drone = np.zeros(self.num_drones, dtype=bool)
+        threat_evidence_by_drone = np.zeros(self.num_drones, dtype=np.float64)
+        active_set = set(self._active_threat_cells.tolist())
 
         for drone_idx, local in enumerate(self.local_beliefs):
             position = self._drone_states[drone_idx, :2]
@@ -1706,6 +2327,13 @@ class BeliefCoverageEnv(gym.Env):
             if cell_idx.size > 0:
                 observed_mask[cell_idx] = True
                 best_threat_evidence[cell_idx] = np.maximum(best_threat_evidence[cell_idx], threat_evidence)
+                if active_set:
+                    overlap_mask = np.array([int(cell) in active_set for cell in cell_idx], dtype=bool)
+                    if np.any(overlap_mask):
+                        threat_observed_by_drone[drone_idx] = True
+                        threat_evidence_by_drone[drone_idx] = float(
+                            np.mean(threat_evidence[overlap_mask])
+                        )
             self.belief_updater.apply_local_observation(
                 local,
                 cell_idx,
@@ -1742,6 +2370,8 @@ class BeliefCoverageEnv(gym.Env):
             "observed_counts": observed_counts,
             "observed_mask": observed_mask,
             "best_threat_evidence": best_threat_evidence,
+            "threat_observed_by_drone": threat_observed_by_drone,
+            "threat_evidence_by_drone": threat_evidence_by_drone,
             "shared_cell_count": int(shared_cell_count),
             "global_sync_applied": bool(global_sync_applied),
         }
@@ -1751,6 +2381,10 @@ class BeliefCoverageEnv(gym.Env):
         *,
         observed_mask: np.ndarray,
         best_threat_evidence: np.ndarray,
+        threat_observed_by_drone: Optional[np.ndarray] = None,
+        threat_evidence_by_drone: Optional[np.ndarray] = None,
+        connectivity: Optional[Dict[str, np.ndarray | int | float]] = None,
+        step: int = 0,
     ) -> Dict[str, float | bool]:
         """
         Update confirmation belief for the active moving threat patch.
@@ -1766,12 +2400,38 @@ class BeliefCoverageEnv(gym.Env):
 
         if not self._active_threat_exists():
             self._threat_confirmed = False
+            self._threat_suspected = False
             self._active_threat_confirmation_level = 0.0
+            if self.threat_belief_mode == "limited":
+                self._local_threat_confirmation_levels.fill(0.0)
+                self._local_threat_confirmed.fill(False)
+                self._local_threat_last_observed_step.fill(-1)
+                self._local_threat_last_confirmed_step.fill(-1)
+                self._threat_confirmation_queue.clear()
+                self._base_threat_confirmation_level = 0.0
+                self._base_threat_confirmed = False
+                self._central_command_notified = False
             return {
                 "threat_suspected": False,
                 "threat_confirmed": False,
                 "active_threat_confirmation_score": 0.0,
             }
+
+        if self.threat_belief_mode == "limited":
+            return self._update_limited_threat_confirmation(
+                threat_observed_by_drone=(
+                    np.asarray(threat_observed_by_drone, dtype=bool)
+                    if threat_observed_by_drone is not None
+                    else np.zeros(self.num_drones, dtype=bool)
+                ),
+                threat_evidence_by_drone=(
+                    np.asarray(threat_evidence_by_drone, dtype=np.float64)
+                    if threat_evidence_by_drone is not None
+                    else np.zeros(self.num_drones, dtype=np.float64)
+                ),
+                connectivity=connectivity,
+                step=step,
+            )
 
         active_cells = self._active_threat_cells
         observed_active = active_cells[np.asarray(observed_mask[active_cells], dtype=bool)]
@@ -1792,6 +2452,7 @@ class BeliefCoverageEnv(gym.Env):
         threat_suspected = bool(
             active_belief >= self.THREAT_SUSPECT_THRESHOLD or active_patch_score > 0.0
         )
+        self._threat_suspected = threat_suspected
         if active_patch_score >= self.THREAT_CONFIRMATION_THRESHOLD:
             self._threat_confirmed = True
         if self._threat_confirmed:
@@ -1804,18 +2465,170 @@ class BeliefCoverageEnv(gym.Env):
             "active_threat_confirmation_score": active_patch_score,
         }
 
+    def _queue_base_confirmation_message(
+        self,
+        *,
+        drone_idx: int,
+        level: float,
+        step: int,
+        connectivity: Optional[Dict[str, np.ndarray | int | float]],
+    ) -> None:
+        """Relay one drone's local threat-confirmation belief toward base."""
+        if connectivity is None:
+            return
+        hops_to_base = self._compute_hops_to_base(connectivity)
+        self._shared_track_hops_to_base = hops_to_base.copy()
+        hops = float(hops_to_base[int(drone_idx)])
+        if not np.isfinite(hops):
+            return
+        self._threat_confirmation_queue.append(
+            {
+                "source_drone": int(drone_idx),
+                "observed_step": int(step),
+                "arrival_step": int(step + int(hops) * self.threat_comm_delay_per_hop_steps),
+                "level": float(level),
+                "hops": int(hops),
+            }
+        )
+
+    def _update_limited_threat_confirmation(
+        self,
+        *,
+        threat_observed_by_drone: np.ndarray,
+        threat_evidence_by_drone: np.ndarray,
+        connectivity: Optional[Dict[str, np.ndarray | int | float]],
+        step: int,
+    ) -> Dict[str, float | bool]:
+        """
+        Update threat confirmation under limited, delayed communication.
+
+        Each drone maintains its own persistence score from local observations.
+        A local confirmation is not central knowledge until a confirmation
+        message reaches base through the current communication graph delay.
+        """
+        self._local_threat_confirmation_levels *= self.THREAT_CONFIRMATION_DECAY
+        self._local_threat_confirmed[:] = (
+            self._local_threat_confirmation_levels >= self.THREAT_CONFIRMATION_THRESHOLD
+        )
+        self._base_threat_confirmation_level *= self.THREAT_CONFIRMATION_DECAY
+        self._threat_confirmation_received_this_step = 0
+        self._threat_confirmation_stale_received_this_step = 0
+        self._threat_persistence_score.fill(0.0)
+        self._confirmed_threat_mask.fill(False)
+
+        if not self._active_threat_exists():
+            self._local_threat_confirmation_levels.fill(0.0)
+            self._local_threat_confirmed.fill(False)
+            self._local_threat_last_observed_step.fill(-1)
+            self._local_threat_last_confirmed_step.fill(-1)
+            self._threat_confirmation_queue.clear()
+            self._base_threat_confirmation_level = 0.0
+            self._base_threat_confirmed = False
+            self._threat_confirmed = False
+            self._threat_suspected = False
+            self._central_command_notified = False
+            return {
+                "threat_suspected": False,
+                "threat_confirmed": False,
+                "active_threat_confirmation_score": 0.0,
+            }
+
+        for drone_idx in range(self.num_drones):
+            if not bool(threat_observed_by_drone[drone_idx]):
+                continue
+            if self._first_threat_observed_step < 0:
+                self._first_threat_observed_step = int(step)
+            evidence = float(np.clip(threat_evidence_by_drone[drone_idx], 0.0, 1.0))
+            self._local_threat_confirmation_levels[drone_idx] = float(
+                np.clip(
+                    self._local_threat_confirmation_levels[drone_idx]
+                    + self.THREAT_CONFIRMATION_GAIN * evidence,
+                    0.0,
+                    1.0,
+                )
+            )
+            self._local_threat_last_observed_step[drone_idx] = int(step)
+            if self._local_threat_confirmation_levels[drone_idx] >= self.THREAT_CONFIRMATION_THRESHOLD:
+                if self._local_threat_last_confirmed_step[drone_idx] < 0:
+                    self._local_threat_last_confirmed_step[drone_idx] = int(step)
+                self._local_threat_confirmed[drone_idx] = True
+                self._queue_base_confirmation_message(
+                    drone_idx=drone_idx,
+                    level=float(self._local_threat_confirmation_levels[drone_idx]),
+                    step=step,
+                    connectivity=connectivity,
+                )
+
+        ready = [m for m in self._threat_confirmation_queue if int(m["arrival_step"]) <= int(step)]
+        self._threat_confirmation_queue = [
+            m for m in self._threat_confirmation_queue if int(m["arrival_step"]) > int(step)
+        ]
+        for message in ready:
+            age_steps = max(int(step) - int(message["observed_step"]), 0)
+            received_level = float(message["level"])
+            self._base_threat_confirmation_level = max(
+                float(self._base_threat_confirmation_level),
+                float(np.clip(received_level, 0.0, 1.0)),
+            )
+            self._threat_confirmation_received_this_step += 1
+            if age_steps > 0:
+                self._threat_confirmation_stale_received_this_step += 1
+
+        self._base_threat_confirmed = (
+            self._base_threat_confirmation_level >= self.THREAT_CONFIRMATION_THRESHOLD
+        )
+        if self._base_threat_confirmed and self._base_first_confirmation_step < 0:
+            self._base_first_confirmation_step = int(step)
+
+        active_cells = self._active_threat_cells
+        self._active_threat_confirmation_level = float(self._base_threat_confirmation_level)
+        self._threat_persistence_score[active_cells] = float(self._base_threat_confirmation_level)
+        self._threat_confirmed = bool(self._base_threat_confirmed)
+        self._central_command_notified = bool(self._base_threat_confirmed)
+        if self._threat_confirmed:
+            self._confirmed_threat_mask[active_cells] = True
+
+        local_max = float(np.max(self._local_threat_confirmation_levels)) if self.num_drones else 0.0
+        active_belief = float(np.mean(self.global_belief.anomaly_score[active_cells]))
+        self._threat_suspected = bool(
+            active_belief >= self.THREAT_SUSPECT_THRESHOLD
+            or local_max > 0.0
+            or self._base_threat_confirmation_level > 0.0
+        )
+
+        return {
+            "threat_suspected": bool(self._threat_suspected),
+            "threat_confirmed": bool(self._threat_confirmed),
+            "active_threat_confirmation_score": float(self._base_threat_confirmation_level),
+        }
+
     def _choose_tracking_bias_drones(self) -> np.ndarray:
         """Pick a small nearby subset of drones to add a light tracking bias."""
         selected = np.zeros(self.num_drones, dtype=bool)
         self._tracking_target_cells.fill(-1)
+        if self.threat_belief_mode == "limited":
+            return self._choose_limited_tracking_bias_drones(selected)
         if not self._threat_confirmed or not self._active_threat_exists():
+            self._tracking_cap_current = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
             return selected
 
         patch_centroid = self._active_threat_centroid()
         if patch_centroid is None:
+            self._tracking_cap_current = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
             return selected
 
-        tracker_count = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
+        base_tracker_count = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
+        tracker_count = base_tracker_count
+        if self.response_policy in {"improved", "phase2"} and self._threat_urgency_score >= self.THREAT_URGENCY_HIGH:
+            urgent_cap = min(
+                self.THREAT_MAX_URGENT_TRACKERS,
+                max(2, self.num_drones // 2),
+                self.num_drones,
+            )
+            if self.response_policy == "phase2" and self._base_sensor_detected_this_step:
+                urgent_cap = min(self.num_drones, max(urgent_cap, self.THREAT_MAX_URGENT_TRACKERS))
+            tracker_count = min(max(base_tracker_count + 1, tracker_count), urgent_cap)
+        self._tracking_cap_current = int(max(1, tracker_count))
         rankings: List[Tuple[int, float, float, int]] = []
         for drone_idx in range(self.num_drones):
             local_cells = np.union1d(
@@ -1831,7 +2644,7 @@ class BeliefCoverageEnv(gym.Env):
             position_distance = float(np.linalg.norm(self._drone_states[drone_idx, :2] - patch_centroid))
             rankings.append((drone_idx, -float(local_overlap), position_distance, region_distance))
 
-        for drone_idx, *_ in sorted(rankings, key=lambda item: (item[1], item[2], item[3]))[:tracker_count]:
+        for drone_idx, *_ in sorted(rankings, key=lambda item: (item[1], item[2], item[3]))[: self._tracking_cap_current]:
             selected[int(drone_idx)] = True
             threat_cells = self._active_threat_cells
             distances = np.linalg.norm(
@@ -1841,11 +2654,85 @@ class BeliefCoverageEnv(gym.Env):
             self._tracking_target_cells[int(drone_idx)] = int(threat_cells[int(np.argmin(distances))])
         return selected
 
+    def _choose_limited_tracking_bias_drones(self, selected: np.ndarray) -> np.ndarray:
+        """Pick trackers from drones that have locally confirmed the threat."""
+        self._tracking_cap_current = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
+        eligible = np.flatnonzero(self._local_threat_confirmed)
+        if eligible.size == 0:
+            return selected
+
+        if self.response_policy in {"improved", "phase2"} and self._threat_urgency_score >= self.THREAT_URGENCY_HIGH:
+            self._tracking_cap_current = min(
+                self.THREAT_MAX_URGENT_TRACKERS,
+                max(2, self.num_drones // 2),
+                self.num_drones,
+            )
+
+        track_xy: np.ndarray | None = None
+        if self._shared_track_filter.initialized:
+            track_xy = self._shared_track_filter.state[:2].copy()
+
+        rankings: List[Tuple[int, float, float]] = []
+        for drone_idx in eligible:
+            local = self.local_beliefs[int(drone_idx)]
+            local_scores = np.maximum(local.uncertainty, local.anomaly_score)
+            high_cells = np.flatnonzero(local.anomaly_score >= self.THREAT_SUSPECT_THRESHOLD)
+            if high_cells.size == 0:
+                high_cells = np.flatnonzero(local_scores >= self.PATROL_ASSIST_TRIGGER_RISK)
+            if high_cells.size == 0:
+                high_cells = np.arange(self.n_cells, dtype=np.int32)
+            target_ref = (
+                track_xy
+                if track_xy is not None
+                else self.cell_centers_xy[int(high_cells[int(np.argmax(local_scores[high_cells]))])]
+            )
+            distance = float(np.linalg.norm(self._drone_states[int(drone_idx), :2] - target_ref))
+            rankings.append((int(drone_idx), -float(self._local_threat_confirmation_levels[int(drone_idx)]), distance))
+
+        for drone_idx, *_ in sorted(rankings, key=lambda item: (item[1], item[2]))[: self._tracking_cap_current]:
+            local = self.local_beliefs[int(drone_idx)]
+            local_scores = np.maximum(local.uncertainty, local.anomaly_score)
+            candidate_cells = np.flatnonzero(local.anomaly_score >= self.THREAT_SUSPECT_THRESHOLD)
+            if candidate_cells.size == 0:
+                candidate_cells = np.flatnonzero(local_scores >= self.PATROL_ASSIST_TRIGGER_RISK)
+            if candidate_cells.size == 0:
+                candidate_cells = self._home_cell_indices[int(drone_idx)]
+            if candidate_cells.size == 0:
+                continue
+            if track_xy is not None:
+                distances = np.linalg.norm(self.cell_centers_xy[candidate_cells] - track_xy[None, :], axis=1)
+                target_cell = int(candidate_cells[int(np.argmin(distances))])
+            else:
+                target_cell = int(candidate_cells[int(np.argmax(local_scores[candidate_cells]))])
+            selected[int(drone_idx)] = True
+            self._tracking_target_cells[int(drone_idx)] = target_cell
+        return selected
+
     def _dispatch_interceptor(self) -> bool:
         """Dispatch a simple straight-line interceptor from the base."""
-        if self._interceptor_active or not self._threat_confirmed or not self._active_threat_exists():
+        self._infer_threat_urgency()
+        can_dispatch = bool(self._threat_confirmed)
+        if (
+            self.response_policy in {"improved", "phase2"}
+            and not can_dispatch
+            and self._threat_urgency_score >= self.THREAT_URGENCY_CRITICAL
+        ):
+            can_dispatch = True
+        if (
+            self.response_policy == "phase2"
+            and not can_dispatch
+            and self._base_first_track_update_step >= 0
+            and self._threat_urgency_score >= self.PHASE2_BASE_DEFENSE_LAUNCH_URGENCY
+        ):
+            can_dispatch = True
+
+        if self._interceptor_active or not can_dispatch or not self._active_threat_exists():
             return False
-        target_xy = self._active_threat_centroid()
+        launch_threshold = self._dynamic_launch_confidence_threshold()
+        if self.interceptor_guidance_mode == "ekf":
+            if self._shared_track_confidence < launch_threshold:
+                return False
+        target_xy = self._interceptor_guidance_target()
         if target_xy is None:
             return False
         delta = target_xy - self.base_station
@@ -1853,7 +2740,8 @@ class BeliefCoverageEnv(gym.Env):
         direction = np.zeros(2, dtype=np.float64) if distance <= 1e-9 else delta / distance
         self._interceptor_active = True
         self._interceptor_position = self.base_station.copy()
-        self._interceptor_velocity = direction * self.INTERCEPTOR_SPEED
+        initial_speed = self.INTERCEPTOR_PHASE2_MAX_SPEED if self.response_policy == "phase2" else self.INTERCEPTOR_SPEED
+        self._interceptor_velocity = direction * initial_speed
         self._interceptor_target = target_xy.copy()
         self._interceptor_trace = [self.base_station.copy()]
         self._interceptor_dispatch_count += 1
@@ -1881,9 +2769,11 @@ class BeliefCoverageEnv(gym.Env):
         self._active_threat_velocity[:] = 0.0
         self._active_threat_confirmation_level = 0.0
         self._threat_confirmed = False
+        self._threat_suspected = False
         self._central_command_notified = False
         self._tracking_bias_drones.fill(False)
         self._tracking_target_cells.fill(-1)
+        self._tracking_cap_current = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
         self._interceptor_active = False
         self._interceptor_velocity[:] = 0.0
         self._interceptor_target[:] = np.nan
@@ -1891,6 +2781,7 @@ class BeliefCoverageEnv(gym.Env):
         self._threat_cycles_completed += 1
         self._threat_base_eta_steps = -1
         self._threat_base_timeout_steps = -1
+        self._reset_shared_track_state()
         self._truth_risk_score = self.transition_model.compose_hidden_risk_state(
             self._truth_monitoring_risk,
             self._truth_persistent_threat,
@@ -1905,20 +2796,47 @@ class BeliefCoverageEnv(gym.Env):
         update so the drones observe the current patch location before the
         interceptor retargets.
         """
+        self._infer_threat_urgency()
         dispatched = self._dispatch_interceptor()
         removal = False
 
         if self._interceptor_active and self._active_threat_exists():
-            target_xy = self._active_threat_centroid()
+            target_xy = self._interceptor_guidance_target()
             if target_xy is not None:
                 self._interceptor_target = target_xy.copy()
                 delta = target_xy - self._interceptor_position
                 distance = float(np.linalg.norm(delta))
-                step_distance = self.INTERCEPTOR_SPEED * self.dt
-                if distance <= step_distance:
-                    self._interceptor_position = target_xy.copy()
-                elif distance > 1e-9:
-                    self._interceptor_position += (delta / distance) * step_distance
+                if self.response_policy == "phase2":
+                    desired_direction = (
+                        np.zeros(2, dtype=np.float64)
+                        if distance <= 1e-9
+                        else delta / distance
+                    )
+                    desired_velocity = desired_direction * self.INTERCEPTOR_PHASE2_MAX_SPEED
+                    dv = desired_velocity - self._interceptor_velocity
+                    max_dv = self.INTERCEPTOR_PHASE2_MAX_ACCEL * self.dt
+                    dv_norm = float(np.linalg.norm(dv))
+                    if dv_norm > max_dv > 0.0:
+                        dv = dv / dv_norm * max_dv
+                    self._interceptor_velocity += dv
+                    speed = float(np.linalg.norm(self._interceptor_velocity))
+                    if speed > self.INTERCEPTOR_PHASE2_MAX_SPEED:
+                        self._interceptor_velocity *= self.INTERCEPTOR_PHASE2_MAX_SPEED / speed
+                    next_position = self._interceptor_position + self._interceptor_velocity * self.dt
+                    if distance <= float(np.linalg.norm(next_position - self._interceptor_position)):
+                        self._interceptor_position = target_xy.copy()
+                    else:
+                        self._interceptor_position = np.clip(
+                            next_position,
+                            np.array([0.0, 0.0], dtype=np.float64),
+                            np.array([self.area_size[0], self.area_size[1]], dtype=np.float64),
+                        )
+                else:
+                    step_distance = self.INTERCEPTOR_SPEED * self.dt
+                    if distance <= step_distance:
+                        self._interceptor_position = target_xy.copy()
+                    elif distance > 1e-9:
+                        self._interceptor_position += (delta / distance) * step_distance
                 self._interceptor_trace.append(self._interceptor_position.copy())
 
                 hit_radius = self.INTERCEPTOR_HIT_RADIUS_FACTOR * self.grid_resolution
@@ -1952,12 +2870,21 @@ class BeliefCoverageEnv(gym.Env):
         connectivity: Dict[str, np.ndarray | int | float],
         step: int,
     ) -> Dict[str, object]:
-        del connectivity, step
-
         confirmation_metrics = self._update_threat_confirmation(
             observed_mask=np.asarray(belief_metrics["observed_mask"], dtype=bool),
             best_threat_evidence=np.asarray(belief_metrics["best_threat_evidence"], dtype=np.float64),
+            threat_observed_by_drone=np.asarray(
+                belief_metrics.get("threat_observed_by_drone", np.zeros(self.num_drones, dtype=bool)),
+                dtype=bool,
+            ),
+            threat_evidence_by_drone=np.asarray(
+                belief_metrics.get("threat_evidence_by_drone", np.zeros(self.num_drones, dtype=np.float64)),
+                dtype=np.float64,
+            ),
+            connectivity=connectivity,
+            step=step,
         )
+        self._infer_threat_urgency()
         self._tracking_bias_drones = self._choose_tracking_bias_drones()
         interceptor_metrics = self._advance_interceptor_and_threat()
         self._interceptor_dispatched_this_step = bool(interceptor_metrics["interceptor_dispatched"])
@@ -1972,6 +2899,12 @@ class BeliefCoverageEnv(gym.Env):
             **interceptor_metrics,
             "active_threat_confirmation_score": active_patch_score,
             "tracking_bias_count": int(np.sum(self._tracking_bias_drones)),
+            "threat_urgency_score": float(self._threat_urgency_score),
+            "threat_estimated_time_to_base": (
+                float(self._threat_estimated_time_to_base)
+                if np.isfinite(self._threat_estimated_time_to_base)
+                else float("inf")
+            ),
         }
 
     def _build_observation(self, connectivity: Dict[str, np.ndarray | int | float]) -> np.ndarray:
@@ -2067,6 +3000,7 @@ class BeliefCoverageEnv(gym.Env):
         shared_cell_count: int = 0,
         global_sync_applied: bool = False,
         truth_metrics: Optional[Dict[str, object]] = None,
+        track_metrics: Optional[Dict[str, object]] = None,
         threat_metrics: Optional[Dict[str, object]] = None,
     ) -> Dict:
         anomaly_counts = self.global_belief.anomaly_counts()
@@ -2074,6 +3008,7 @@ class BeliefCoverageEnv(gym.Env):
         belief_state = self.get_belief_state()
         hidden_world_state = self.get_hidden_world_state()
         truth_metrics = truth_metrics or {}
+        track_metrics = track_metrics or {}
         threat_metrics = threat_metrics or {}
         risk_counts = {
             "gt_0_1": int(np.sum(risk_scores > self.global_belief.config.report_threshold)),
@@ -2167,6 +3102,21 @@ class BeliefCoverageEnv(gym.Env):
         active_threat_position = self._active_threat_centroid()
         if active_threat_position is None:
             active_threat_position = np.full(2, np.nan, dtype=np.float64)
+        local_threat_age_steps = np.where(
+            self._local_threat_last_observed_step >= 0,
+            self._step_count - self._local_threat_last_observed_step,
+            -1,
+        ).astype(np.int32)
+        base_confirmation_lag = (
+            int(self._base_first_confirmation_step - self._first_threat_observed_step)
+            if self._base_first_confirmation_step >= 0 and self._first_threat_observed_step >= 0
+            else -1
+        )
+        base_track_lag = (
+            int(self._base_first_track_update_step - self._first_threat_observed_step)
+            if self._base_first_track_update_step >= 0 and self._first_threat_observed_step >= 0
+            else -1
+        )
         info = {
             "reward": float(reward),
             "reward_components": dict(reward_components),
@@ -2217,6 +3167,108 @@ class BeliefCoverageEnv(gym.Env):
             "physical_base_reached": bool(self._physical_base_reached_this_step),
             "mission_failed": bool(self._mission_failed),
             "mission_fail_reason": self._mission_fail_reason or None,
+            "interceptor_guidance_mode": self.interceptor_guidance_mode,
+            "response_policy": self.response_policy,
+            "validation_dynamics": self.validation_dynamics,
+            "threat_belief_mode": self.threat_belief_mode,
+            "interceptor_launch_confidence_threshold": float(self.interceptor_launch_confidence),
+            "interceptor_launch_confidence_active": float(self._interceptor_launch_confidence_active),
+            "threat_urgency_score": float(self._threat_urgency_score),
+            "threat_estimated_time_to_base": (
+                float(self._threat_estimated_time_to_base)
+                if np.isfinite(self._threat_estimated_time_to_base)
+                else float("inf")
+            ),
+            "tracking_cap_current": int(self._tracking_cap_current),
+            "shared_track_state": {
+                "initialized": bool(self._shared_track_filter.initialized),
+                "position_xy": (
+                    self._shared_track_filter.state[:2].astype(np.float32).copy()
+                    if self._shared_track_filter.initialized
+                    else np.array([np.nan, np.nan], dtype=np.float32)
+                ),
+                "velocity_xy": (
+                    self._shared_track_filter.state[2:].astype(np.float32).copy()
+                    if self._shared_track_filter.initialized
+                    else np.array([np.nan, np.nan], dtype=np.float32)
+                ),
+                "covariance_trace_pos": (
+                    float(np.trace(self._shared_track_filter.covariance[:2, :2]))
+                    if self._shared_track_filter.initialized
+                    else float("inf")
+                ),
+                "confidence": float(self._shared_track_confidence),
+                "error_to_truth": (
+                    float(self._shared_track_error)
+                    if np.isfinite(self._shared_track_error)
+                    else float("nan")
+                ),
+                "last_update_step": int(self._shared_track_last_update_step),
+                "last_measurement_age_steps": int(self._shared_track_last_measurement_age_steps),
+                "received_this_step": int(self._shared_track_received_this_step),
+                "stale_received_this_step": int(self._shared_track_stale_received_this_step),
+                "base_received_this_step": int(self._shared_track_base_received_this_step),
+                "queue_size": int(len(self._shared_track_queue)),
+                "comm_delay_per_hop_steps": int(self.threat_comm_delay_per_hop_steps),
+                "measurement_noise_std": float(self.threat_measurement_noise_std),
+                "measurement_staleness_gain": float(self.threat_measurement_staleness_gain),
+            },
+            "local_threat_state": {
+                "confirmation_levels": self._local_threat_confirmation_levels.astype(np.float32).copy(),
+                "confirmed": self._local_threat_confirmed.astype(np.int32).copy(),
+                "last_observed_step": self._local_threat_last_observed_step.copy(),
+                "age_steps": local_threat_age_steps.copy(),
+                "last_confirmed_step": self._local_threat_last_confirmed_step.copy(),
+            },
+            "base_threat_state": {
+                "confirmation_level": float(self._base_threat_confirmation_level),
+                "confirmed": bool(self._base_threat_confirmed),
+                "first_observed_step": int(self._first_threat_observed_step),
+                "first_track_update_step": int(self._base_first_track_update_step),
+                "first_confirmation_step": int(self._base_first_confirmation_step),
+                "confirmation_lag_steps": int(base_confirmation_lag),
+                "track_lag_steps": int(base_track_lag),
+                "confirmations_received_this_step": int(self._threat_confirmation_received_this_step),
+                "stale_confirmations_received_this_step": int(self._threat_confirmation_stale_received_this_step),
+                "confirmation_queue_size": int(len(self._threat_confirmation_queue)),
+            },
+            "base_sensor_state": {
+                "enabled": bool(self.base_sensor.enabled),
+                "range_m": float(self._base_sensor_range()),
+                "noise_std": float(self._base_sensor_noise_std()),
+                "delay_steps": int(max(0, self.base_sensor.delay_steps)),
+                "detected_this_step": bool(self._base_sensor_detected_this_step),
+                "queued_this_step": bool(self._base_sensor_queued_this_step),
+                "received_this_step": int(self._shared_track_base_received_this_step),
+                "last_distance": (
+                    float(self._base_sensor_last_distance)
+                    if np.isfinite(self._base_sensor_last_distance)
+                    else float("inf")
+                ),
+                "last_quality": float(self._base_sensor_last_quality),
+                "total_detections": int(self._base_sensor_total_detections),
+                "total_updates": int(self._base_sensor_total_updates),
+            },
+            "shared_track_trace": np.asarray(self._shared_track_trace, dtype=np.float32),
+            "shared_track_recent_contributors": self._shared_track_recent_contributors.copy(),
+            "shared_track_hops_to_base": self._shared_track_hops_to_base.astype(np.float32).copy(),
+            "shared_track_metrics": {
+                "track_initialized": bool(track_metrics.get("track_initialized", False)),
+                "track_confidence": float(track_metrics.get("track_confidence", self._shared_track_confidence)),
+                "track_error": float(track_metrics.get("track_error", self._shared_track_error))
+                if np.isfinite(float(track_metrics.get("track_error", self._shared_track_error)))
+                else float("nan"),
+                "received_measurements": int(track_metrics.get("received_measurements", self._shared_track_received_this_step)),
+                "stale_measurements": int(track_metrics.get("stale_measurements", self._shared_track_stale_received_this_step)),
+                "base_measurements": int(track_metrics.get("base_measurements", self._shared_track_base_received_this_step)),
+                "queue_size": int(track_metrics.get("queue_size", len(self._shared_track_queue))),
+                "urgency_score": float(track_metrics.get("threat_urgency_score", self._threat_urgency_score)),
+                "estimated_time_to_base": (
+                    float(track_metrics.get("threat_estimated_time_to_base", self._threat_estimated_time_to_base))
+                    if np.isfinite(float(track_metrics.get("threat_estimated_time_to_base", self._threat_estimated_time_to_base)))
+                    else float("inf")
+                ),
+            },
             "threat_state": {
                 "active": bool(self._active_threat_exists()),
                 "position_xy": active_threat_position.astype(np.float32).copy(),

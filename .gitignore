@@ -217,3 +217,10 @@ data/**
 !data/**/.gitkeep
 checkpoints/
 logs/
+
+# Local OS/editor artifacts
+.DS_Store
+
+# Local matplotlib cache and generated Phase 1 demo/experiment outputs
+.mplconfig/
+visualizations/
