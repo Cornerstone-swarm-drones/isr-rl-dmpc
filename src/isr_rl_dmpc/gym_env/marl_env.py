@@ -164,6 +164,7 @@ class MARLDMPCEnv(gym.Env):
         osqp_max_iter: int = 4000,
         scenario: str = "area_surveillance",
         area_size: Tuple[float, float] = (400.0, 400.0),
+        spawn_interval_steps: int = 50,
     ) -> None:
         super().__init__()
 
@@ -178,6 +179,7 @@ class MARLDMPCEnv(gym.Env):
         self.collision_radius = collision_radius
         self.scenario = scenario
         self._area_size: Tuple[float, float] = (float(area_size[0]), float(area_size[1]))
+        self.spawn_interval_steps = max(0, int(spawn_interval_steps))
 
         # ── Scenario-specific reward weights ────────────────────────────
         self._weights: Dict[str, float] = _SCENARIO_WEIGHTS.get(
@@ -251,6 +253,8 @@ class MARLDMPCEnv(gym.Env):
 
         # ── Internal state ───────────────────────────────────────────────
         self._step_count: int = 0
+        # Staggered-launch state: drone i becomes active at step i * spawn_interval_steps
+        self._drone_launched: np.ndarray = np.zeros(num_drones, dtype=bool)
         # Drone states: (num_drones, STATE_DIM)
         self._drone_states: np.ndarray = np.zeros((num_drones, STATE_DIM), dtype=np.float64)
         # Reference trajectories: (num_drones, horizon+1, STATE_DIM)
@@ -290,6 +294,7 @@ class MARLDMPCEnv(gym.Env):
         self._admm_residuals[:] = 0.0
         self._battery[:] = 1.0
         self._health[:] = 1.0
+        self._drone_launched[:] = False
 
         # Reset coverage grid
         self._coverage_grid[:] = 0.0
@@ -342,6 +347,13 @@ class MARLDMPCEnv(gym.Env):
         action = np.clip(action, 0.1, 10.0)
         actions_per_drone = action.reshape(self.num_drones, ACT_DIM)
 
+        # ── Update launch status for staggered spawning ──────────────────
+        home_pos = np.array([0.0, 0.0, self.DEFAULT_ALTITUDE], dtype=np.float64)
+        for i in range(self.num_drones):
+            launch_step = i * self.spawn_interval_steps
+            if not self._drone_launched[i] and self._step_count >= launch_step:
+                self._drone_launched[i] = True
+
         # ── Update mission references BEFORE DMPC solve ──────────────────
         self._update_references()
 
@@ -349,14 +361,24 @@ class MARLDMPCEnv(gym.Env):
         solve_times = np.zeros(self.num_drones, dtype=np.float64)
         raw_proposals = np.zeros((self.num_drones, CONTROL_DIM), dtype=np.float64)
 
+        # Indices of launched drones — only these participate in DMPC
+        launched_indices = [j for j in range(self.num_drones) if self._drone_launched[j]]
+
         # ── DMPC solve per drone ─────────────────────────────────────────
         for i in range(self.num_drones):
+            if not self._drone_launched[i]:
+                # Not yet launched — freeze at home, skip DMPC
+                drone = self._simulator.drones[i]
+                drone.position = home_pos.copy()
+                drone.velocity = np.zeros(3, dtype=np.float64)
+                continue
+
             q_scale = actions_per_drone[i, :STATE_DIM]
             r_scale = actions_per_drone[i, STATE_DIM:]
 
             neighbour_states = [
                 self._drone_states[j]
-                for j in range(self.num_drones)
+                for j in launched_indices
                 if j != i
             ]
 
@@ -377,17 +399,26 @@ class MARLDMPCEnv(gym.Env):
         admm_residuals = self._admm.get_primal_residuals()  # (num_drones, CONTROL_DIM)
 
         # Blend per-drone proposals with consensus (soft coupling)
-        for i in range(self.num_drones):
+        for i in launched_indices:
             controls[i] = 0.8 * raw_proposals[i] + 0.2 * consensus_ref
 
         # ── Apply controls to simulator ──────────────────────────────────
-        # _accel_to_motor_cmds returns (num_drones, 4); simulator.step expects
-        # the same shape so that motor_commands[drone_id] gives a (4,) vector.
         motor_cmds = self._accel_to_motor_cmds(controls)  # (num_drones, 4)
         self._simulator.step(motor_cmds)
-        terminated = not all(d.is_active for d in self._simulator.drones)
+        terminated = not all(
+            d.is_active for i, d in enumerate(self._simulator.drones)
+            if self._drone_launched[i]
+        )
         truncated = False
         self._sync_states_from_sim()
+
+        # Re-freeze non-launched drones after physics step
+        for i in range(self.num_drones):
+            if not self._drone_launched[i]:
+                self._simulator.drones[i].position = home_pos.copy()
+                self._simulator.drones[i].velocity = np.zeros(3, dtype=np.float64)
+                self._drone_states[i, :3] = home_pos
+                self._drone_states[i, 3:] = 0.0
 
         # Sync battery level from the physics simulator so that there is
         # only one ground-truth battery model (the one in DronePhysics).
@@ -618,21 +649,17 @@ class MARLDMPCEnv(gym.Env):
     # ──────────────────────────────────────────────────────────────────
 
     def _place_drones_in_formation(self) -> None:
-        """Place drones in a grid formation with sufficient spacing.
+        """Place all drones at the shared home position (origin at DEFAULT_ALTITUDE).
 
-        Spacing is at least ``2 * collision_radius`` so that CBF constraints
-        are comfortably satisfied from the first time-step.
+        All drones start at ``[0, 0, DEFAULT_ALTITUDE]`` and are launched
+        sequentially during ``step()`` calls at intervals of
+        ``spawn_interval_steps``.  This guarantees that DMPC no-collision
+        constraints are satisfied at every launch: the previously launched
+        drone has already moved away before the next one activates.
         """
-        spacing = self.collision_radius * self.FORMATION_SPACING_FACTOR
-        cols = int(np.ceil(np.sqrt(self.num_drones)))
+        home = np.array([0.0, 0.0, self.DEFAULT_ALTITUDE], dtype=np.float64)
         for i in range(self.num_drones):
-            row, col = divmod(i, cols)
-            x = col * spacing
-            y = row * spacing
-            z = self.DEFAULT_ALTITUDE
-            self._simulator.set_drone_initial_state(
-                i, np.array([x, y, z], dtype=np.float64)
-            )
+            self._simulator.set_drone_initial_state(i, home.copy())
 
     def _sync_states_from_sim(self) -> None:
         """Pull drone states from the physics simulator.
@@ -1010,10 +1037,11 @@ class MARLDMPCEnv(gym.Env):
         return motor_cmds
 
     def _check_collision(self) -> bool:
-        """Return True if any pair of drones is closer than 0.5 * collision_radius."""
+        """Return True if any pair of launched drones is closer than 0.5 * collision_radius."""
         threshold = 0.5 * self.collision_radius
-        for i in range(self.num_drones):
-            for j in range(i + 1, self.num_drones):
+        launched = [i for i in range(self.num_drones) if self._drone_launched[i]]
+        for idx, i in enumerate(launched):
+            for j in launched[idx + 1:]:
                 dist = np.linalg.norm(
                     self._drone_states[i][:3] - self._drone_states[j][:3]
                 )
