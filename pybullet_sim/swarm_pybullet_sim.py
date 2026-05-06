@@ -597,7 +597,7 @@ class SwarmPyBulletSim:
                     label_text = f"D{i}"
                 else:
                     r, g, b = _WAITING_DRONE_COLOR
-                    steps_until_launch = i * self.spawn_interval - self._step
+                    steps_until_launch = max(0, i * self.spawn_interval - self._step)
                     launch_s = steps_until_launch * self.dt
                     label_text = f"D{i} [T-{launch_s:.1f}s]"
                 self._drone_label_ids[i] = p.addUserDebugText(

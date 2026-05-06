@@ -442,7 +442,7 @@ class PyBulletVisualizer:
                     label_text = f"D{i}"
                 else:
                     r, g, b = _WAITING_DRONE_COLOR
-                    steps_left = i * self.spawn_interval_steps - self._step
+                    steps_left = max(0, i * self.spawn_interval_steps - self._step)
                     label_text = f"D{i} [T-{steps_left}]"
                 self._label_ids[i] = p.addUserDebugText(
                     label_text,
