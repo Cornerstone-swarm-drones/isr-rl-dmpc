@@ -161,7 +161,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--response-policy",
-        choices=["baseline", "improved"],
+        choices=["baseline", "improved", "phase2"],
         default="baseline",
         help="Threat-response policy variant",
     )
@@ -188,6 +188,36 @@ def _parse_args() -> argparse.Namespace:
         type=float,
         default=0.4,
         help="Measurement covariance inflation gain per stale step",
+    )
+    parser.add_argument(
+        "--base-sensor-range",
+        type=float,
+        default=None,
+        help="Override central-command/base sensor range [m]",
+    )
+    parser.add_argument(
+        "--base-sensor-noise-std",
+        type=float,
+        default=None,
+        help="Override central-command/base sensor measurement noise [m]",
+    )
+    parser.add_argument(
+        "--base-sensor-delay-steps",
+        type=int,
+        default=1,
+        help="Base sensor measurement delay in env steps",
+    )
+    parser.add_argument(
+        "--validation-dynamics",
+        choices=["full", "fast_planar"],
+        default="full",
+        help="Use full DMPC-backed dynamics or low-cost deterministic planar validation dynamics.",
+    )
+    parser.add_argument(
+        "--threat-belief-mode",
+        choices=["shared", "limited"],
+        default="shared",
+        help="Use the current shared central threat belief or delayed limited-belief relay semantics.",
     )
     return parser.parse_args()
 
@@ -242,6 +272,14 @@ def _build_env_kwargs(scenario_cfg: dict, args: argparse.Namespace) -> dict:
         "threat_comm_delay_per_hop_steps": int(args.threat_comm_delay_per_hop_steps),
         "threat_measurement_noise_std": float(args.threat_measurement_noise_std),
         "threat_measurement_staleness_gain": float(args.threat_measurement_staleness_gain),
+        "base_sensor": {
+            "enabled": True,
+            "range_m": getattr(args, "base_sensor_range", None),
+            "noise_std": getattr(args, "base_sensor_noise_std", None),
+            "delay_steps": int(getattr(args, "base_sensor_delay_steps", 1)),
+        },
+        "validation_dynamics": str(getattr(args, "validation_dynamics", "full")),
+        "threat_belief_mode": str(getattr(args, "threat_belief_mode", "shared")),
     }
 
 
@@ -304,6 +342,15 @@ def _run_rollout(
         "track_received": [float(info["shared_track_state"]["received_this_step"])],
         "track_stale_received": [float(info["shared_track_state"]["stale_received_this_step"])],
         "track_base_received": [float(info["shared_track_state"]["base_received_this_step"])],
+        "base_confirmation_received": [float(info["base_threat_state"]["confirmations_received_this_step"])],
+        "base_confirmation_level": [float(info["base_threat_state"]["confirmation_level"])],
+        "base_confirmed": [float(info["base_threat_state"]["confirmed"])],
+        "first_threat_observed_step": [float(info["base_threat_state"]["first_observed_step"])],
+        "base_first_track_update_step": [float(info["base_threat_state"]["first_track_update_step"])],
+        "base_first_confirmation_step": [float(info["base_threat_state"]["first_confirmation_step"])],
+        "local_confirmed_fraction": [float(np.mean(info["local_threat_state"]["confirmed"]))],
+        "base_sensor_detected": [float(info["base_sensor_state"]["detected_this_step"])],
+        "base_sensor_quality": [float(info["base_sensor_state"]["last_quality"])],
         "track_contributor_fraction": [float(np.mean(info["shared_track_recent_contributors"]))],
         "threat_urgency_score": [float(info["threat_urgency_score"])],
         "threat_estimated_time_to_base": [float(info["threat_estimated_time_to_base"])],
@@ -368,6 +415,17 @@ def _run_rollout(
         history["track_received"].append(float(last_info["shared_track_state"]["received_this_step"]))
         history["track_stale_received"].append(float(last_info["shared_track_state"]["stale_received_this_step"]))
         history["track_base_received"].append(float(last_info["shared_track_state"]["base_received_this_step"]))
+        history["base_confirmation_received"].append(
+            float(last_info["base_threat_state"]["confirmations_received_this_step"])
+        )
+        history["base_confirmation_level"].append(float(last_info["base_threat_state"]["confirmation_level"]))
+        history["base_confirmed"].append(float(last_info["base_threat_state"]["confirmed"]))
+        history["first_threat_observed_step"].append(float(last_info["base_threat_state"]["first_observed_step"]))
+        history["base_first_track_update_step"].append(float(last_info["base_threat_state"]["first_track_update_step"]))
+        history["base_first_confirmation_step"].append(float(last_info["base_threat_state"]["first_confirmation_step"]))
+        history["local_confirmed_fraction"].append(float(np.mean(last_info["local_threat_state"]["confirmed"])))
+        history["base_sensor_detected"].append(float(last_info["base_sensor_state"]["detected_this_step"]))
+        history["base_sensor_quality"].append(float(last_info["base_sensor_state"]["last_quality"]))
         history["track_contributor_fraction"].append(
             float(np.mean(last_info["shared_track_recent_contributors"]))
         )
@@ -861,6 +919,8 @@ def _plot_rollout_diagnostics(
     lifecycle.plot(steps, history["threat_active"], label="Threat active", linewidth=1.8)
     lifecycle.plot(steps, history["threat_confirmed"], label="Threat confirmed", linewidth=1.8)
     lifecycle.plot(steps, history["central_command_notified"], label="Central notified", linewidth=1.6)
+    lifecycle.plot(steps, history["local_confirmed_fraction"], label="Local confirm frac", linewidth=1.4, linestyle="-.")
+    lifecycle.plot(steps, history["base_confirmation_level"], label="Base confirm level", linewidth=1.4)
     lifecycle.plot(steps, history["interceptor_dispatched"], label="Interceptor dispatched", linewidth=1.6, linestyle=":")
     lifecycle.plot(steps, history["track_contributor_fraction"], label="Contrib fraction", linewidth=1.4, linestyle="--")
     lifecycle.plot(
@@ -873,10 +933,12 @@ def _plot_rollout_diagnostics(
     lifecycle.plot(
         steps,
         np.clip(np.asarray(history["track_base_received"], dtype=np.float64), 0.0, 1.0),
-        label="Base track obs",
+        label="Base EKF update",
         linewidth=1.3,
         linestyle="--",
     )
+    lifecycle.plot(steps, history["base_sensor_detected"], label="Base sensor detect", linewidth=1.3, linestyle="-.")
+    lifecycle.plot(steps, history["base_confirmed"], label="Base confirmed", linewidth=1.4, linestyle=":")
     lifecycle.plot(steps, history["threat_cycles_completed"], label="Cycles completed", linewidth=1.6)
     lifecycle.plot(steps, history["threat_cycle_index"], label="Current cycle", linewidth=1.5)
     lifecycle.plot(steps, np.clip(np.asarray(history["interceptor_distance"]) / max(np.linalg.norm(env.area_size), 1e-6), 0.0, 1.0), label="Interceptor dist (norm)", linewidth=1.5)
@@ -972,6 +1034,8 @@ def main() -> None:
     print(f"Threat speed [m/s]    : {final_info['threat_speed']:.2f}")
     print(f"Guidance mode         : {final_info['interceptor_guidance_mode']}")
     print(f"Response policy       : {final_info['response_policy']}")
+    print(f"Validation dynamics   : {final_info['validation_dynamics']}")
+    print(f"Threat belief mode    : {final_info['threat_belief_mode']}")
     print(f"Launch confidence th. : {final_info['interceptor_launch_confidence_threshold']:.2f}")
     print(f"Launch confidence use : {final_info['interceptor_launch_confidence_active']:.2f}")
     print(f"Mean patrol belief    : {final_info['mean_patrol_risk_belief']:.3f}")
@@ -980,6 +1044,12 @@ def main() -> None:
     print(f"Track confidence      : {final_info['shared_track_state']['confidence']:.3f}")
     print(f"Track error [m]       : {final_info['shared_track_state']['error_to_truth']:.3f}")
     print(f"Threat urgency        : {final_info['threat_urgency_score']:.3f}")
+    print(f"Base sensor range [m] : {final_info['base_sensor_state']['range_m']:.1f}")
+    print(f"Base sensor detects   : {final_info['base_sensor_state']['total_detections']}")
+    print(f"Base sensor updates   : {final_info['base_sensor_state']['total_updates']}")
+    print(f"Base confirm step     : {final_info['base_threat_state']['first_confirmation_step']}")
+    print(f"Base confirm lag      : {final_info['base_threat_state']['confirmation_lag_steps']}")
+    print(f"Base track lag        : {final_info['base_threat_state']['track_lag_steps']}")
     print(f"Confirm step          : {confirmation_step}")
     print(f"Interceptor launch    : {interceptor_launch_step}")
     print(f"Intercept step        : {removal_step}")
