@@ -62,34 +62,87 @@ cd isr-rl-dmpc
 conda env create -f environment.yml
 conda activate isr-rl-dmpc
 
-# ── Option B: Python venv (CPU / lightweight) ────────────────────────────────
+# ── Option B: Python venv ────────────────────────────────────────────────────
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements/dev.txt
+pip install -r requirements/base.txt      # core deps (includes tensorboard)
 
 # Install the package in development mode (both options)
 pip install -e .
 
 # Run tests
+pip install -r requirements/dev.txt       # adds pytest, jupyter, etc.
 pytest tests/
+```
 
-# Quick-start notebook (package verification + DMPC + ADMM demo)
-jupyter notebook notebooks/01_quick_start.ipynb
+### Mode 1 — Pure DMPC (no learning required)
 
-# Train MAPPO policy (headless)
-python scripts/train_mappo.py --config config/mappo_config.yaml
+Run a mission using the fixed-cost DMPC controller.  No pre-trained model is
+needed.  Q/R matrices are the baseline identity matrices from `dmpc_config.yaml`.
 
-# ── Run a scenario with pure DMPC (no RL) ───────────────────────────────────
+```bash
+# area surveillance — 4 drones, lawnmower coverage (400 × 400 m)
 python scripts/run_dmpc.py --scenario area_surveillance
-python scripts/run_dmpc.py --scenario threat_response   --episodes 5
-python scripts/run_dmpc.py --scenario search_and_track  --num-drones 4
 
-# ── Run the same scenario with DMPC-RL (MAPPO-adaptive cost weights) ─────────
+# threat response — 4 drones, perimeter patrol + intercept (250 × 250 m)
+python scripts/run_dmpc.py --scenario threat_response --episodes 3
+
+# search and track — 4 drones, expanding-square search (600 × 600 m)
+python scripts/run_dmpc.py --scenario search_and_track --num-drones 4
+
+# Limit steps for a quick smoke test
+python scripts/run_dmpc.py --scenario area_surveillance --max-steps 200
+```
+
+Results (JSON) are saved to `data/results/dmpc/`.
+
+### Mode 2 — RL (MAPPO-adaptive DMPC)
+
+The RL mode uses a MAPPO policy (Stable-Baselines3 PPO) to dynamically tune
+per-drone Q/R cost scales at every step.  You must **first train** a policy,
+then **evaluate** it.
+
+#### Step 1 — Train the MAPPO policy
+
+```bash
+# Default: 1 000 000 steps, 4 drones, area_surveillance scenario
+python scripts/train_mappo.py
+
+# Override timesteps and number of drones
+python scripts/train_mappo.py --timesteps 500000 --num-drones 4
+
+# Train with a periodic evaluation environment
+python scripts/train_mappo.py --eval
+
+# Use the belief-coverage environment variant
+python scripts/train_mappo.py --env-kind belief_coverage
+```
+
+The trained model is saved to `models/mappo_dmpc/final.zip`.
+TensorBoard logs are written to `logs/mappo_dmpc/` (view with
+`tensorboard --logdir logs/mappo_dmpc`).
+
+#### Step 2 — Evaluate the MAPPO policy
+
+```bash
+# Evaluate the trained policy on each scenario
 python scripts/run_dmpc_rl.py --scenario area_surveillance
-python scripts/run_dmpc_rl.py --scenario threat_response  --model models/mappo_dmpc/final
+python scripts/run_dmpc_rl.py --scenario threat_response
 python scripts/run_dmpc_rl.py --scenario search_and_track --episodes 5
 
-# Open the comparison notebook to analyse both methods side-by-side
+# Point to a specific model checkpoint
+python scripts/run_dmpc_rl.py --scenario area_surveillance \
+    --model models/mappo_dmpc/final
+
+# Stochastic policy (default is deterministic for evaluation)
+python scripts/run_dmpc_rl.py --scenario area_surveillance --stochastic
+```
+
+Results (JSON) are saved to `data/results/dmpc_rl/`.
+
+#### Step 3 — Compare both modes
+
+```bash
 jupyter notebook notebooks/05_comparison_analysis.ipynb
 ```
 
@@ -228,15 +281,22 @@ Three pre-defined real-world ISR scenarios are available in `config/mission_scen
 
 ### Running Scenarios
 
-| Task | Command |
+#### Pure DMPC (Mode 1 — no model needed)
+
+| Command | Description |
 | :--- | :--- |
-| Pure DMPC — area surveillance | `python scripts/run_dmpc.py --scenario area_surveillance` |
-| Pure DMPC — threat response | `python scripts/run_dmpc.py --scenario threat_response` |
-| Pure DMPC — search & track | `python scripts/run_dmpc.py --scenario search_and_track` |
-| DMPC-RL — area surveillance | `python scripts/run_dmpc_rl.py --scenario area_surveillance` |
-| DMPC-RL — threat response | `python scripts/run_dmpc_rl.py --scenario threat_response` |
-| DMPC-RL — search & track | `python scripts/run_dmpc_rl.py --scenario search_and_track` |
-| Train MAPPO policy | `python scripts/train_mappo.py` |
+| `python scripts/run_dmpc.py --scenario area_surveillance` | Wide-area lawnmower coverage |
+| `python scripts/run_dmpc.py --scenario threat_response` | Perimeter patrol + intercept |
+| `python scripts/run_dmpc.py --scenario search_and_track` | Expanding-square search |
+
+#### RL — Train then Evaluate (Mode 2)
+
+| Command | Description |
+| :--- | :--- |
+| `python scripts/train_mappo.py` | Train MAPPO policy (saves to `models/mappo_dmpc/final.zip`) |
+| `python scripts/run_dmpc_rl.py --scenario area_surveillance` | Evaluate on area surveillance |
+| `python scripts/run_dmpc_rl.py --scenario threat_response` | Evaluate on threat response |
+| `python scripts/run_dmpc_rl.py --scenario search_and_track` | Evaluate on search & track |
 
 Results are saved as JSON files in `data/results/dmpc/` and `data/results/dmpc_rl/`
 respectively.  Open `notebooks/05_comparison_analysis.ipynb` for a head-to-head comparison.

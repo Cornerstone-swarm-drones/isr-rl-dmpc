@@ -30,10 +30,10 @@ setup(
         "cvxpy>=1.2.0",
         "osqp>=0.6.0",
         "pybullet>=3.2.5",
+        "tensorboard>=2.10.0",
     ],
     extras_require={
         "dev": [
-            "tensorboard>=2.10.0",
             "pytest>=6.2.0",
             "pytest-cov>=2.12.0",
             "black>=21.5b0",
