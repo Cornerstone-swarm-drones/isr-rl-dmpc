@@ -247,7 +247,3 @@ for _ in range(env.mission_duration):
         break
 env.close()
 ```
-
-
-        obs, _ = env.reset()
-```
