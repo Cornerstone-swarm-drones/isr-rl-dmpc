@@ -7,16 +7,29 @@ simulation that requires only the ``isr_rl_dmpc`` Python package and
 
 For each simulation step the script:
 1. Steps the 6-DOF ``EnvironmentSimulator`` (rigid-body physics, wind, battery).
-2. Runs the ``DMPCAgent`` for every active drone to compute optimal accelerations.
+2. Runs the ``DMPCAgent`` for every *launched* drone to compute optimal accelerations.
 3. Applies the commanded accelerations and advances the physics engine.
 4. Syncs every drone body and target marker in the PyBullet scene.
 5. Draws incremental trajectory trails using debug lines.
 6. Prints a one-line status snapshot every second of simulated time.
 
+Staggered launch
+----------------
+All drones start at the same home position ``[0, 0, HOME_ALTITUDE]`` and are
+launched at intervals of ``spawn_interval`` steps (default 50 = 1 s at 50 Hz).
+This guarantees the DMPC no-collision constraints are always satisfied at
+launch because the previous drone has already moved far enough away.
+
 Visualisation
 -------------
 By default the simulation opens an interactive OpenGL window (``--gui``).
 Pass ``--no-gui`` for headless / CI use (DIRECT mode — no window).
+
+Video recording
+---------------
+Pass ``--record`` to save an MP4 video of the PyBullet GUI window.  Videos
+are saved under ``data/videos/swarm/<scenario>/<timestamp>.mp4``.
+Requires GUI mode (ignored in headless mode).
 
 Usage
 -----
@@ -32,6 +45,9 @@ Usage
 
     # Run for a fixed number of steps then exit
     python pybullet_sim/swarm_pybullet_sim.py --max-steps 5000
+
+    # Record video
+    python pybullet_sim/swarm_pybullet_sim.py --record --scenario area_surveillance
 """
 
 from __future__ import annotations
@@ -42,6 +58,8 @@ import os
 import sys
 import time
 from collections import deque
+from datetime import datetime
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -125,6 +143,24 @@ _CAMERA_SMOOTHING_ALPHA: float = 0.15   # exponential-smoothing weight per step
 _MIN_CAMERA_DISTANCE: float = 25.0     # metres — never zoom closer than this
 _CAMERA_DISTANCE_MULTIPLIER: float = 3.0  # camera distance = multiplier × max spread
 
+# Staggered spawning
+_HOME_ALTITUDE: float = 5.0     # metres — all drones start here at home
+_DEFAULT_SPAWN_INTERVAL: int = 50  # steps between consecutive launches (1 s at 50 Hz)
+
+# Waiting-drone visual (grey, partially transparent)
+_WAITING_DRONE_COLOR: Tuple[float, float, float] = (0.6, 0.6, 0.6)
+_WAITING_DRONE_ALPHA: float = 0.5
+
+# Ground grid
+_GRID_SIZE: float = 200.0   # total extent of the visualised grid (±200 m each side)
+_GRID_SPACING: float = 50.0  # metres between grid lines
+_GRID_COLOR: Tuple[float, float, float] = (0.3, 0.3, 0.3)
+_GRID_LINE_WIDTH: float = 0.8
+
+# Home-position marker (cylinder on ground)
+_HOME_MARKER_RADIUS: float = 4.0  # metres
+_HOME_MARKER_COLOR: Tuple[float, float, float, float] = (0.9, 0.8, 0.1, 0.9)  # yellow
+
 # Path to the drone URDF from the canonical src/models location
 _URDF_PATH = get_urdf_path()
 
@@ -180,6 +216,10 @@ class SwarmPyBulletSim:
         gui: bool = True,
         realtime: bool = False,
         auto_camera: bool = True,
+        spawn_interval: int = _DEFAULT_SPAWN_INTERVAL,
+        record: bool = False,
+        scenario: str = "swarm",
+        output_dir: Optional[str] = None,
     ) -> None:
         self.n_drones = n_drones
         self.n_targets = n_targets
@@ -192,12 +232,29 @@ class SwarmPyBulletSim:
         self.gui = gui
         self.realtime = realtime
         self.auto_camera = auto_camera
+        self.spawn_interval = spawn_interval
+        self.record = record
+        self.scenario = scenario
+
+        # Determine video output directory
+        _repo_root = Path(__file__).resolve().parents[1]
+        self._video_dir = Path(output_dir) if output_dir else (
+            _repo_root / "data" / "videos" / "swarm" / scenario
+        )
+
+        # Staggered-launch state: drone i launches at step i * spawn_interval
+        self._drone_launched: List[bool] = [False] * n_drones
+        # Home position for all drones
+        self._home_pos: List[float] = [0.0, 0.0, _HOME_ALTITUDE]
 
         # Camera tracking state (smoothed each step when auto_camera=True)
         self._cam_target = np.array([0.0, 0.0, 20.0], dtype=float)
         self._cam_yaw: float = 45.0
         self._cam_pitch: float = -40.0
         self._cam_dist: float = 80.0
+
+        # PyBullet video logging handle
+        self._video_log_id: int = -1
 
         # ── Physics simulator ──────────────────────────────────────────────
         env_cfg = EnvironmentConfig(timestep=dt)
@@ -250,7 +307,8 @@ class SwarmPyBulletSim:
         print(
             f"[SwarmPyBulletSim] started — "
             f"{n_drones} drones, {n_targets} targets, "
-            f"dt={dt}s, horizon={horizon}, gui={gui and _PYBULLET_AVAILABLE}"
+            f"dt={dt}s, horizon={horizon}, gui={gui and _PYBULLET_AVAILABLE}, "
+            f"spawn_interval={spawn_interval} steps ({spawn_interval * dt:.1f}s)"
         )
 
     # ------------------------------------------------------------------
@@ -258,15 +316,19 @@ class SwarmPyBulletSim:
     # ------------------------------------------------------------------
 
     def _setup_initial_positions(self) -> None:
-        """Place drones in a grid and add target objects to the simulator."""
-        rng = np.random.RandomState(self.seed)
-        side = max(1, int(math.ceil(math.sqrt(self.n_drones))))
-        spacing = 30.0  # metres between drones
+        """Place all drones at the shared home position and add target objects.
 
+        All drones start at ``[0, 0, HOME_ALTITUDE]``.  They are launched
+        sequentially at intervals of ``spawn_interval`` steps so that the
+        DMPC no-collision constraints are always satisfied at launch time
+        (the previously launched drone has already flown far enough away).
+        """
+        rng = np.random.RandomState(self.seed)
+
+        # Every drone starts at the same home position
+        home = np.array(self._home_pos, dtype=float)
         for i in range(self.n_drones):
-            row, col = divmod(i, side)
-            pos = np.array([col * spacing, row * spacing, 20.0], dtype=float)
-            self._sim.set_drone_initial_state(i, position=pos)
+            self._sim.set_drone_initial_state(i, position=home.copy())
 
         target_types = [TargetType.HOSTILE, TargetType.NEUTRAL, TargetType.FRIENDLY]
         for j in range(self.n_targets):
@@ -287,12 +349,14 @@ class SwarmPyBulletSim:
         p.loadURDF("plane.urdf")
 
         if self.gui:
-            # Seed camera on the actual swarm centroid so it starts focused
-            positions = np.array([self._sim.drones[i].position for i in range(self.n_drones)])
-            centroid = positions.mean(axis=0)
-            spread = float(np.max(np.linalg.norm(positions - centroid, axis=1))) if self.n_drones > 1 else 0.0
-            self._cam_target = centroid.copy()
-            self._cam_dist = max(_MIN_CAMERA_DISTANCE, spread * _CAMERA_DISTANCE_MULTIPLIER)
+            # Improve visual quality
+            p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 0)
+            p.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, 0)
+
+            # Seed camera on the home position
+            self._cam_target = np.array(self._home_pos, dtype=float)
+            self._cam_target[2] = 0.0
+            self._cam_dist = max(_MIN_CAMERA_DISTANCE, 60.0)
 
             p.resetDebugVisualizerCamera(
                 cameraDistance=self._cam_dist,
@@ -300,6 +364,23 @@ class SwarmPyBulletSim:
                 cameraPitch=self._cam_pitch,
                 cameraTargetPosition=self._cam_target.tolist(),
             )
+
+            # Draw ground grid for spatial reference
+            self._draw_ground_grid()
+
+            # Draw home-position marker
+            self._draw_home_marker()
+
+            # Start video recording if requested
+            if self.record:
+                self._video_dir.mkdir(parents=True, exist_ok=True)
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                video_path = str(self._video_dir / f"{self.scenario}_{ts}.mp4")
+                self._video_log_id = p.startStateLogging(
+                    p.STATE_LOGGING_VIDEO_MP4, video_path
+                )
+                print(f"[SwarmPyBulletSim] Recording video → {video_path}")
+        else:
             p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 0)
 
         # ── Load drone bodies ──────────────────────────────────────────────
@@ -322,17 +403,13 @@ class SwarmPyBulletSim:
                 drone_id = self._create_drone_visual(i, pos)
             self._pb_drone_ids.append(drone_id)
 
-            # Recolour the body to the drone's assigned colour
-            r, g, b = _drone_color(i)
-            for link_idx in range(-1, p.getNumJoints(drone_id)):
-                p.changeVisualShape(
-                    drone_id, link_idx,
-                    rgbaColor=[r, g, b, 1.0],
-                )
+            # All drones start in "waiting" grey colour
+            self._set_drone_color(drone_id, i, launched=False)
 
             # Floating ID label above each drone
+            r, g, b = _WAITING_DRONE_COLOR
             label_id = p.addUserDebugText(
-                f"D{i}",
+                f"D{i} [wait]",
                 [pos[0], pos[1], pos[2] + _LABEL_HEIGHT_OFFSET],
                 textColorRGB=[r, g, b],
                 textSize=_LABEL_TEXT_SIZE,
@@ -344,6 +421,62 @@ class SwarmPyBulletSim:
             target = self._sim.targets[j]
             tgt_id = self._create_target_visual(j, target.position.tolist(), target.target_type)
             self._pb_target_ids.append(tgt_id)
+
+    def _draw_ground_grid(self) -> None:
+        """Draw a flat reference grid on the ground plane."""
+        if not _PYBULLET_AVAILABLE or self._pb_client < 0:
+            return
+        half = _GRID_SIZE
+        spacing = _GRID_SPACING
+        cr, cg, cb = _GRID_COLOR
+        coords = list(np.arange(-half, half + spacing, spacing))
+        for c in coords:
+            # Lines parallel to X axis
+            p.addUserDebugLine(
+                [c, -half, 0.05], [c, half, 0.05],
+                lineColorRGB=[cr, cg, cb], lineWidth=_GRID_LINE_WIDTH, lifeTime=0,
+            )
+            # Lines parallel to Y axis
+            p.addUserDebugLine(
+                [-half, c, 0.05], [half, c, 0.05],
+                lineColorRGB=[cr, cg, cb], lineWidth=_GRID_LINE_WIDTH, lifeTime=0,
+            )
+
+    def _draw_home_marker(self) -> None:
+        """Draw a glowing circle on the ground at the home position."""
+        if not _PYBULLET_AVAILABLE or self._pb_client < 0:
+            return
+        hx, hy, _ = self._home_pos
+        r = _HOME_MARKER_RADIUS
+        n_pts = 32
+        for k in range(n_pts):
+            a0 = 2.0 * math.pi * k / n_pts
+            a1 = 2.0 * math.pi * (k + 1) / n_pts
+            p.addUserDebugLine(
+                [hx + r * math.cos(a0), hy + r * math.sin(a0), 0.1],
+                [hx + r * math.cos(a1), hy + r * math.sin(a1), 0.1],
+                lineColorRGB=list(_HOME_MARKER_COLOR[:3]),
+                lineWidth=3.0,
+                lifeTime=0,
+            )
+        # Label
+        p.addUserDebugText(
+            "HOME",
+            [hx, hy, 2.5],
+            textColorRGB=list(_HOME_MARKER_COLOR[:3]),
+            textSize=2.0,
+        )
+
+    def _set_drone_color(self, drone_id: int, drone_idx: int, launched: bool) -> None:
+        """Apply the correct colour to all links of a drone body."""
+        if launched:
+            r, g, b = _drone_color(drone_idx)
+            alpha = 1.0
+        else:
+            r, g, b = _WAITING_DRONE_COLOR
+            alpha = _WAITING_DRONE_ALPHA
+        for link_idx in range(-1, p.getNumJoints(drone_id)):
+            p.changeVisualShape(drone_id, link_idx, rgbaColor=[r, g, b, alpha])
 
     def _create_drone_visual(self, drone_id: int, pos: List[float]) -> int:
         """Create a prominent flat-disc box visual when the URDF cannot be loaded."""
@@ -455,33 +588,43 @@ class SwarmPyBulletSim:
             quat = _euler_to_quat_xyzw(0.0, 0.0, yaw)
             p.resetBasePositionAndOrientation(self._pb_drone_ids[i], pos, quat)
 
-            # Floating ID label
+            launched = self._drone_launched[i]
+
+            # Floating ID label — shows countdown for waiting drones
             if i < len(self._drone_label_ids):
-                r, g, b = _drone_color(i)
+                if launched:
+                    r, g, b = _drone_color(i)
+                    label_text = f"D{i}"
+                else:
+                    r, g, b = _WAITING_DRONE_COLOR
+                    steps_until_launch = max(0, i * self.spawn_interval - self._step)
+                    launch_s = steps_until_launch * self.dt
+                    label_text = f"D{i} [T-{launch_s:.1f}s]"
                 self._drone_label_ids[i] = p.addUserDebugText(
-                    f"D{i}",
+                    label_text,
                     [pos[0], pos[1], pos[2] + _LABEL_HEIGHT_OFFSET],
                     textColorRGB=[r, g, b],
                     textSize=_LABEL_TEXT_SIZE,
                     replaceItemUniqueId=self._drone_label_ids[i],
                 )
 
-            # Trajectory trail
-            self._traj[i].append(pos)
-            if len(self._traj[i]) > 1:
-                r, g, b = _drone_color(i)
-                pts = list(self._traj[i])
-                line_id = p.addUserDebugLine(
-                    pts[-2], pts[-1],
-                    lineColorRGB=[r, g, b],
-                    lineWidth=1.5,
-                    lifeTime=0,  # persistent
-                )
-                self._traj_line_ids[i].append(line_id)
-                # Remove oldest line segment to keep trail bounded
-                if len(self._traj_line_ids[i]) > self.traj_length:
-                    old_id = self._traj_line_ids[i].pop(0)
-                    p.removeUserDebugItem(old_id)
+            # Trajectory trail — only for launched drones
+            if launched:
+                self._traj[i].append(pos)
+                if len(self._traj[i]) > 1:
+                    r, g, b = _drone_color(i)
+                    pts = list(self._traj[i])
+                    line_id = p.addUserDebugLine(
+                        pts[-2], pts[-1],
+                        lineColorRGB=[r, g, b],
+                        lineWidth=2.0,
+                        lifeTime=0,  # persistent
+                    )
+                    self._traj_line_ids[i].append(line_id)
+                    # Remove oldest line segment to keep trail bounded
+                    if len(self._traj_line_ids[i]) > self.traj_length:
+                        old_id = self._traj_line_ids[i].pop(0)
+                        p.removeUserDebugItem(old_id)
 
         for j, target_id in enumerate(self._pb_target_ids):
             target = self._sim.targets[j]
@@ -507,8 +650,11 @@ class SwarmPyBulletSim:
         if not self.auto_camera or not self.gui or not _PYBULLET_AVAILABLE or self._pb_client < 0:
             return
 
+        # Track only launched drones; fall back to all drones if none launched yet
         active_positions = [
-            drone.position for drone in self._sim.drones if drone.is_active
+            drone.position
+            for i, drone in enumerate(self._sim.drones)
+            if drone.is_active and (self._drone_launched[i] or not any(self._drone_launched))
         ]
         if not active_positions:
             return
@@ -546,18 +692,41 @@ class SwarmPyBulletSim:
         Returns:
             Status dict with step count, simulation time, solve times, etc.
         """
+        # ── Check which drones should now be launched ──────────────────────
+        for i in range(self.n_drones):
+            if not self._drone_launched[i] and self._step >= i * self.spawn_interval:
+                self._drone_launched[i] = True
+                print(
+                    f"[SwarmPyBulletSim] Drone D{i} launched at step {self._step} "
+                    f"(t={self._step * self.dt:.2f}s)"
+                )
+                # Switch drone body to its assigned colour
+                if _PYBULLET_AVAILABLE and self._pb_client >= 0 and i < len(self._pb_drone_ids):
+                    self._set_drone_color(self._pb_drone_ids[i], i, launched=True)
+
         # ── Collect current states ─────────────────────────────────────────
         states: List[np.ndarray] = [
             self._build_state_vector(i) for i in range(self.n_drones)
         ]
 
-        # ── Run DMPC for each drone ────────────────────────────────────────
+        # ── Run DMPC only for launched drones ─────────────────────────────
         solve_times: List[float] = []
         motor_commands: List[np.ndarray] = []
-        for i, (agent, state) in enumerate(zip(self._agents, states)):
-            neighbor_states = [states[j] for j in range(self.n_drones) if j != i]
+        # Neighbour states for DMPC: only launched neighbours
+        launched_indices = [j for j in range(self.n_drones) if self._drone_launched[j]]
+
+        for i in range(self.n_drones):
+            if not self._drone_launched[i]:
+                # Not yet launched — hold at home, skip DMPC
+                solve_times.append(0.0)
+                motor_commands.append(np.array([0.5, 0.5, 0.5, 0.5]))  # hover
+                continue
+
+            neighbor_states = [
+                states[j] for j in launched_indices if j != i
+            ]
             ref = self._build_reference(i)
-            motor_thrusts, info = agent.act(state, ref, neighbor_states=neighbor_states)
+            motor_thrusts, info = self._agents[i].act(state=states[i], ref=ref, neighbor_states=neighbor_states)
             solve_times.append(float(info.get("solve_time", 0.0)))
             motor_commands.append(np.asarray(motor_thrusts, dtype=float))
 
@@ -565,7 +734,12 @@ class SwarmPyBulletSim:
         wind = self._sim.wind_model.update(self.dt)
         for i, drone in enumerate(self._sim.drones):
             if drone.is_active:
-                drone.step(motor_commands[i], wind, self.dt)
+                if self._drone_launched[i]:
+                    drone.step(motor_commands[i], wind, self.dt)
+                else:
+                    # Freeze at home — override position in case physics drifted
+                    drone.position = np.array(self._home_pos, dtype=float)
+                    drone.velocity = np.zeros(3)
 
         self._sim.simulation_time += self.dt
         self._sim.update_target_detections()
@@ -578,6 +752,7 @@ class SwarmPyBulletSim:
         if _PYBULLET_AVAILABLE and self._pb_client >= 0:
             p.stepSimulation()
 
+        n_launched = sum(self._drone_launched)
         return {
             "step": self._step,
             "sim_time_s": self._sim.simulation_time,
@@ -585,6 +760,7 @@ class SwarmPyBulletSim:
             "collisions": self._sim.collision_count,
             "geofence_violations": self._sim.geofence_violations,
             "mean_solve_ms": float(np.mean(solve_times)) * 1e3 if solve_times else 0.0,
+            "n_launched": n_launched,
         }
 
     # ------------------------------------------------------------------
@@ -620,6 +796,7 @@ class SwarmPyBulletSim:
                 if status["step"] % steps_per_status == 0:
                     print(
                         f"[t={status['sim_time_s']:7.2f}s | step={status['step']:6d}] "
+                        f"launched={status['n_launched']}/{self.n_drones}  "
                         f"wall={status['wall_time_s']:6.1f}s  "
                         f"collisions={status['collisions']}  "
                         f"mean_solve={status['mean_solve_ms']:.2f}ms"
@@ -641,9 +818,13 @@ class SwarmPyBulletSim:
             self.close()
 
     def close(self) -> None:
-        """Disconnect from PyBullet."""
+        """Disconnect from PyBullet and stop any active video recording."""
         if _PYBULLET_AVAILABLE and self._pb_client >= 0:
             try:
+                if self._video_log_id >= 0:
+                    p.stopStateLogging(self._video_log_id)
+                    self._video_log_id = -1
+                    print("[SwarmPyBulletSim] Video recording stopped.")
                 p.disconnect(self._pb_client)
             except Exception as exc:
                 print(f"[WARNING] PyBullet disconnect failed: {exc}")
@@ -671,9 +852,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--seed",             type=int,   default=42,   help="Random seed")
     parser.add_argument("--traj-length",      type=int,   default=200,  help="Trajectory trail length")
     parser.add_argument("--max-steps",        type=int,   default=0,    help="Steps to run (0 = unlimited)")
+    parser.add_argument("--spawn-interval",   type=int,   default=_DEFAULT_SPAWN_INTERVAL,
+                        help="Steps between consecutive drone launches (0 = all at once)")
+    parser.add_argument("--scenario",         type=str,   default="swarm",
+                        help="Scenario name — used for video subfolder naming")
     parser.add_argument("--no-gui",           action="store_true",      help="Headless mode (no window)")
     parser.add_argument("--realtime",         action="store_true",      help="Pace simulation to real time")
     parser.add_argument("--auto-camera",      action="store_true",      help="Disable auto-follow camera (use manual PyBullet navigation)")
+    parser.add_argument("--record",           action="store_true",
+                        help="Save PyBullet GUI video to data/videos/swarm/<scenario>/ (requires --gui)")
     return parser.parse_args()
 
 
@@ -691,6 +878,9 @@ def main() -> None:
         gui=not args.no_gui,
         realtime=args.realtime,
         auto_camera=args.auto_camera,
+        spawn_interval=args.spawn_interval,
+        record=args.record,
+        scenario=args.scenario,
     )
     sim.run(max_steps=args.max_steps)
 

@@ -46,6 +46,7 @@ import yaml
 # Ensure the package is importable when running from the repo root.
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
 
 from isr_rl_dmpc.gym_env.marl_env import MARLDMPCEnv, ACT_DIM
 
@@ -103,7 +104,7 @@ def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
 
 # ── Episode runner ─────────────────────────────────────────────────────────
 
-def _run_episode(env: MARLDMPCEnv, max_steps: int, render: bool) -> dict:
+def _run_episode(env: MARLDMPCEnv, max_steps: int, render: bool, visualizer=None) -> dict:
     """Run one episode with all-ones Q/R scales (pure DMPC, no RL)."""
     obs, _ = env.reset()
     terminated = False  # guard against empty loop (zero max_steps)
@@ -146,6 +147,18 @@ def _run_episode(env: MARLDMPCEnv, max_steps: int, render: bool) -> dict:
         if render:
             env.render()
 
+        # Sync PyBullet visualiser (if active)
+        if visualizer is not None and visualizer.is_connected:
+            drone_positions = env._drone_states[:, :3]
+            drone_yaws = env._drone_states[:, 9]
+            target_positions = None
+            if env._simulator.num_targets > 0:
+                target_positions = np.array([
+                    env._simulator.targets[j].position
+                    for j in range(env._simulator.num_targets)
+                ])
+            visualizer.sync(drone_positions, target_positions, drone_yaws)
+
     metrics = {
         "method": "pure_dmpc",
         "total_reward": total_reward,
@@ -182,6 +195,11 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", default=str(ROOT / "data" / "results" / "dmpc"))
     parser.add_argument("--render", action="store_true")
+    parser.add_argument(
+        "--pybullet-record", action="store_true",
+        help="Open a PyBullet GUI window alongside the simulation and record an MP4 "
+             "video to data/videos/dmpc/<scenario>/",
+    )
     args = parser.parse_args()
 
     # Load configs
@@ -216,10 +234,32 @@ def main() -> None:
     env = MARLDMPCEnv(**env_kwargs)
     env.reset(seed=args.seed)
 
+    # ── Optional PyBullet visualiser / recorder ────────────────────────────
+    visualizer = None
+    if args.pybullet_record:
+        try:
+            from pybullet_sim.pybullet_recorder import PyBulletVisualizer
+            visualizer = PyBulletVisualizer(
+                num_drones=env_kwargs["num_drones"],
+                num_targets=env_kwargs["max_targets"],
+                scenario=args.scenario,
+                record=True,
+                method="dmpc",
+                spawn_interval_steps=50,
+            )
+        except Exception as exc:
+            logger.warning("Could not start PyBullet visualiser: %s", exc)
+            visualizer = None
+
     all_metrics: list[dict] = []
     for ep in range(1, args.episodes + 1):
+        if visualizer is not None:
+            # Provide initial drone positions (all at home)
+            home_pos = np.zeros((env_kwargs["num_drones"], 3))
+            home_pos[:, 2] = 30.0
+            visualizer.reset(home_pos, episode=ep)
         t0 = time.perf_counter()
-        metrics = _run_episode(env, env_kwargs["mission_duration"], args.render)
+        metrics = _run_episode(env, env_kwargs["mission_duration"], args.render, visualizer)
         elapsed = time.perf_counter() - t0
         metrics["scenario"] = args.scenario
         metrics["episode"] = ep
@@ -248,6 +288,8 @@ def main() -> None:
         all_metrics.append(metrics)
 
     env.close()
+    if visualizer is not None:
+        visualizer.close()
 
     # Save results
     out_dir = Path(args.output)
