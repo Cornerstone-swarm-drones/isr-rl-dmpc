@@ -64,7 +64,8 @@ def _load_scenarios(config_dir: Path) -> dict:
 
 
 def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
-                             max_steps_override: int | None, dmpc_cfg: dict) -> dict:
+                             max_steps_override: int | None, dmpc_cfg: dict,
+                             scenario_name: str) -> dict:
     """Map mission_scenarios.yaml entries to MARLDMPCEnv constructor kwargs."""
     num_drones = num_drones_override or scenario_cfg.get("num_drones", 4)
     max_targets = scenario_cfg.get("num_targets", 3)
@@ -80,6 +81,10 @@ def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
         dmpc_override.get("collision_radius", dmpc_cfg.get("collision_radius", 3.0))
     )
 
+    # Area size from scenario config
+    raw_area = scenario_cfg.get("area_size", [400.0, 400.0])
+    area_size = (float(raw_area[0]), float(raw_area[1]))
+
     return dict(
         num_drones=num_drones,
         max_targets=max(max_targets, 0),
@@ -88,6 +93,10 @@ def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
         dt=float(dmpc_cfg.get("dt", 0.02)),
         accel_max=accel_max,
         collision_radius=collision_radius,
+        solver_timeout=float(dmpc_cfg.get("solver_timeout", 0.02)),
+        osqp_max_iter=int(dmpc_cfg.get("osqp_max_iter", 4000)),
+        scenario=scenario_name,
+        area_size=area_size,
     )
 
 
@@ -192,7 +201,7 @@ def main() -> None:
     scenario_cfg = scenarios[args.scenario]
 
     env_kwargs = _scenario_to_env_kwargs(
-        scenario_cfg, args.num_drones, args.max_steps, dmpc_cfg
+        scenario_cfg, args.num_drones, args.max_steps, dmpc_cfg, args.scenario
     )
 
     print("=" * 60)

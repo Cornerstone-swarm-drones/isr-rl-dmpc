@@ -11,6 +11,9 @@ Common issues and solutions when working with ISR-DMPC.
   - [DMPC Acceleration Not Applied to Drones](#dmpc-acceleration-not-applied-to-drones)
   - [CVXPY Solver Timeout](#cvxpy-solver-timeout)
   - [DMPC Returns Zero Control (Infeasible)](#dmpc-returns-zero-control-infeasible)
+- [RL / MAPPO Issues](#rl--mappo-issues)
+  - [TensorBoard ImportError During Training](#tensorboard-importerror-during-training)
+  - [Model Not Found When Running run_dmpc_rl.py](#model-not-found-when-running-run_dmpc_rlpy)
 - [Performance Issues](#performance-issues)
 - [Configuration Issues](#configuration-issues)
 - [Testing Issues](#testing-issues)
@@ -245,6 +248,63 @@ making the DMPC QP infeasible.
 1. Ensure the formation controller (Module 2) maintains `communication_radius`
    and `min_swarm_separation` so drones never start inside each other's
    exclusion zone.
+
+---
+
+## RL / MAPPO Issues
+
+### TensorBoard ImportError During Training
+
+**Symptom:**
+
+```
+ImportError: Trying to log data to tensorboard but tensorboard is not installed.
+```
+
+**Cause:** `train_mappo.py` passes `tensorboard_log=log_dir` to the MAPPO
+agent, which requires TensorBoard.
+
+**Solution:**
+
+```bash
+# TensorBoard is included in requirements/base.txt — reinstall:
+pip install -r requirements/base.txt
+# or
+pip install tensorboard>=2.10.0
+```
+
+To disable TensorBoard logging, pass `tensorboard_log=None` to `MAPPOAgent`
+or remove it from `train_mappo.py`.
+
+---
+
+### Model Not Found When Running run_dmpc_rl.py
+
+**Symptom:**
+
+```
+ERROR: Model not found at 'models/mappo_dmpc/final'. Train first with:
+  python scripts/train_mappo.py
+```
+
+**Cause:** The RL evaluation script requires a trained MAPPO model.  No
+default model is shipped with the repository.
+
+**Solution:**
+
+1. Train a model first (see [Mode 2 in the README](../README.md)):
+
+   ```bash
+   python scripts/train_mappo.py --timesteps 500000
+   ```
+
+2. The trained model is saved to `models/mappo_dmpc/final.zip` automatically.
+
+3. Then run the evaluation:
+
+   ```bash
+   python scripts/run_dmpc_rl.py --scenario area_surveillance
+   ```
 
 ---
 

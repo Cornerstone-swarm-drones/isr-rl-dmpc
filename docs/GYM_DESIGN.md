@@ -113,21 +113,23 @@ action_space = spaces.Box(
 
 ## Reward Structure
 
-Each agent receives a scalar reward per step:
+Each step returns a scalar reward averaged over all drones:
 
 $$
-r^{(i)} = w_\text{track}\,r_\text{track} + w_\text{form}\,r_\text{form} + w_\text{safe}\,r_\text{safe} + w_\text{eff}\,r_\text{eff}
+r = \frac{1}{N}\left[\sum_{i=1}^{N}\left(w_\text{track}\,r_\text{track}^{(i)} + w_\text{form}\,r_\text{form}^{(i)} + w_\text{safe}\,r_\text{safe}^{(i)} + w_\text{eff}\,r_\text{eff}^{(i)}\right) + w_\text{cov}\,r_\text{cov}\right]
 $$
 
-| Component | Formula | Weight |
+| Component | Formula | Weight (area_surveillance) |
 | :--- | :--- | :--- |
-| Tracking | $\exp(-0.1\lVert\boldsymbol{e}_p\rVert^2) - 1$ | 5.0 |
-| Formation | $-\text{mean}(\lVert\Delta\boldsymbol{p}_{ij} - \boldsymbol{d}_{ij}\rVert)$ over neighbours | 2.0 |
-| Safety | $\sum_j\min(0, \lVert\boldsymbol{p}_i-\boldsymbol{p}_j\rVert - r_{\min})$ | 10.0 |
-| Efficiency | $-\lVert\boldsymbol{u}^{(i)}\rVert^2$ | 0.1 |
+| Tracking | $\exp(-0.01\lVert\boldsymbol{e}_p\rVert^2)$ ∈ (0, 1] | 3.0 |
+| Formation | $-\text{mean}(\max(0, d_\text{desired} - d_{ij}) / d_\text{desired})$ | 0.5 |
+| Safety | $\sum_j\min(0, d_{ij} - r_{\min})$ | 10.0 |
+| Efficiency | $-\lVert\boldsymbol{u}^{(i)}\rVert^2 / (u_{\max}^2 \cdot m)$ ∈ [-1, 0] | 0.05 |
+| Coverage | $\Delta\text{cov} \cdot 10 + \text{cov} \cdot 0.1$ (swarm-level) | 20.0 |
 
-The centralised critic during training uses the sum of all agents' rewards to
-compute a global value estimate.
+Scenario-specific weights are defined in `marl_env.py: _SCENARIO_WEIGHTS`.
+The tracking reward is always positive (range (0, 1]), preventing the agent
+from being stuck in an always-negative reward regime.
 
 ## Episode Dynamics
 
@@ -183,20 +185,65 @@ Or using the training script:
 python scripts/train_mappo.py --config config/mappo_config.yaml
 ```
 
-## Usage Examples
+## Two Running Modes
+
+### Mode 1 — Pure DMPC (no RL)
+
+The environment is driven with all-ones Q/R scales, so the DMPC uses its
+baseline cost matrices throughout.  No trained model is needed.
 
 ```python
-# Evaluate a trained MAPPO policy
-from isr_rl_dmpc.gym_env import MARLDMPCEnv
-from isr_rl_dmpc.agents import MAPPOAgent
+import numpy as np
+from isr_rl_dmpc.gym_env.marl_env import MARLDMPCEnv, ACT_DIM
 
-env = MARLDMPCEnv(num_drones=4, render_mode='human')
-agent = MAPPOAgent.load('models/mappo_dmpc_v1', env=env)
+env = MARLDMPCEnv(num_drones=4, scenario="area_surveillance")
+obs, _ = env.reset(seed=42)
+neutral_action = np.ones(env.num_drones * ACT_DIM, dtype=np.float32)
 
-obs, _ = env.reset()
-for _ in range(1000):
-    actions, _ = agent.predict(obs, deterministic=True)
-    obs, rewards, terminated, truncated, info = env.step(actions)
+for _ in range(env.mission_duration):
+    obs, reward, terminated, truncated, info = env.step(neutral_action)
     if terminated or truncated:
-        obs, _ = env.reset()
+        break
+env.close()
+```
+
+Or via the CLI:
+
+```bash
+python scripts/run_dmpc.py --scenario area_surveillance --max-steps 500
+```
+
+### Mode 2 — RL (MAPPO-adaptive DMPC)
+
+Train a MAPPO policy first, then evaluate it.
+
+**Step 1 — train:**
+
+```bash
+python scripts/train_mappo.py --timesteps 1000000
+# Saved to: models/mappo_dmpc/final.zip
+```
+
+**Step 2 — evaluate:**
+
+```bash
+python scripts/run_dmpc_rl.py --scenario area_surveillance
+```
+
+**Programmatic evaluation:**
+
+```python
+from isr_rl_dmpc.gym_env.marl_env import MARLDMPCEnv
+from isr_rl_dmpc.agents.mappo_agent import MAPPOAgent
+
+env = MARLDMPCEnv(num_drones=4, scenario="area_surveillance")
+agent = MAPPOAgent.load("models/mappo_dmpc/final", env=env)
+
+obs, _ = env.reset(seed=42)
+for _ in range(env.mission_duration):
+    actions, _ = agent.predict(obs, deterministic=True)
+    obs, reward, terminated, truncated, info = env.step(actions)
+    if terminated or truncated:
+        break
+env.close()
 ```
