@@ -664,6 +664,82 @@ def test_persistent_threat_respawns_for_multiple_cycles() -> None:
     env.close()
 
 
+def test_sequential_pending_threat_appears_before_active_is_resolved() -> None:
+    env = BeliefCoverageEnv(
+        num_drones=2,
+        mission_duration=40,
+        horizon=5,
+        dt=0.05,
+        area_size=(80.0, 80.0),
+        grid_resolution=20.0,
+        max_threat_cycles=2,
+        enable_sequential_pending_threats=True,
+        pending_threat_delay_steps=1,
+        validation_dynamics="fast_planar",
+    )
+    _, info = env.reset(seed=2)
+
+    assert info["active_threat"] is True
+    assert info["pending_threat_available"] is False
+    assert env._threat_cycles_spawned == 1
+
+    _, _, _, _, step_info = env.step(env.select_patrol_action())
+
+    assert step_info["active_threat"] is True
+    assert step_info["pending_threat_available"] is True
+    assert step_info["pending_threat_appeared_this_step"] is True
+    assert step_info["pending_threat_cue_applied_this_step"] is True
+    assert step_info["pending_threat_cells"].size == 4
+    assert step_info["pending_watchlist_count"] <= env.SEQUENTIAL_PENDING_WATCHLIST_DRONES
+    assert (
+        np.max(env.global_belief.anomaly_score[step_info["pending_threat_cells"]])
+        >= env.SEQUENTIAL_PENDING_CUE_SCORE * env.global_belief.config.anomaly_decay
+    )
+    assert env._threat_cycles_spawned == 1
+
+    env.close()
+
+
+def test_sequential_pending_threat_promotes_after_intercept() -> None:
+    env = BeliefCoverageEnv(
+        num_drones=2,
+        mission_duration=40,
+        horizon=5,
+        dt=0.05,
+        area_size=(80.0, 80.0),
+        grid_resolution=20.0,
+        max_threat_cycles=2,
+        enable_sequential_pending_threats=True,
+        pending_threat_delay_steps=0,
+        threat_belief_mode="limited_strict",
+    )
+    env.reset(seed=3)
+    active_patch = env._active_threat_cells.copy()
+    pending_patch = env._pending_threat_cells.copy()
+
+    assert active_patch.size == 4
+    assert pending_patch.size == 4
+    assert not np.array_equal(active_patch, pending_patch)
+    assert env._pending_threat_available is True
+
+    _force_confirmed_patch(env, active_patch)
+    env._interceptor_active = True
+    env._interceptor_position = env.cell_centers_xy[int(active_patch[0])].copy()
+    metrics = env._advance_interceptor_and_threat()
+
+    assert metrics["threat_removed"] is True
+    assert env._threat_cycles_completed == 1
+    assert env._threat_cycles_spawned == 2
+    assert env._active_threat_exists() is True
+    assert np.array_equal(env._active_threat_cells, pending_patch)
+    assert env._pending_threat_promoted_this_step is True
+    assert env._pending_threat_prior_applied_this_step is True
+    assert 0.0 < env._base_threat_confirmation_level < env.THREAT_CONFIRMATION_THRESHOLD
+    assert env._pending_threat_candidate_index < 0
+
+    env.close()
+
+
 def test_mission_fail_when_persistent_threat_reaches_base() -> None:
     env = BeliefCoverageEnv(
         num_drones=1,

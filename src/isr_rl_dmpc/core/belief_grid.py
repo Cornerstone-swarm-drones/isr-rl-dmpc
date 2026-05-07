@@ -298,6 +298,11 @@ class LocalBeliefGrid(BeliefGrid):
         """Return the cells updated since the last clear."""
         return np.flatnonzero(self._recently_changed)
 
+    def mark_changed(self, cell_indices: np.ndarray) -> None:
+        """Mark externally seeded local belief cells for neighbor sharing."""
+        idx = self._normalize_indices(cell_indices)
+        self._recently_changed[idx] = True
+
     def clear_recent_changes(self) -> None:
         """Reset the changed-cell tracker after communication finishes."""
         self._recently_changed.fill(False)

@@ -154,6 +154,17 @@ def _parse_args() -> argparse.Namespace:
         help="Override the moving-threat speed directly in m/s",
     )
     parser.add_argument(
+        "--enable-sequential-pending-threats",
+        action="store_true",
+        help="Stage a second pending threat before the active one is resolved.",
+    )
+    parser.add_argument(
+        "--pending-threat-delay-steps",
+        type=int,
+        default=20,
+        help="Delay before the staged next threat appears in diagnostics.",
+    )
+    parser.add_argument(
         "--interceptor-guidance-mode",
         choices=["oracle", "ekf"],
         default="oracle",
@@ -266,6 +277,10 @@ def _build_env_kwargs(scenario_cfg: dict, args: argparse.Namespace) -> dict:
         ),
         "persistent_threat_speed_case": str(args.threat_speed_case),
         "persistent_threat_speed": args.threat_speed,
+        "enable_sequential_pending_threats": bool(
+            getattr(args, "enable_sequential_pending_threats", False)
+        ),
+        "pending_threat_delay_steps": int(getattr(args, "pending_threat_delay_steps", 20)),
         "interceptor_guidance_mode": str(args.interceptor_guidance_mode),
         "response_policy": str(args.response_policy),
         "interceptor_launch_confidence": float(args.interceptor_launch_confidence),
@@ -311,6 +326,7 @@ def _run_rollout(
         "in_home_region": [info["in_home_region"].copy()],
         "patrol_detouring": [info["patrol_detouring"].copy()],
         "tracking_bias_drones": [info["tracking_bias_drones"].copy()],
+        "pending_watchlist_drones": [info["pending_watchlist_drones"].copy()],
         "mean_patrol_risk_belief": [float(info["mean_patrol_risk_belief"])],
         "neglect_pressure": [float(info["neglect_pressure"])],
         "mean_threat_belief": [float(info["mean_threat_belief"])],
@@ -323,13 +339,23 @@ def _run_rollout(
         "in_home_fraction": [float(np.mean(info["in_home_region"]))],
         "detour_fraction": [float(np.mean(info["patrol_detouring"]))],
         "tracking_fraction": [float(np.mean(info["tracking_bias_drones"]))],
+        "pending_watchlist_fraction": [float(np.mean(info["pending_watchlist_drones"]))],
         "threat_active": [float(info["active_threat"])],
+        "pending_threat_available": [float(info["pending_threat_available"])],
+        "pending_threat_appeared": [float(info["pending_threat_appeared_this_step"])],
+        "pending_threat_promoted": [float(info["pending_threat_promoted_this_step"])],
+        "pending_threat_cue_applied": [float(info["pending_threat_cue_applied_this_step"])],
+        "pending_threat_prior_applied": [float(info["pending_threat_prior_applied_this_step"])],
+        "pending_threat_observed": [float(info["pending_threat_observed_this_step"])],
+        "pending_threat_preconfirmation": [float(info["pending_threat_preconfirmation_level"])],
+        "sequential_watchlist_active": [float(info["sequential_watchlist_active"])],
         "threat_confirmed": [float(info["threat_confirmed"])],
         "central_command_notified": [float(info["central_command_notified"])],
         "interceptor_dispatched": [float(info["interceptor_state"]["dispatched_this_step"])],
         "interceptor_active": [float(info["interceptor_state"]["active"])],
         "interceptor_distance": [float(info["interceptor_state"]["distance_to_target"])],
         "threat_position_xy": [info["threat_state"]["position_xy"].copy()],
+        "pending_threat_position_xy": [info["threat_state"]["pending_position_xy"].copy()],
         "threat_distance_to_base": [
             float(np.linalg.norm(info["threat_state"]["position_xy"] - env.base_station))
             if bool(info["active_threat"])
@@ -384,6 +410,7 @@ def _run_rollout(
         history["in_home_region"].append(last_info["in_home_region"].copy())
         history["patrol_detouring"].append(last_info["patrol_detouring"].copy())
         history["tracking_bias_drones"].append(last_info["tracking_bias_drones"].copy())
+        history["pending_watchlist_drones"].append(last_info["pending_watchlist_drones"].copy())
         history["mean_patrol_risk_belief"].append(float(last_info["mean_patrol_risk_belief"]))
         history["neglect_pressure"].append(float(last_info["neglect_pressure"]))
         history["mean_threat_belief"].append(float(last_info["mean_threat_belief"]))
@@ -396,13 +423,23 @@ def _run_rollout(
         history["in_home_fraction"].append(float(np.mean(last_info["in_home_region"])))
         history["detour_fraction"].append(float(np.mean(last_info["patrol_detouring"])))
         history["tracking_fraction"].append(float(np.mean(last_info["tracking_bias_drones"])))
+        history["pending_watchlist_fraction"].append(float(np.mean(last_info["pending_watchlist_drones"])))
         history["threat_active"].append(float(last_info["active_threat"]))
+        history["pending_threat_available"].append(float(last_info["pending_threat_available"]))
+        history["pending_threat_appeared"].append(float(last_info["pending_threat_appeared_this_step"]))
+        history["pending_threat_promoted"].append(float(last_info["pending_threat_promoted_this_step"]))
+        history["pending_threat_cue_applied"].append(float(last_info["pending_threat_cue_applied_this_step"]))
+        history["pending_threat_prior_applied"].append(float(last_info["pending_threat_prior_applied_this_step"]))
+        history["pending_threat_observed"].append(float(last_info["pending_threat_observed_this_step"]))
+        history["pending_threat_preconfirmation"].append(float(last_info["pending_threat_preconfirmation_level"]))
+        history["sequential_watchlist_active"].append(float(last_info["sequential_watchlist_active"]))
         history["threat_confirmed"].append(float(last_info["threat_confirmed"]))
         history["central_command_notified"].append(float(last_info["central_command_notified"]))
         history["interceptor_dispatched"].append(float(last_info["interceptor_state"]["dispatched_this_step"]))
         history["interceptor_active"].append(float(last_info["interceptor_state"]["active"]))
         history["interceptor_distance"].append(float(last_info["interceptor_state"]["distance_to_target"]))
         history["threat_position_xy"].append(last_info["threat_state"]["position_xy"].copy())
+        history["pending_threat_position_xy"].append(last_info["threat_state"]["pending_position_xy"].copy())
         history["threat_distance_to_base"].append(
             float(np.linalg.norm(last_info["threat_state"]["position_xy"] - env.base_station))
             if bool(last_info["active_threat"])
@@ -606,6 +643,20 @@ def _draw_overlay(ax: plt.Axes, env: BeliefCoverageEnv, history: dict, final_inf
             zorder=9,
         )
 
+    pending_threat_cells = np.asarray(final_info.get("pending_threat_cells", []), dtype=np.int32)
+    if bool(final_info.get("pending_threat_available", False)) and pending_threat_cells.size > 0:
+        pending_xy = env.cell_centers_xy[pending_threat_cells]
+        ax.scatter(
+            pending_xy[:, 0],
+            pending_xy[:, 1],
+            marker="h",
+            s=64,
+            facecolors="none",
+            edgecolors="#277DA1",
+            linewidths=1.5,
+            zorder=8,
+        )
+
     threat_trace = np.asarray(final_info["threat_trace"], dtype=np.float64)
     if threat_trace.ndim == 2 and threat_trace.shape[0] > 0:
         ax.plot(
@@ -720,7 +771,8 @@ def _plot_rollout_diagnostics(
     show: bool,
 ) -> None:
     summary = _summarize_rollout(env, history, final_info)
-    hidden_patch_grid = env.rasterize_cell_values(env.get_active_threat_mask(), fill_value=0.0)
+    hidden_patch_values = np.maximum(env.get_active_threat_mask(), 0.55 * env.get_pending_threat_mask())
+    hidden_patch_grid = env.rasterize_cell_values(hidden_patch_values, fill_value=0.0)
     patrol_risk_grid = env.rasterize_cell_values(env.get_patrol_risk_belief_scores(), fill_value=0.0)
     threat_belief_grid = env.rasterize_cell_values(env.get_threat_belief_scores(), fill_value=0.0)
     persistence_grid = env.rasterize_cell_values(env.get_threat_persistence_scores(), fill_value=0.0)
@@ -731,7 +783,7 @@ def _plot_rollout_diagnostics(
         axes[0, 0],
         env,
         hidden_patch_grid,
-        title=f"Hidden Moving Threat Patch ({final_info['threat_speed_case']})",
+        title=f"Hidden Active + Pending Threats ({final_info['threat_speed_case']})",
         cmap="Reds",
         vmin=0.0,
         vmax=1.0,
@@ -918,6 +970,18 @@ def _plot_rollout_diagnostics(
     lifecycle = axes[1, 3]
     lifecycle.plot(steps, history["threat_active"], label="Threat active", linewidth=1.8)
     lifecycle.plot(steps, history["threat_confirmed"], label="Threat confirmed", linewidth=1.8)
+    lifecycle.plot(steps, history["pending_threat_available"], label="Pending threat", linewidth=1.5, linestyle="--")
+    lifecycle.plot(steps, history["pending_threat_preconfirmation"], label="Pending preconf", linewidth=1.4)
+    lifecycle.plot(steps, history["sequential_watchlist_active"], label="Watchlist active", linewidth=1.4, linestyle="-.")
+    lifecycle.plot(steps, history["pending_watchlist_fraction"], label="Pending drone frac", linewidth=1.4, linestyle=":")
+    lifecycle.scatter(
+        steps,
+        history["pending_threat_cue_applied"],
+        label="Pending cue",
+        color="#277DA1",
+        marker=".",
+        s=20,
+    )
     lifecycle.plot(steps, history["central_command_notified"], label="Central notified", linewidth=1.6)
     lifecycle.plot(steps, history["local_confirmed_fraction"], label="Local confirm frac", linewidth=1.4, linestyle="-.")
     lifecycle.plot(steps, history["base_confirmation_level"], label="Base confirm level", linewidth=1.4)
@@ -958,6 +1022,22 @@ def _plot_rollout_diagnostics(
         marker="o",
         s=22,
         facecolors="none",
+    )
+    lifecycle.scatter(
+        steps,
+        history["pending_threat_promoted"],
+        label="Pending promoted",
+        color="#277DA1",
+        marker="^",
+        s=26,
+    )
+    lifecycle.scatter(
+        steps,
+        history["pending_threat_prior_applied"],
+        label="Promotion prior",
+        color="#6A4C93",
+        marker="v",
+        s=26,
     )
     lifecycle.plot(steps, history["physical_base_reached"], label="Physical base reach", linewidth=1.6, color="#F77F00")
     lifecycle.plot(steps, history["mission_failed"], label="Mission fail", linewidth=1.8, color="#D62828")
@@ -1059,8 +1139,13 @@ def main() -> None:
     print(f"Home selected         : {int(np.sum(final_info['selected_in_home']))}/{env.num_drones}")
     print(f"Assist selected       : {int(np.sum(final_info['selected_in_assist']))}/{env.num_drones}")
     print(f"Tracking drones       : {int(np.sum(final_info['tracking_bias_drones']))}/{env.num_drones}")
+    print(f"Pending watch drones  : {int(np.sum(final_info['pending_watchlist_drones']))}/{env.num_drones}")
     print(f"Detouring drones      : {int(np.sum(final_info['patrol_detouring']))}")
     print(f"Threat confirmed      : {bool(final_info['threat_confirmed'])}")
+    print(f"Pending threat        : {bool(final_info['pending_threat_available'])}")
+    print(f"Pending promoted step : {bool(final_info['pending_threat_promoted_this_step'])}")
+    print(f"Pending prior step    : {bool(final_info['pending_threat_prior_applied_this_step'])}")
+    print(f"Pending preconfirm    : {final_info['pending_threat_preconfirmation_level']:.3f}")
     print(f"Threat cycle          : {final_info['threat_cycle_index']} completed={final_info['threat_cycles_completed']}")
     print(f"Threat eliminations   : {int(final_info['threat_cycles_completed'])}")
     print(f"Threat respawned step : {bool(final_info['threat_respawned_this_step'])}")

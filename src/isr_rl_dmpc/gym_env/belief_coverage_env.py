@@ -145,6 +145,10 @@ class BeliefCoverageEnv(gym.Env):
     PHASE2_BASE_DEFENSE_LAUNCH_URGENCY = 0.42
     PHASE2_BASE_SENSOR_CONFIRMATION_GAIN = 0.22
     PHASE2_BASE_SENSOR_CONFIRMATION_QUALITY_FLOOR = 0.25
+    SEQUENTIAL_PENDING_CUE_SCORE = 0.72
+    SEQUENTIAL_PENDING_LOCAL_CONFIRMATION_PRIOR = 0.35
+    SEQUENTIAL_PENDING_BASE_CONFIRMATION_PRIOR = 0.42
+    SEQUENTIAL_PENDING_WATCHLIST_DRONES = 2
     INTERCEPTOR_SPEED = 90.0
     INTERCEPTOR_PHASE2_MAX_SPEED = 85.0
     INTERCEPTOR_PHASE2_MAX_ACCEL = 220.0
@@ -178,6 +182,8 @@ class BeliefCoverageEnv(gym.Env):
         max_threat_cycles: int = 3,
         persistent_threat_speed_case: str = "medium",
         persistent_threat_speed: Optional[float] = None,
+        enable_sequential_pending_threats: bool = False,
+        pending_threat_delay_steps: int = 20,
         interceptor_guidance_mode: str = "oracle",
         response_policy: str = "baseline",
         interceptor_launch_confidence: float = 0.55,
@@ -220,6 +226,8 @@ class BeliefCoverageEnv(gym.Env):
             speed_case=self.persistent_threat_speed_case,
             speed_override=persistent_threat_speed,
         )
+        self.enable_sequential_pending_threats = bool(enable_sequential_pending_threats)
+        self.pending_threat_delay_steps = max(0, int(pending_threat_delay_steps))
         self.interceptor_guidance_mode = str(interceptor_guidance_mode).lower()
         if self.interceptor_guidance_mode not in self.INTERCEPTOR_GUIDANCE_MODES:
             available = ", ".join(sorted(self.INTERCEPTOR_GUIDANCE_MODES))
@@ -358,11 +366,25 @@ class BeliefCoverageEnv(gym.Env):
         self._threat_cycles_completed = 0
         self._threat_removed_this_step = False
         self._threat_respawned_this_step = False
+        self._pending_threat_available = False
+        self._pending_threat_appeared_this_step = False
+        self._pending_threat_promoted_this_step = False
+        self._pending_threat_cue_applied_this_step = False
+        self._pending_threat_prior_applied_this_step = False
+        self._sequential_watchlist_active = False
+        self._pending_threat_candidate_index = -1
+        self._pending_threat_cells = np.zeros(0, dtype=np.int32)
+        self._pending_threat_position = np.full(2, np.nan, dtype=np.float64)
+        self._pending_threat_scheduled_step = -1
+        self._pending_threat_preconfirmation_level = 0.0
+        self._pending_threat_observed_this_step = False
         self._interceptor_dispatched_this_step = False
         self._physical_base_reached_this_step = False
         self._central_command_notified = False
         self._tracking_bias_drones = np.zeros(self.num_drones, dtype=bool)
         self._tracking_target_cells = np.full(self.num_drones, -1, dtype=np.int32)
+        self._pending_watchlist_drones = np.zeros(self.num_drones, dtype=bool)
+        self._pending_watchlist_target_cells = np.full(self.num_drones, -1, dtype=np.int32)
         self._mission_failed = False
         self._mission_fail_reason = ""
         self._tracking_cap_current = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
@@ -558,8 +580,14 @@ class BeliefCoverageEnv(gym.Env):
         connectivity = self._compute_connectivity()
         self._threat_removed_this_step = False
         self._threat_respawned_this_step = False
+        self._pending_threat_appeared_this_step = False
+        self._pending_threat_promoted_this_step = False
+        self._pending_threat_cue_applied_this_step = False
+        self._pending_threat_prior_applied_this_step = False
+        self._pending_threat_observed_this_step = False
         self._interceptor_dispatched_this_step = False
         self._physical_base_reached_this_step = False
+        self._update_pending_threat_state(step=self._step_count)
         truth_metrics = self._update_truth_risk(step=self._step_count, grow=True)
         belief_metrics = self._update_beliefs(
             step=self._step_count,
@@ -706,6 +734,7 @@ class BeliefCoverageEnv(gym.Env):
         structured heuristic policy, not a learned POMDP controller.
         """
         chosen = np.zeros(self.num_drones, dtype=np.int32)
+        pending_watchlist_targets = self._pending_watchlist_targets()
 
         for drone_idx in range(self.num_drones):
             risk_scores = self._policy_risk_scores_for_drone(drone_idx)
@@ -740,6 +769,15 @@ class BeliefCoverageEnv(gym.Env):
                     self._clear_patrol_detour(drone_idx)
                     chosen[drone_idx] = int(self._tracking_target_cells[drone_idx])
                     continue
+
+            pending_watchlist_target = int(pending_watchlist_targets[drone_idx])
+            if (
+                pending_watchlist_target >= 0
+                and home_region_risk <= self.PATROL_ASSIST_TRIGGER_RISK
+            ):
+                self._clear_patrol_detour(drone_idx)
+                chosen[drone_idx] = pending_watchlist_target
+                continue
 
             detour_target = int(self._patrol_detour_targets[drone_idx])
             if detour_target >= 0:
@@ -1449,17 +1487,26 @@ class BeliefCoverageEnv(gym.Env):
         position_xy: np.ndarray,
     ) -> None:
         patch = np.unique(np.asarray(patch, dtype=np.int32))
-        self._truth_persistent_threat.fill(0.0)
-        if patch.size > 0:
-            self._truth_persistent_threat[patch] = 1.0
-        self._truth_risk_cue = self._truth_persistent_threat.copy()
         self._active_threat_cells = patch.copy()
         self._active_threat_patch_index = int(candidate_index)
         self._active_threat_position = np.asarray(position_xy, dtype=np.float64).copy()
+        self._refresh_persistent_threat_truth_field()
+        self._truth_risk_cue = self._truth_persistent_threat.copy()
         self._truth_risk_score = self.transition_model.compose_hidden_risk_state(
             self._truth_monitoring_risk,
             self._truth_persistent_threat,
         )
+
+    def _refresh_persistent_threat_truth_field(self) -> None:
+        """Compose active plus visible pending threat patches into hidden truth."""
+        self._truth_persistent_threat.fill(0.0)
+        if self._active_threat_cells.size > 0:
+            self._truth_persistent_threat[self._active_threat_cells] = 1.0
+        if self._pending_threat_available and self._pending_threat_cells.size > 0:
+            self._truth_persistent_threat[self._pending_threat_cells] = np.maximum(
+                self._truth_persistent_threat[self._pending_threat_cells],
+                float(self.SEQUENTIAL_PENDING_CUE_SCORE),
+            )
 
     def _active_threat_reached_base_region(self) -> bool:
         if not self._active_threat_exists():
@@ -1574,11 +1621,25 @@ class BeliefCoverageEnv(gym.Env):
         self._threat_cycles_completed = 0
         self._threat_removed_this_step = False
         self._threat_respawned_this_step = False
+        self._pending_threat_available = False
+        self._pending_threat_appeared_this_step = False
+        self._pending_threat_promoted_this_step = False
+        self._pending_threat_cue_applied_this_step = False
+        self._pending_threat_prior_applied_this_step = False
+        self._sequential_watchlist_active = False
+        self._pending_threat_candidate_index = -1
+        self._pending_threat_cells = np.zeros(0, dtype=np.int32)
+        self._pending_threat_position[:] = np.nan
+        self._pending_threat_scheduled_step = -1
+        self._pending_threat_preconfirmation_level = 0.0
+        self._pending_threat_observed_this_step = False
         self._interceptor_dispatched_this_step = False
         self._physical_base_reached_this_step = False
         self._central_command_notified = False
         self._tracking_bias_drones.fill(False)
         self._tracking_target_cells.fill(-1)
+        self._pending_watchlist_drones.fill(False)
+        self._pending_watchlist_target_cells.fill(-1)
         self._mission_failed = False
         self._mission_fail_reason = ""
         self._threat_base_eta_steps = -1
@@ -1599,6 +1660,7 @@ class BeliefCoverageEnv(gym.Env):
         if self.enable_persistent_threats and self.max_threat_cycles > 0:
             self._spawn_next_threat_patch()
             self._threat_respawned_this_step = False
+            self._schedule_pending_threat(step=0)
 
     def _choose_next_threat_patch_candidate(self) -> int:
         if not self._threat_patch_candidates:
@@ -1717,6 +1779,172 @@ class BeliefCoverageEnv(gym.Env):
         self._threat_respawned_this_step = True
         return True
 
+    def _schedule_pending_threat(self, *, step: int) -> bool:
+        """
+        Stage one future threat while the current incident remains the active focus.
+
+        Phase 3 intentionally keeps only one interceptor/EKF focus. The pending
+        patch represents an upcoming incident known to the scenario generator,
+        not an omniscient target handed to the drones.
+        """
+        if not self.enable_sequential_pending_threats:
+            return False
+        if not self.enable_persistent_threats or self.max_threat_cycles <= 0:
+            return False
+        if self._threat_cycles_spawned >= self.max_threat_cycles:
+            return False
+        if self._pending_threat_candidate_index >= 0:
+            return False
+
+        candidate_index = self._choose_next_threat_patch_candidate()
+        if candidate_index < 0:
+            return False
+        candidate = self._threat_patch_candidates[candidate_index]
+        self._pending_threat_candidate_index = int(candidate_index)
+        self._pending_threat_cells = np.unique(candidate.cell_indices.astype(np.int32))
+        self._pending_threat_position = candidate.centroid_xy.astype(np.float64).copy()
+        self._pending_threat_scheduled_step = int(step) + self.pending_threat_delay_steps
+        self._pending_threat_available = self.pending_threat_delay_steps == 0
+        self._pending_threat_appeared_this_step = bool(self._pending_threat_available)
+        if self._pending_threat_available:
+            self._apply_pending_threat_cue(self._pending_threat_cells)
+            self._refresh_persistent_threat_truth_field()
+            self._truth_risk_cue = self._truth_persistent_threat.copy()
+        return True
+
+    def _update_pending_threat_state(self, *, step: int) -> None:
+        """Make a scheduled pending threat visible to diagnostics after its delay."""
+        if self._pending_threat_candidate_index < 0 or self._pending_threat_available:
+            return
+        if int(step) >= self._pending_threat_scheduled_step:
+            self._pending_threat_available = True
+            self._pending_threat_appeared_this_step = True
+            self._apply_pending_threat_cue(self._pending_threat_cells)
+            self._refresh_persistent_threat_truth_field()
+            self._truth_risk_cue = self._truth_persistent_threat.copy()
+
+    def _clear_pending_threat(self) -> None:
+        self._pending_threat_available = False
+        self._pending_threat_candidate_index = -1
+        self._pending_threat_cells = np.zeros(0, dtype=np.int32)
+        self._pending_threat_position[:] = np.nan
+        self._pending_threat_scheduled_step = -1
+        self._pending_threat_preconfirmation_level = 0.0
+        self._refresh_persistent_threat_truth_field()
+        self._truth_risk_cue = self._truth_persistent_threat.copy()
+
+    def _local_drones_for_cells(self, cell_indices: np.ndarray) -> np.ndarray:
+        """Return drones whose home/assist region overlaps the given cells."""
+        cells = set(np.asarray(cell_indices, dtype=np.int32).tolist())
+        if not cells:
+            return np.zeros(0, dtype=np.int32)
+        local_drone_ids: List[int] = []
+        for drone_idx in range(self.num_drones):
+            local_region = np.union1d(
+                self._home_cell_indices[drone_idx],
+                self._assist_cell_indices[drone_idx],
+            )
+            if any(int(cell) in cells for cell in local_region):
+                local_drone_ids.append(int(drone_idx))
+        return np.asarray(local_drone_ids, dtype=np.int32)
+
+    def _apply_pending_threat_cue(self, cell_indices: np.ndarray) -> None:
+        """
+        Seed a local watchlist cue for the next incident without authorizing launch.
+
+        The cue is deliberately below confirmation semantics: it can influence
+        nearby home/assist patrol choices, but limited-strict launch still needs
+        post-promotion observation and delayed base confirmation.
+        """
+        cells = np.asarray(cell_indices, dtype=np.int32)
+        if cells.size == 0:
+            return
+        cue_score = float(self.SEQUENTIAL_PENDING_CUE_SCORE)
+        self.global_belief.anomaly_score[cells] = np.maximum(
+            self.global_belief.anomaly_score[cells],
+            cue_score,
+        )
+        for drone_idx in self._local_drones_for_cells(cells):
+            local = self.local_beliefs[int(drone_idx)]
+            local.anomaly_score[cells] = np.maximum(local.anomaly_score[cells], cue_score)
+            local.mark_changed(cells)
+        self._pending_threat_cue_applied_this_step = True
+
+    def _apply_promoted_pending_threat_prior(self, cell_indices: np.ndarray) -> None:
+        """
+        Preserve bounded watchlist memory when a pending incident becomes active.
+
+        This is intentionally sub-threshold. It reduces cold-start latency for
+        the second incident while still requiring real observation/relay before
+        ``limited_strict`` can confirm and launch.
+        """
+        cells = np.asarray(cell_indices, dtype=np.int32)
+        if cells.size == 0:
+            return
+        if self._uses_limited_threat_belief():
+            base_prior = max(
+                float(self.SEQUENTIAL_PENDING_BASE_CONFIRMATION_PRIOR),
+                float(self._pending_threat_preconfirmation_level),
+            )
+            local_prior = max(
+                float(self.SEQUENTIAL_PENDING_LOCAL_CONFIRMATION_PRIOR),
+                float(self._pending_threat_preconfirmation_level),
+            )
+            for drone_idx in self._local_drones_for_cells(cells):
+                self._local_threat_confirmation_levels[int(drone_idx)] = max(
+                    float(self._local_threat_confirmation_levels[int(drone_idx)]),
+                    local_prior,
+                )
+            self._base_threat_confirmation_level = max(
+                float(self._base_threat_confirmation_level),
+                base_prior,
+            )
+            if self._pending_threat_preconfirmation_level >= self.THREAT_CONFIRMATION_THRESHOLD:
+                self._shared_track_filter.initialize(np.mean(self.cell_centers_xy[cells], axis=0), step=self._step_count)
+                self._shared_track_confidence = self._shared_track_filter.confidence(step=self._step_count)
+        else:
+            self._active_threat_confirmation_level = max(
+                float(self._active_threat_confirmation_level),
+                max(
+                    float(self.SEQUENTIAL_PENDING_BASE_CONFIRMATION_PRIOR),
+                    float(self._pending_threat_preconfirmation_level),
+                ),
+            )
+        self._threat_persistence_score[cells] = np.maximum(
+            self._threat_persistence_score[cells],
+            float(self.SEQUENTIAL_PENDING_BASE_CONFIRMATION_PRIOR),
+        )
+        self._sequential_watchlist_active = True
+        self._pending_threat_prior_applied_this_step = True
+
+    def _promote_pending_threat(self) -> bool:
+        """Promote the staged incident after the active threat is resolved."""
+        if self._pending_threat_candidate_index < 0 or self._pending_threat_cells.size == 0:
+            return False
+        if self._threat_cycles_spawned >= self.max_threat_cycles:
+            self._clear_pending_threat()
+            return False
+        candidate_index = int(self._pending_threat_candidate_index)
+        cells = self._pending_threat_cells.copy()
+        position = self._pending_threat_position.copy()
+        had_visible_cue = bool(self._pending_threat_available)
+        preconfirmation_level = float(self._pending_threat_preconfirmation_level)
+        self._clear_pending_threat()
+        self._activate_threat_patch(
+            cells,
+            candidate_index=candidate_index,
+            count_as_spawn=True,
+            position_xy=position,
+        )
+        self._pending_threat_preconfirmation_level = preconfirmation_level
+        if had_visible_cue:
+            self._apply_promoted_pending_threat_prior(cells)
+        self._pending_threat_preconfirmation_level = 0.0
+        self._threat_respawned_this_step = True
+        self._pending_threat_promoted_this_step = True
+        self._schedule_pending_threat(step=self._step_count)
+        return True
+
     def _reset_patrol_state(self) -> None:
         """Reset deterministic patrol progress and detour state."""
         self._patrol_route_indices.fill(0)
@@ -1786,6 +2014,13 @@ class BeliefCoverageEnv(gym.Env):
         if self._active_threat_exists():
             active_mask[self._active_threat_cells] = 1.0
         return active_mask
+
+    def get_pending_threat_mask(self) -> np.ndarray:
+        """Return a float mask over the staged next incident, if visible."""
+        pending_mask = np.zeros(self.n_cells, dtype=np.float64)
+        if self._pending_threat_available and self._pending_threat_cells.size > 0:
+            pending_mask[self._pending_threat_cells] = 1.0
+        return pending_mask
 
     def get_interceptor_trace(self) -> np.ndarray:
         """Return the interceptor trajectory accumulated so far."""
@@ -2072,6 +2307,57 @@ class BeliefCoverageEnv(gym.Env):
         )
         return int(assist_cells[int(np.argmax(assist_scores))])
 
+    def _pending_watchlist_targets(self) -> np.ndarray:
+        """
+        Assign a tiny pending-incident watchlist detour.
+
+        This is deliberately bounded to one non-active-tracking drone by
+        default. It improves second-incident observability without turning the
+        pending cue into a global pursuit task.
+        """
+        targets = np.full(self.num_drones, -1, dtype=np.int32)
+        self._pending_watchlist_drones.fill(False)
+        self._pending_watchlist_target_cells.fill(-1)
+        if not self._pending_threat_available or self._pending_threat_cells.size == 0:
+            return targets
+
+        pending_cells = self._pending_threat_cells
+        pending_xy = (
+            self._pending_threat_position
+            if np.all(np.isfinite(self._pending_threat_position))
+            else np.mean(self.cell_centers_xy[pending_cells], axis=0)
+        )
+        candidate_rankings: List[Tuple[int, int, float]] = []
+        for drone_idx in range(self.num_drones):
+            if bool(self._tracking_bias_drones[drone_idx]):
+                continue
+            local_region = np.union1d(
+                self._home_cell_indices[drone_idx],
+                self._assist_cell_indices[drone_idx],
+            )
+            local_overlap = int(np.intersect1d(local_region, pending_cells).size > 0)
+            distance = float(np.linalg.norm(self._drone_states[drone_idx, :2] - pending_xy))
+            candidate_rankings.append((int(drone_idx), -local_overlap, distance))
+
+        if not candidate_rankings:
+            return targets
+
+        watchlist_count = min(
+            int(self.SEQUENTIAL_PENDING_WATCHLIST_DRONES),
+            len(candidate_rankings),
+            self.num_drones,
+        )
+        pending_distances = np.linalg.norm(
+            self.cell_centers_xy[pending_cells] - pending_xy[None, :],
+            axis=1,
+        )
+        target_cell = int(pending_cells[int(np.argmin(pending_distances))])
+        for drone_idx, *_ in sorted(candidate_rankings, key=lambda item: (item[1], item[2]))[:watchlist_count]:
+            targets[int(drone_idx)] = target_cell
+            self._pending_watchlist_drones[int(drone_idx)] = True
+            self._pending_watchlist_target_cells[int(drone_idx)] = target_cell
+        return targets
+
     def _positions_in_home_region(self) -> np.ndarray:
         """Return a binary mask for whether each drone is inside its own home strip."""
         in_home = np.zeros(self.num_drones, dtype=np.int32)
@@ -2322,6 +2608,9 @@ class BeliefCoverageEnv(gym.Env):
         threat_observed_by_drone = np.zeros(self.num_drones, dtype=bool)
         threat_evidence_by_drone = np.zeros(self.num_drones, dtype=np.float64)
         active_set = set(self._active_threat_cells.tolist())
+        pending_set = set(self._pending_threat_cells.tolist()) if self._pending_threat_available else set()
+        if pending_set:
+            self._pending_threat_preconfirmation_level *= self.THREAT_CONFIRMATION_DECAY
 
         for drone_idx, local in enumerate(self.local_beliefs):
             position = self._drone_states[drone_idx, :2]
@@ -2344,6 +2633,19 @@ class BeliefCoverageEnv(gym.Env):
                         threat_evidence_by_drone[drone_idx] = float(
                             np.mean(threat_evidence[overlap_mask])
                         )
+                if pending_set:
+                    pending_overlap = np.array([int(cell) in pending_set for cell in cell_idx], dtype=bool)
+                    if np.any(pending_overlap):
+                        pending_evidence = float(np.mean(threat_evidence[pending_overlap]))
+                        self._pending_threat_preconfirmation_level = float(
+                            np.clip(
+                                self._pending_threat_preconfirmation_level
+                                + self.THREAT_CONFIRMATION_GAIN * pending_evidence,
+                                0.0,
+                                1.0,
+                            )
+                        )
+                        self._pending_threat_observed_this_step = True
             self.belief_updater.apply_local_observation(
                 local,
                 cell_idx,
@@ -2605,6 +2907,8 @@ class BeliefCoverageEnv(gym.Env):
         )
         if self._base_threat_confirmed and self._base_first_confirmation_step < 0:
             self._base_first_confirmation_step = int(step)
+        if self._base_threat_confirmed:
+            self._sequential_watchlist_active = False
 
         active_cells = self._active_threat_cells
         self._active_threat_confirmation_level = float(self._base_threat_confirmation_level)
@@ -2684,6 +2988,22 @@ class BeliefCoverageEnv(gym.Env):
         """Pick trackers from drones that have locally confirmed the threat."""
         self._tracking_cap_current = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
         eligible = np.flatnonzero(self._local_threat_confirmed)
+        if eligible.size == 0 and self._sequential_watchlist_active and self._active_threat_exists():
+            watchlist_eligible: List[int] = []
+            active_cells = self._active_threat_cells
+            for drone_idx in range(self.num_drones):
+                local = self.local_beliefs[int(drone_idx)]
+                has_local_cue = bool(
+                    active_cells.size > 0
+                    and np.max(local.anomaly_score[active_cells]) >= self.THREAT_SUSPECT_THRESHOLD
+                )
+                has_prior = (
+                    self._local_threat_confirmation_levels[int(drone_idx)]
+                    >= 0.5 * self.SEQUENTIAL_PENDING_LOCAL_CONFIRMATION_PRIOR
+                )
+                if has_local_cue or has_prior:
+                    watchlist_eligible.append(int(drone_idx))
+            eligible = np.asarray(watchlist_eligible, dtype=np.int32)
         if eligible.size == 0:
             return selected
 
@@ -2801,6 +3121,7 @@ class BeliefCoverageEnv(gym.Env):
         self._central_command_notified = False
         self._tracking_bias_drones.fill(False)
         self._tracking_target_cells.fill(-1)
+        self._sequential_watchlist_active = False
         self._tracking_cap_current = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
         self._interceptor_active = False
         self._interceptor_velocity[:] = 0.0
@@ -2814,7 +3135,9 @@ class BeliefCoverageEnv(gym.Env):
             self._truth_monitoring_risk,
             self._truth_persistent_threat,
         )
-        self._spawn_next_threat_patch()
+        if not self._promote_pending_threat():
+            if self._spawn_next_threat_patch():
+                self._schedule_pending_threat(step=self._step_count)
 
     def _advance_interceptor_and_threat(self) -> Dict[str, bool | float]:
         """
@@ -3113,6 +3436,7 @@ class BeliefCoverageEnv(gym.Env):
             cap=self.reward_shaper.weights.low_soc_cap,
         )
         active_threat_mask = self.get_active_threat_mask()
+        pending_threat_mask = self.get_pending_threat_mask()
         confirmed_threat_mask = self.get_confirmed_threat_mask()
         suspected_threat_mask = np.zeros(self.n_cells, dtype=np.float64)
         if self._active_threat_exists() and not self._threat_confirmed:
@@ -3168,11 +3492,21 @@ class BeliefCoverageEnv(gym.Env):
             "high_risk_fraction": float(np.mean(risk_scores >= self.PATROL_ASSIST_TRIGGER_RISK)),
             "never_observed_fraction": float(np.mean(self.global_belief.last_observed_step < 0)),
             "active_threat": bool(self._active_threat_exists()),
+            "pending_threat_available": bool(self._pending_threat_available),
+            "pending_threat_appeared_this_step": bool(self._pending_threat_appeared_this_step),
+            "pending_threat_promoted_this_step": bool(self._pending_threat_promoted_this_step),
+            "pending_threat_cue_applied_this_step": bool(self._pending_threat_cue_applied_this_step),
+            "pending_threat_prior_applied_this_step": bool(self._pending_threat_prior_applied_this_step),
+            "pending_threat_observed_this_step": bool(self._pending_threat_observed_this_step),
+            "pending_threat_preconfirmation_level": float(self._pending_threat_preconfirmation_level),
+            "sequential_watchlist_active": bool(self._sequential_watchlist_active),
             "threat_suspected": bool(threat_metrics.get("threat_suspected", False)),
             "threat_confirmed": bool(self._threat_confirmed),
             "central_command_notified": bool(self._central_command_notified),
             "active_threat_cells": self._active_threat_cells.copy(),
+            "pending_threat_cells": self._pending_threat_cells.copy(),
             "active_threat_mask": active_threat_mask.astype(np.float32),
+            "pending_threat_mask": pending_threat_mask.astype(np.float32),
             "suspected_threat_mask": suspected_threat_mask.astype(np.float32),
             "confirmed_threat_mask": confirmed_threat_mask.astype(np.float32),
             "threat_persistence_scores": self._threat_persistence_score.astype(np.float32).copy(),
@@ -3181,11 +3515,15 @@ class BeliefCoverageEnv(gym.Env):
             "mean_threat_persistence_score": float(np.mean(self._threat_persistence_score)),
             "tracking_bias_drones": self._tracking_bias_drones.astype(np.int32).copy(),
             "tracking_target_cells": self._tracking_target_cells.copy(),
+            "pending_watchlist_drones": self._pending_watchlist_drones.astype(np.int32).copy(),
+            "pending_watchlist_target_cells": self._pending_watchlist_target_cells.copy(),
+            "pending_watchlist_count": int(np.sum(self._pending_watchlist_drones)),
             "threat_cycle_index": int(self._threat_cycles_spawned),
             "threat_cycles_completed": int(self._threat_cycles_completed),
             "threat_cycles_remaining": int(max(self.max_threat_cycles - self._threat_cycles_spawned, 0)),
             "threat_removed_this_step": bool(self._threat_removed_this_step),
             "threat_respawned_this_step": bool(self._threat_respawned_this_step),
+            "pending_threat_scheduled_step": int(self._pending_threat_scheduled_step),
             "threat_moved_this_step": bool(truth_metrics.get("threat_moved", False)),
             "threat_step_distance": float(truth_metrics.get("threat_step_distance", 0.0)),
             "threat_base_eta_steps": int(self._threat_base_eta_steps),
@@ -3303,6 +3641,14 @@ class BeliefCoverageEnv(gym.Env):
                 "velocity_xy": self._active_threat_velocity.astype(np.float32).copy(),
                 "speed": float(self.persistent_threat_speed),
                 "speed_case": self.persistent_threat_speed_case,
+                "pending_available": bool(self._pending_threat_available),
+                "pending_position_xy": self._pending_threat_position.astype(np.float32).copy(),
+                "pending_scheduled_step": int(self._pending_threat_scheduled_step),
+                "pending_cue_applied_this_step": bool(self._pending_threat_cue_applied_this_step),
+                "pending_prior_applied_this_step": bool(self._pending_threat_prior_applied_this_step),
+                "pending_observed_this_step": bool(self._pending_threat_observed_this_step),
+                "pending_preconfirmation_level": float(self._pending_threat_preconfirmation_level),
+                "sequential_watchlist_active": bool(self._sequential_watchlist_active),
             },
             "threat_trace": self.get_threat_trace().astype(np.float32),
             "interceptor_state": {
