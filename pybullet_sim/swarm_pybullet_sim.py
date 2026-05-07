@@ -726,7 +726,7 @@ class SwarmPyBulletSim:
                 states[j] for j in launched_indices if j != i
             ]
             ref = self._build_reference(i)
-            motor_thrusts, info = self._agents[i].act(state=states[i], ref=ref, neighbor_states=neighbor_states)
+            motor_thrusts, info = self._agents[i].act(state=states[i], reference_trajectory=ref, neighbor_states=neighbor_states)
             solve_times.append(float(info.get("solve_time", 0.0)))
             motor_commands.append(np.asarray(motor_thrusts, dtype=float))
 

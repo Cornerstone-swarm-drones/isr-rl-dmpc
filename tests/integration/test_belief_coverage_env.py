@@ -470,7 +470,7 @@ def test_visualization_script_generates_diagnostic_figure(tmp_path: Path) -> Non
     pytest.importorskip("yaml")
 
     script_path = Path(
-        "/Users/apple/Desktop/cornerstone/isr-rl-dmpc/scripts/visualize_belief_coverage.py"
+        "./scripts/visualize_belief_coverage.py"
     )
     spec = importlib.util.spec_from_file_location("visualize_belief_coverage", script_path)
     assert spec is not None and spec.loader is not None
