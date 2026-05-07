@@ -634,10 +634,12 @@ class EnvironmentSimulator:
                 min_distance <= self.target_config.max_detection_distance):
                 target.is_detected = True
 
-    def step(self, motor_commands: np.ndarray) -> None:
+    def step(self, motor_commands: np.ndarray,
+         launched_mask: Optional[np.ndarray] = None) -> None:
         """
         Advance simulation by one control step.
-
+        launched_mask: boolean array (num_drones,). If provided, collision and
+        geofence checks are skipped for drones where launched_mask[i] == False.
         Motor commands shape: (num_drones, 4)
 
         Args:
@@ -645,37 +647,36 @@ class EnvironmentSimulator:
         """
         dt = self.env_config.timestep
         substep_dt = dt / self.env_config.physics_substeps
-        
+
         # Update wind
         self.current_wind = self.wind_model.update(dt)
-        
-        # Physics sub-stepping (RK4-style)
+
+        # Physics sub-stepping
         for _ in range(self.env_config.physics_substeps):
-            # Update drone physics
             for drone_id, drone in enumerate(self.drones):
                 if drone_id < len(motor_commands):
                     commands = motor_commands[drone_id]
                     drone.step(commands, self.current_wind, substep_dt)
-            
-            # Update target physics
             for target in self.targets[:self.num_targets]:
                 target.step(substep_dt)
-        
-        # Detect collisions
+
+        # Detect collisions — only for launched drones
         for drone_id in range(self.num_drones):
+            if launched_mask is not None and not launched_mask[drone_id]:
+                continue                          # ← skip unlaunched
             if self.check_collision(drone_id):
                 self.drones[drone_id].is_active = False
-        
-        # Check geofence
+
+        # Check geofence — only for launched drones
         for drone_id in range(self.num_drones):
+            if launched_mask is not None and not launched_mask[drone_id]:
+                continue                          # ← skip unlaunched
             if self.check_geofence(drone_id):
                 self.drones[drone_id].is_active = False
-        
-        # Update target detections
+
         self.update_target_detections()
-        
-        # Update simulation time
         self.simulation_time += dt
+
 
     def get_drone_states(self) -> np.ndarray:
         """
@@ -721,8 +722,9 @@ class EnvironmentSimulator:
 
     def reset(self) -> None:
         """Reset simulator state."""
+        _SAFE_RESET_ALTITUDE = 30.0
         for drone in self.drones:
-            drone.position = np.zeros(3)
+            drone.position = np.array([0.0, 0.0, _SAFE_RESET_ALTITUDE])
             drone.velocity = np.zeros(3)
             drone.q = np.array([1.0, 0.0, 0.0, 0.0])
             drone.angular_velocity = np.zeros(3)

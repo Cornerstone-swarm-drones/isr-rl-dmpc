@@ -404,10 +404,11 @@ class MARLDMPCEnv(gym.Env):
 
         # ── Apply controls to simulator ──────────────────────────────────
         motor_cmds = self._accel_to_motor_cmds(controls)  # (num_drones, 4)
-        self._simulator.step(motor_cmds)
+        self._simulator.step(motor_cmds, launched_mask=self._drone_launched)  # ← pass mask
         terminated = not all(
-            d.is_active for i, d in enumerate(self._simulator.drones)
-            if self._drone_launched[i]
+            d.is_active
+            for i, d in enumerate(self._simulator.drones)
+            if self._drone_launched[i] and self._step_count > (i * self.spawn_interval_steps + 2)
         )
         truncated = False
         self._sync_states_from_sim()
@@ -580,6 +581,8 @@ class MARLDMPCEnv(gym.Env):
         sum_r_eff = 0.0
 
         for i in range(self.num_drones):
+            if not self._drone_launched[i]:
+                continue
             state = self._drone_states[i]
             ref_pos = self._references[i, 0, :3]
             track_err = np.linalg.norm(state[:3] - ref_pos)
@@ -592,7 +595,7 @@ class MARLDMPCEnv(gym.Env):
             r_form = 0.0
             n_neighbours_checked = 0
             for j in range(self.num_drones):
-                if j != i:
+                if j != i and self._drone_launched[j]:
                     dist = float(np.linalg.norm(
                         self._drone_states[j][:3] - state[:3]
                     ))
@@ -607,7 +610,7 @@ class MARLDMPCEnv(gym.Env):
             # Safety: CBF-style continuous penalty for proximity < collision_radius
             r_safe = 0.0
             for j in range(self.num_drones):
-                if j != i:
+                if j != i and self._drone_launched[j]:
                     dist = float(np.linalg.norm(
                         self._drone_states[j][:3] - state[:3]
                     ))
@@ -632,8 +635,9 @@ class MARLDMPCEnv(gym.Env):
         # Coverage is a swarm-level reward, added once
         total += W["W_COV"] * r_cov
 
-        per_drone = float(total / self.num_drones)
-        n = float(self.num_drones)
+        n_launched = max(1, int(np.sum(self._drone_launched)))
+        per_drone = float(total / n_launched)
+        n = float(n_launched)
 
         # Store per-step components for diagnostics (averaged over drones)
         self._step_reward_components["r_track"] = W["W_TRACK"] * sum_r_track / n

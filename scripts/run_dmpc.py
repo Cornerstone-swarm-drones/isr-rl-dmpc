@@ -104,9 +104,9 @@ def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
 
 # ── Episode runner ─────────────────────────────────────────────────────────
 
-def _run_episode(env: MARLDMPCEnv, max_steps: int, render: bool, visualizer=None) -> dict:
+def _run_episode(env: MARLDMPCEnv, max_steps: int, render: bool, visualizer=None, seed: int = 42) -> dict:
     """Run one episode with all-ones Q/R scales (pure DMPC, no RL)."""
-    obs, _ = env.reset()
+    obs, _ = env.reset(seed=seed)
     terminated = False  # guard against empty loop (zero max_steps)
     done = False
     step = 0
@@ -238,7 +238,6 @@ def main() -> None:
     print("=" * 60)
 
     env = MARLDMPCEnv(**env_kwargs)
-    env.reset(seed=args.seed)
 
     # ── Optional PyBullet visualiser / recorder ────────────────────────────
     visualizer = None
@@ -266,7 +265,7 @@ def main() -> None:
             home_pos[:, 2] = 30.0
             visualizer.reset(home_pos, episode=ep)
         t0 = time.perf_counter()
-        metrics = _run_episode(env, env_kwargs["mission_duration"], args.render, visualizer)
+        metrics = _run_episode(env, env_kwargs["mission_duration"], args.render, visualizer, seed=args.seed + ep)
         elapsed = time.perf_counter() - t0
         metrics["scenario"] = args.scenario
         metrics["episode"] = ep
