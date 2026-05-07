@@ -215,7 +215,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--threat-belief-mode",
-        choices=["shared", "limited"],
+        choices=["shared", "limited", "limited_strict"],
         default="shared",
         help="Use the current shared central threat belief or delayed limited-belief relay semantics.",
     )

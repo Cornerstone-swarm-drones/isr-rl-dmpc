@@ -1351,6 +1351,99 @@ def test_limited_threat_belief_policy_uses_local_risk_view() -> None:
     env.close()
 
 
+def test_limited_strict_blocks_base_track_preconfirmation_launch() -> None:
+    env = BeliefCoverageEnv(
+        num_drones=1,
+        mission_duration=20,
+        horizon=5,
+        dt=0.05,
+        area_size=(80.0, 80.0),
+        grid_resolution=20.0,
+        max_threat_cycles=1,
+        interceptor_guidance_mode="ekf",
+        response_policy="phase2",
+        interceptor_launch_confidence=0.55,
+        threat_belief_mode="limited_strict",
+    )
+    env.reset(seed=12)
+    _force_patch(env, row_start=2, col_start=2, base_eta_steps=999)
+    env._threat_confirmed = False
+    env._base_threat_confirmed = False
+    env._base_first_track_update_step = 0
+    env._shared_track_filter.initialize(np.array([50.0, 50.0], dtype=np.float64), step=0)
+    env._shared_track_filter.state[2:] = np.array([-8.0, -8.0], dtype=np.float64)
+    env._shared_track_filter.covariance = np.diag([1.0, 1.0, 4.0, 4.0]).astype(np.float64)
+    env._shared_track_confidence = env._shared_track_filter.confidence(step=0)
+
+    launched_before_confirmation = env._dispatch_interceptor()
+    env._threat_confirmed = True
+    env._base_threat_confirmed = True
+    launched_after_confirmation = env._dispatch_interceptor()
+
+    assert launched_before_confirmation is False
+    assert launched_after_confirmation is True
+    assert env._interceptor_active is True
+
+    env.close()
+
+
+def test_limited_strict_base_sensor_requires_repeated_confirmation_before_launch() -> None:
+    env = BeliefCoverageEnv(
+        num_drones=1,
+        mission_duration=20,
+        horizon=5,
+        dt=0.05,
+        area_size=(80.0, 80.0),
+        grid_resolution=20.0,
+        max_threat_cycles=1,
+        interceptor_guidance_mode="ekf",
+        response_policy="phase2",
+        interceptor_launch_confidence=0.2,
+        threat_belief_mode="limited_strict",
+        base_sensor={"enabled": True, "range_m": 80.0, "noise_std": 0.5, "delay_steps": 0},
+    )
+    env.reset(seed=13)
+    _force_patch(env, row_start=2, col_start=2, base_eta_steps=999)
+    centroid = env._active_threat_centroid()
+    assert centroid is not None
+    env._shared_track_filter.initialize(centroid, step=0)
+    env._shared_track_filter.covariance = np.diag([1.0, 1.0, 4.0, 4.0]).astype(np.float64)
+    env._shared_track_confidence = env._shared_track_filter.confidence(step=0)
+
+    conn = env._compute_connectivity()
+    before_confirm = env._update_threat_confirmation(
+        observed_mask=np.zeros(env.n_cells, dtype=bool),
+        best_threat_evidence=np.zeros(env.n_cells, dtype=np.float64),
+        threat_observed_by_drone=np.zeros(env.num_drones, dtype=bool),
+        threat_evidence_by_drone=np.zeros(env.num_drones, dtype=np.float64),
+        connectivity=conn,
+        step=1,
+    )
+
+    assert before_confirm["threat_confirmed"] is False
+    assert env._dispatch_interceptor() is False
+
+    after_confirm = before_confirm
+    for step in range(2, 20):
+        env._base_sensor_detected_this_step = True
+        env._base_sensor_last_quality = 1.0
+        after_confirm = env._update_threat_confirmation(
+            observed_mask=np.zeros(env.n_cells, dtype=bool),
+            best_threat_evidence=np.zeros(env.n_cells, dtype=np.float64),
+            threat_observed_by_drone=np.zeros(env.num_drones, dtype=bool),
+            threat_evidence_by_drone=np.zeros(env.num_drones, dtype=np.float64),
+            connectivity=conn,
+            step=step,
+        )
+        if after_confirm["threat_confirmed"]:
+            break
+
+    assert after_confirm["threat_confirmed"] is True
+    assert env._dispatch_interceptor() is True
+
+    env.close()
+
+
 def test_fast_planar_validation_dynamics_runs_without_solver_cost() -> None:
     env = BeliefCoverageEnv(
         num_drones=2,

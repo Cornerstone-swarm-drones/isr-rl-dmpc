@@ -133,7 +133,7 @@ class BeliefCoverageEnv(gym.Env):
     THREAT_COMM_DELAY_PER_HOP_STEPS = 2
     INTERCEPTOR_GUIDANCE_MODES = {"oracle", "ekf"}
     RESPONSE_POLICIES = {"baseline", "improved", "phase2"}
-    THREAT_BELIEF_MODES = {"shared", "limited"}
+    THREAT_BELIEF_MODES = {"shared", "limited", "limited_strict"}
     INTERCEPTOR_EKF_LAUNCH_CONFIDENCE = 0.55
     INTERCEPTOR_MIN_LAUNCH_CONFIDENCE = 0.2
     INTERCEPTOR_URGENCY_LAUNCH_RELAX = 0.55
@@ -143,6 +143,8 @@ class BeliefCoverageEnv(gym.Env):
     THREAT_URGENCY_ETA_SECONDS = 8.0
     THREAT_MAX_URGENT_TRACKERS = 3
     PHASE2_BASE_DEFENSE_LAUNCH_URGENCY = 0.42
+    PHASE2_BASE_SENSOR_CONFIRMATION_GAIN = 0.22
+    PHASE2_BASE_SENSOR_CONFIRMATION_QUALITY_FLOOR = 0.25
     INTERCEPTOR_SPEED = 90.0
     INTERCEPTOR_PHASE2_MAX_SPEED = 85.0
     INTERCEPTOR_PHASE2_MAX_ACCEL = 220.0
@@ -722,7 +724,7 @@ class BeliefCoverageEnv(gym.Env):
                     self._active_threat_cells,
                 ).size > 0
             )
-            if self.threat_belief_mode == "limited" and self._tracking_target_cells[drone_idx] >= 0:
+            if self._uses_limited_threat_belief() and self._tracking_target_cells[drone_idx] >= 0:
                 local_tracking_overlap = bool(
                     risk_scores[int(self._tracking_target_cells[drone_idx])] >= self.THREAT_SUSPECT_THRESHOLD
                 )
@@ -1071,7 +1073,7 @@ class BeliefCoverageEnv(gym.Env):
             state = self._shared_track_filter.state
             return state[:2].copy(), state[2:].copy(), float(self._shared_track_confidence)
 
-        if self.threat_belief_mode == "limited":
+        if self._uses_limited_threat_belief():
             return None, None, 0.0
 
         centroid = self._active_threat_centroid()
@@ -1138,7 +1140,11 @@ class BeliefCoverageEnv(gym.Env):
         if self.response_policy in {"improved", "phase2"}:
             relaxed = threshold * (1.0 - self.INTERCEPTOR_URGENCY_LAUNCH_RELAX * self._threat_urgency_score)
             threshold = max(self.INTERCEPTOR_MIN_LAUNCH_CONFIDENCE, float(relaxed))
-            if self.response_policy == "phase2" and self._base_sensor_detected_this_step:
+            if (
+                self.response_policy == "phase2"
+                and self._base_sensor_detected_this_step
+                and self.threat_belief_mode != "limited_strict"
+            ):
                 threshold = max(self.INTERCEPTOR_MIN_LAUNCH_CONFIDENCE, 0.85 * threshold)
         self._interceptor_launch_confidence_active = float(np.clip(threshold, 0.0, 1.0))
         return self._interceptor_launch_confidence_active
@@ -1743,9 +1749,13 @@ class BeliefCoverageEnv(gym.Env):
         """
         return self.get_belief_state().combined_global_risk_belief
 
+    def _uses_limited_threat_belief(self) -> bool:
+        """Return whether policy/confirmation should use local delayed threat belief."""
+        return self.threat_belief_mode in {"limited", "limited_strict"}
+
     def _policy_risk_scores_for_drone(self, drone_idx: int) -> np.ndarray:
         """Return the risk field available to one drone's local policy."""
-        if self.threat_belief_mode != "limited":
+        if not self._uses_limited_threat_belief():
             return self._current_risk_scores()
         local = self.local_beliefs[int(drone_idx)]
         return np.maximum(local.uncertainty, local.anomaly_score)
@@ -2402,7 +2412,7 @@ class BeliefCoverageEnv(gym.Env):
             self._threat_confirmed = False
             self._threat_suspected = False
             self._active_threat_confirmation_level = 0.0
-            if self.threat_belief_mode == "limited":
+            if self._uses_limited_threat_belief():
                 self._local_threat_confirmation_levels.fill(0.0)
                 self._local_threat_confirmed.fill(False)
                 self._local_threat_last_observed_step.fill(-1)
@@ -2417,7 +2427,7 @@ class BeliefCoverageEnv(gym.Env):
                 "active_threat_confirmation_score": 0.0,
             }
 
-        if self.threat_belief_mode == "limited":
+        if self._uses_limited_threat_belief():
             return self._update_limited_threat_confirmation(
                 threat_observed_by_drone=(
                     np.asarray(threat_observed_by_drone, dtype=bool)
@@ -2574,6 +2584,22 @@ class BeliefCoverageEnv(gym.Env):
             if age_steps > 0:
                 self._threat_confirmation_stale_received_this_step += 1
 
+        if self.threat_belief_mode == "limited_strict" and self._base_sensor_detected_this_step:
+            if self._first_threat_observed_step < 0:
+                self._first_threat_observed_step = int(step)
+            base_confirmation_quality = max(
+                float(self._base_sensor_last_quality),
+                self.PHASE2_BASE_SENSOR_CONFIRMATION_QUALITY_FLOOR,
+            )
+            self._base_threat_confirmation_level = float(
+                np.clip(
+                    self._base_threat_confirmation_level
+                    + self.PHASE2_BASE_SENSOR_CONFIRMATION_GAIN * base_confirmation_quality,
+                    0.0,
+                    1.0,
+                )
+            )
+
         self._base_threat_confirmed = (
             self._base_threat_confirmation_level >= self.THREAT_CONFIRMATION_THRESHOLD
         )
@@ -2606,7 +2632,7 @@ class BeliefCoverageEnv(gym.Env):
         """Pick a small nearby subset of drones to add a light tracking bias."""
         selected = np.zeros(self.num_drones, dtype=bool)
         self._tracking_target_cells.fill(-1)
-        if self.threat_belief_mode == "limited":
+        if self._uses_limited_threat_belief():
             return self._choose_limited_tracking_bias_drones(selected)
         if not self._threat_confirmed or not self._active_threat_exists():
             self._tracking_cap_current = min(self.THREAT_MAX_TRACKERS, max(1, self.num_drones // 3))
@@ -2715,12 +2741,14 @@ class BeliefCoverageEnv(gym.Env):
         if (
             self.response_policy in {"improved", "phase2"}
             and not can_dispatch
+            and self.threat_belief_mode != "limited_strict"
             and self._threat_urgency_score >= self.THREAT_URGENCY_CRITICAL
         ):
             can_dispatch = True
         if (
             self.response_policy == "phase2"
             and not can_dispatch
+            and self.threat_belief_mode != "limited_strict"
             and self._base_first_track_update_step >= 0
             and self._threat_urgency_score >= self.PHASE2_BASE_DEFENSE_LAUNCH_URGENCY
         ):
