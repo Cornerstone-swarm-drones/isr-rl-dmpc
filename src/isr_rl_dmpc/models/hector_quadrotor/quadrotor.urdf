@@ -1,0 +1,237 @@
+<?xml version="1.0" ?>
+<!-- Quadrotor URDF for PyBullet simulation.
+     Base inertial parameters are aligned with VehicleConfig true parameters at runtime
+     via changeDynamics() in src/sim/pybullet_backend.py, so the <inertial> values
+     here only serve as a fallback.
+     Rotor links are visual placeholders; aggregate force/torque are applied to the
+     base body in pybullet_backend.py.
+     Spin-direction labels: [CCW, CW, CCW, CW] for rotors [0, 1, 2, 3].
+     Arm offsets match vehicle.arm_length_m = 0.30 m.
+     docs/05_pybullet_simulation.md §2.1 -->
+<robot name="quadrotor_research">
+
+  <!-- ── Base link (central body + battery bay) ───────────────────── -->
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="3.20"/>
+      <inertia ixx="0.090" ixy="0.0" ixz="0.0"
+               iyy="0.095" iyz="0.0"
+               izz="0.160"/>
+    </inertial>
+    <!-- Main body (carbon-fibre deck) -->
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.22 0.22 0.06"/>
+      </geometry>
+      <material name="carbon">
+        <color rgba="0.10 0.10 0.10 1"/>
+      </material>
+    </visual>
+    <!-- Top landing-gear plate -->
+    <visual>
+      <origin xyz="0 0 0.04" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.18 0.18 0.01"/>
+      </geometry>
+      <material name="dark_grey">
+        <color rgba="0.20 0.20 0.20 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.22 0.22 0.08"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- ── Arm +x ────────────────────────────────────────────────────── -->
+  <link name="arm_px">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.04"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0"
+               iyy="1e-4" iyz="0" izz="1e-4"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder radius="0.012" length="0.24"/></geometry>
+      <material name="carbon"/>
+    </visual>
+  </link>
+  <joint name="arm_px_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="arm_px"/>
+    <origin xyz="0.18 0.00 0.00" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ── Arm -x ────────────────────────────────────────────────────── -->
+  <link name="arm_nx">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.04"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0"
+               iyy="1e-4" iyz="0" izz="1e-4"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry><cylinder radius="0.012" length="0.24"/></geometry>
+      <material name="carbon"/>
+    </visual>
+  </link>
+  <joint name="arm_nx_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="arm_nx"/>
+    <origin xyz="-0.18 0.00 0.00" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ── Arm +y ────────────────────────────────────────────────────── -->
+  <link name="arm_py">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.04"/>
+      <inertia ixx="1e-4" ixy="0" ixz="0"
+               iyy="1e-5" iyz="0" izz="1e-4"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <geometry><cylinder radius="0.012" length="0.24"/></geometry>
+      <material name="carbon"/>
+    </visual>
+  </link>
+  <joint name="arm_py_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="arm_py"/>
+    <origin xyz="0.00 0.18 0.00" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ── Arm -y ────────────────────────────────────────────────────── -->
+  <link name="arm_ny">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.04"/>
+      <inertia ixx="1e-4" ixy="0" ixz="0"
+               iyy="1e-5" iyz="0" izz="1e-4"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <geometry><cylinder radius="0.012" length="0.24"/></geometry>
+      <material name="carbon"/>
+    </visual>
+  </link>
+  <joint name="arm_ny_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="arm_ny"/>
+    <origin xyz="0.00 -0.18 0.00" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ── Rotor 0: +x (CCW) ─────────────────────────────────────────── -->
+  <link name="rotor_0">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.025"/>
+      <inertia ixx="2.0e-5" ixy="0" ixz="0"
+               iyy="2.0e-5" iyz="0" izz="3.5e-5"/>
+    </inertial>
+    <!-- Motor body -->
+    <visual>
+      <origin xyz="0 0 -0.015" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.022" length="0.030"/></geometry>
+      <material name="motor_dark"><color rgba="0.08 0.08 0.08 1"/></material>
+    </visual>
+    <!-- Propeller disc (CCW — light tint) -->
+    <visual>
+      <origin xyz="0 0 0.006" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.155" length="0.004"/></geometry>
+      <material name="prop_ccw"><color rgba="0.85 0.85 0.95 0.70"/></material>
+    </visual>
+  </link>
+  <joint name="rotor_0_joint" type="continuous">
+    <parent link="base_link"/>
+    <child  link="rotor_0"/>
+    <origin xyz="0.30 0.00 0.02" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <!-- ── Rotor 1: +y (CW) ──────────────────────────────────────────── -->
+  <link name="rotor_1">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.025"/>
+      <inertia ixx="2.0e-5" ixy="0" ixz="0"
+               iyy="2.0e-5" iyz="0" izz="3.5e-5"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 -0.015" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.022" length="0.030"/></geometry>
+      <material name="motor_dark"/>
+    </visual>
+    <!-- Propeller disc (CW — warm tint) -->
+    <visual>
+      <origin xyz="0 0 0.006" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.155" length="0.004"/></geometry>
+      <material name="prop_cw"><color rgba="0.95 0.85 0.85 0.70"/></material>
+    </visual>
+  </link>
+  <joint name="rotor_1_joint" type="continuous">
+    <parent link="base_link"/>
+    <child  link="rotor_1"/>
+    <origin xyz="0.00 0.30 0.02" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <!-- ── Rotor 2: -x (CCW) ─────────────────────────────────────────── -->
+  <link name="rotor_2">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.025"/>
+      <inertia ixx="2.0e-5" ixy="0" ixz="0"
+               iyy="2.0e-5" iyz="0" izz="3.5e-5"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 -0.015" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.022" length="0.030"/></geometry>
+      <material name="motor_dark"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0.006" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.155" length="0.004"/></geometry>
+      <material name="prop_ccw"/>
+    </visual>
+  </link>
+  <joint name="rotor_2_joint" type="continuous">
+    <parent link="base_link"/>
+    <child  link="rotor_2"/>
+    <origin xyz="-0.30 0.00 0.02" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <!-- ── Rotor 3: -y (CW) ──────────────────────────────────────────── -->
+  <link name="rotor_3">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.025"/>
+      <inertia ixx="2.0e-5" ixy="0" ixz="0"
+               iyy="2.0e-5" iyz="0" izz="3.5e-5"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 -0.015" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.022" length="0.030"/></geometry>
+      <material name="motor_dark"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0.006" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.155" length="0.004"/></geometry>
+      <material name="prop_cw"/>
+    </visual>
+  </link>
+  <joint name="rotor_3_joint" type="continuous">
+    <parent link="base_link"/>
+    <child  link="rotor_3"/>
+    <origin xyz="0.00 -0.30 0.02" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+</robot>
