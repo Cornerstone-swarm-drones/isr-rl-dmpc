@@ -348,7 +348,6 @@ class MARLDMPCEnv(gym.Env):
         actions_per_drone = action.reshape(self.num_drones, ACT_DIM)
 
         # ── Update launch status for staggered spawning ──────────────────
-        home_pos = np.array([0.0, 0.0, self.DEFAULT_ALTITUDE], dtype=np.float64)
         for i in range(self.num_drones):
             launch_step = i * self.spawn_interval_steps
             if not self._drone_launched[i] and self._step_count >= launch_step:
@@ -424,9 +423,12 @@ class MARLDMPCEnv(gym.Env):
         # Re-freeze non-launched drones after physics step
         for i in range(self.num_drones):
             if not self._drone_launched[i]:
-                home_i = np.array([i * self.collision_radius * 3.0, 0.0, self.DEFAULT_ALTITUDE])
+                home_i = np.array(
+                    [i * self.collision_radius * 3.0, 0.0, self.DEFAULT_ALTITUDE],
+                    dtype=np.float64,
+                )
                 self._simulator.drones[i].position = home_i.copy()
-                self._simulator.drones[i].velocity = np.zeros(3)
+                self._simulator.drones[i].velocity = np.zeros(3, dtype=np.float64)
                 self._drone_states[i, :3] = home_i
                 self._drone_states[i, 3:] = 0.0
 
@@ -664,13 +666,40 @@ class MARLDMPCEnv(gym.Env):
     # ──────────────────────────────────────────────────────────────────
 
     def _place_drones_in_formation(self) -> None:
-        """Place drones in a spaced line at home altitude, staggered along X."""
-        spacing = self.collision_radius * 3.0   # e.g. 3 * 3 m = 9 m gap
+        """Place drones at the start of their scenario-specific sweep strips.
+
+        For area_surveillance: each drone starts at the entry corner of its
+        lawnmower strip so it begins productive coverage immediately.
+        For other scenarios: fall back to a spaced line along the X-axis.
+        """
         for i in range(self.num_drones):
-            home = np.array(
-                [i * spacing, 0.0, self.DEFAULT_ALTITUDE],
-                dtype=np.float64,
-            )
+            if self.scenario == "area_surveillance":
+                # Start at the south-west corner of drone i's strip
+                strip_w = self._area_size[0] / max(self.num_drones, 1)
+                x_start = i * strip_w + strip_w * 0.5   # strip centre X
+                home = np.array(
+                    [x_start, 0.0, self.DEFAULT_ALTITUDE], dtype=np.float64
+                )
+            elif self.scenario == "threat_response":
+                # Phase-distribute on patrol circle from the start
+                import math
+                cx = self._area_size[0] * 0.5
+                cy = self._area_size[1] * 0.5
+                r = min(self._area_size) * 0.4
+                angle = i * (2.0 * math.pi / max(self.num_drones, 1))
+                home = np.array(
+                    [cx + r * math.cos(angle),
+                    cy + r * math.sin(angle),
+                    self.DEFAULT_ALTITUDE],
+                    dtype=np.float64,
+                )
+            else:
+                # search_and_track: quadrant centres
+                qw = self._area_size[0] * 0.5
+                qh = self._area_size[1] * 0.5
+                qx = (i % 2) * qw + qw * 0.5
+                qy = (i // 2) * qh + qh * 0.5
+                home = np.array([qx, qy, self.DEFAULT_ALTITUDE], dtype=np.float64)
             self._simulator.set_drone_initial_state(i, home.copy())
 
     def _sync_states_from_sim(self) -> None:

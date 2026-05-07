@@ -363,8 +363,15 @@ class MPCSolver:
             # instead of returning zeros, which can destabilise the controller.
             u_val = self.u_var.value
             if u_val is not None:
-                logger.debug("Solver status %s — using current iterate", status)
+                logger.debug("Solver status %s — clamping iterate to safe bounds", status)
                 u_opt = np.array(u_val).T
+                # FIX: clamp inaccurate iterates — raw iterates from failed
+                # solves can be large, driving the drone out of bounds.
+                u_opt = np.clip(u_opt, -self.config.accel_max, self.config.accel_max)
+                # Further dampen: scale down to 20% of accel_max as a safe hover
+                scale = np.max(np.abs(u_opt)) / (self.config.accel_max + 1e-6)
+                if scale > 0.2:
+                    u_opt = u_opt * (0.2 / scale)
                 solve_time = (
                     self._problem.solver_stats.solve_time
                     if self._problem.solver_stats is not None
@@ -379,7 +386,7 @@ class MPCSolver:
                         else np.inf
                     ),
                 }
-            logger.debug("Solver status: %s — no iterate available", status)
+            logger.debug("Solver status: %s — returning zero (hover)", status)
             return np.zeros((self.horizon, self.config.control_dim)), {
                 "status": status,
                 "solve_time": 0.0,

@@ -70,8 +70,8 @@ class TargetConfig:
     """Target motion parameters."""
     max_velocity: float = 20.0  # m/s (for moving targets)
     max_acceleration: float = 2.0  # m/s² (for maneuvering)
-    min_detection_distance: float = 100.0  # m
-    max_detection_distance: float = 500.0  # m
+    min_detection_distance: float = 0.0  # m
+    max_detection_distance: float = 150.0  # m
     classification_error_rate: float = 0.05  # 5% misclassification
 
 
@@ -622,18 +622,24 @@ class EnvironmentSimulator:
         return False
 
     def update_target_detections(self) -> None:
-        """Update target detection status based on drone proximity."""
+        """Detect targets based on lateral (XY-plane) distance only.
+
+        Ground targets are directly below cruising drones; using 3D Euclidean
+        distance incorrectly excludes targets that are close laterally but
+        below the drone's altitude. The sensor is a nadir-pointing camera,
+        so lateral proximity is the correct detection criterion.
+        """
         for target in self.targets[:self.num_targets]:
-            min_distance = float('inf')
-            
+            min_lateral_dist = float('inf')
             for drone in self.drones:
                 if drone.is_active:
-                    distance = np.linalg.norm(drone.position - target.position)
-                    min_distance = min(min_distance, distance)
-            
-            # Detection based on distance
-            if (min_distance >= self.target_config.min_detection_distance and
-                min_distance <= self.target_config.max_detection_distance):
+                    # FIX: lateral (XY) distance only — ignore altitude difference
+                    lateral_dist = np.linalg.norm(
+                        drone.position[:2] - target.position[:2]
+                    )
+                    min_lateral_dist = min(min_lateral_dist, lateral_dist)
+            # Detected if any drone is within sensor range laterally
+            if min_lateral_dist <= self.target_config.max_detection_distance:
                 target.is_detected = True
 
     def step(self, motor_commands: np.ndarray,
