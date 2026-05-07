@@ -492,7 +492,8 @@ class EnvironmentSimulator:
         drone_config: Optional[DroneConfig] = None,
         target_config: Optional[TargetConfig] = None,
         env_config: Optional[EnvironmentConfig] = None,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
+        collision_radius: float = 3.0
     ):
         """
         Initialize environment simulator.
@@ -535,6 +536,7 @@ class EnvironmentSimulator:
         self.collision_count = 0
         self.geofence_violations = 0
         self.simulation_time = 0.0
+        self.collision_radius = collision_radius
 
     def add_target(self, position: np.ndarray, target_type: TargetType) -> None:
         """
@@ -654,6 +656,9 @@ class EnvironmentSimulator:
         # Physics sub-stepping
         for _ in range(self.env_config.physics_substeps):
             for drone_id, drone in enumerate(self.drones):
+                # skip physics for unlaunched drones entirely
+                if launched_mask is not None and not launched_mask[drone_id]:
+                    continue
                 if drone_id < len(motor_commands):
                     commands = motor_commands[drone_id]
                     drone.step(commands, self.current_wind, substep_dt)
@@ -664,7 +669,7 @@ class EnvironmentSimulator:
         for drone_id in range(self.num_drones):
             if launched_mask is not None and not launched_mask[drone_id]:
                 continue                          # ← skip unlaunched
-            if self.check_collision(drone_id):
+            if self.check_collision(drone_id, min_distance=self.collision_radius):
                 self.drones[drone_id].is_active = False
 
         # Check geofence — only for launched drones

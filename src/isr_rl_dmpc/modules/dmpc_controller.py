@@ -163,7 +163,7 @@ class MPCSolver:
         d_k @ x_var[:3, k]  ≥  dist_k * r_min + d_k @ p_j
     """
 
-    _MIN_SEP: float = 1e-3  # degenerate-direction guard [m]
+    _MIN_SEP: float = 1  # degenerate-direction guard [m]
 
     def __init__(
         self,
@@ -306,9 +306,12 @@ class MPCSolver:
                     dist = float(np.linalg.norm(d))
                     if dist < self._MIN_SEP:
                         continue
+                    rhs_val = float(dist * r_min + d @ p_j)
+                    if not np.isfinite(rhs_val):
+                        continue            # skip slot if numerics are degenerate
                     slot = k * nb + j_idx
                     self._cbf_d[slot].value = d
-                    self._cbf_rhs[slot].value = float(dist * r_min + d @ p_j)
+                    self._cbf_rhs[slot].value = rhs_val
                 # Propagate nominal trajectory (u = 0)
                 x_nom = self._A @ x_nom
 

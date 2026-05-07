@@ -65,7 +65,7 @@ def _load_scenarios(config_dir: Path) -> dict:
 
 def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
                              max_steps_override: int | None, dmpc_cfg: dict,
-                             scenario_name: str) -> dict:
+                             scenario_name: str, spawn_interval: int = 10) -> dict:
     """Map mission_scenarios.yaml entries to MARLDMPCEnv constructor kwargs."""
     num_drones = num_drones_override or scenario_cfg.get("num_drones", 4)
     max_targets = scenario_cfg.get("num_targets", 3)
@@ -99,6 +99,7 @@ def _scenario_to_env_kwargs(scenario_cfg: dict, num_drones_override: int | None,
         osqp_max_iter=int(dmpc_cfg.get("osqp_max_iter", 4000)),
         scenario=scenario_name,
         area_size=area_size,
+        spawn_interval_steps=spawn_interval,
     )
 
 
@@ -193,6 +194,8 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=None,
                         help="Max steps per episode (overrides scenario duration)")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--spawn-interval", type=int, default=10,
+                        help="Steps between consecutive drone launches (default: 10 = 0.2 s at 50 Hz)",)
     parser.add_argument("--output", default=str(ROOT / "data" / "results" / "dmpc"))
     parser.add_argument("--render", action="store_true")
     parser.add_argument(
@@ -223,7 +226,8 @@ def main() -> None:
     scenario_cfg = scenarios[args.scenario]
 
     env_kwargs = _scenario_to_env_kwargs(
-        scenario_cfg, args.num_drones, args.max_steps, dmpc_cfg, args.scenario
+        scenario_cfg, args.num_drones, args.max_steps,
+        dmpc_cfg, args.scenario, args.spawn_interval   # ← add this
     )
 
     print("=" * 60)

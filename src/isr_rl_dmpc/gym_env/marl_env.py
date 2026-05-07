@@ -368,9 +368,15 @@ class MARLDMPCEnv(gym.Env):
         for i in range(self.num_drones):
             if not self._drone_launched[i]:
                 # Not yet launched — freeze at home, skip DMPC
+                home_i = np.array(
+                    [i * self.collision_radius * 3.0, 0.0, self.DEFAULT_ALTITUDE],
+                    dtype=np.float64,
+                )
                 drone = self._simulator.drones[i]
-                drone.position = home_pos.copy()
+                drone.position = home_i.copy()
                 drone.velocity = np.zeros(3, dtype=np.float64)
+                self._drone_states[i, :3] = home_i
+                self._drone_states[i, 3:] = 0.0
                 continue
 
             q_scale = actions_per_drone[i, :STATE_DIM]
@@ -405,10 +411,12 @@ class MARLDMPCEnv(gym.Env):
         # ── Apply controls to simulator ──────────────────────────────────
         motor_cmds = self._accel_to_motor_cmds(controls)  # (num_drones, 4)
         self._simulator.step(motor_cmds, launched_mask=self._drone_launched)  # ← pass mask
+        GRACE_STEPS = 15   # give each drone 15 steps (0.3 s) to move away
         terminated = not all(
             d.is_active
             for i, d in enumerate(self._simulator.drones)
-            if self._drone_launched[i] and self._step_count > (i * self.spawn_interval_steps + 2)
+            if self._drone_launched[i]
+            and self._step_count > (i * self.spawn_interval_steps + GRACE_STEPS)
         )
         truncated = False
         self._sync_states_from_sim()
@@ -608,14 +616,16 @@ class MARLDMPCEnv(gym.Env):
             r_form /= max(n_neighbours_checked, 1)
 
             # Safety: CBF-style continuous penalty for proximity < collision_radius
+            in_grace = self._step_count <= (i * self.spawn_interval_steps + 15)
             r_safe = 0.0
-            for j in range(self.num_drones):
-                if j != i and self._drone_launched[j]:
-                    dist = float(np.linalg.norm(
-                        self._drone_states[j][:3] - state[:3]
-                    ))
-                    if dist < self.collision_radius:
-                        r_safe += min(0.0, dist - self.collision_radius)
+            if not in_grace:
+                for j in range(self.num_drones):
+                    if j != i and self._drone_launched[j]:
+                        dist = float(np.linalg.norm(
+                            self._drone_states[j][:3] - state[:3]
+                        ))
+                        if dist < self.collision_radius:
+                            r_safe += min(0.0, dist - self.collision_radius)
 
             # Efficiency: normalised to [-1, 0]
             u_sq = float(np.dot(controls[i], controls[i]))
@@ -653,16 +663,13 @@ class MARLDMPCEnv(gym.Env):
     # ──────────────────────────────────────────────────────────────────
 
     def _place_drones_in_formation(self) -> None:
-        """Place all drones at the shared home position (origin at DEFAULT_ALTITUDE).
-
-        All drones start at ``[0, 0, DEFAULT_ALTITUDE]`` and are launched
-        sequentially during ``step()`` calls at intervals of
-        ``spawn_interval_steps``.  This guarantees that DMPC no-collision
-        constraints are satisfied at every launch: the previously launched
-        drone has already moved away before the next one activates.
-        """
-        home = np.array([0.0, 0.0, self.DEFAULT_ALTITUDE], dtype=np.float64)
+        """Place drones in a spaced line at home altitude, staggered along X."""
+        spacing = self.collision_radius * 3.0   # e.g. 3 * 3 m = 9 m gap
         for i in range(self.num_drones):
+            home = np.array(
+                [i * spacing, 0.0, self.DEFAULT_ALTITUDE],
+                dtype=np.float64,
+            )
             self._simulator.set_drone_initial_state(i, home.copy())
 
     def _sync_states_from_sim(self) -> None:
