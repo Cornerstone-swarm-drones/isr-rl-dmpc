@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ISR-RL-DMPC — Cornerstone Project Presentation</title>
+
+  <!-- Reveal.js CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reset.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/black.min.css" />
+
+  <!-- Highlight.js for code blocks -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/atom-one-dark.min.css" />
+
+  <!-- MathJax 3 -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$','$'], ['\\(','\\)']],
+        displayMath: [['$$','$$'], ['\\[','\\]']],
+        packages: {'[+]': ['boldsymbol']},
+        tags: 'none'
+      },
+      options: { skipHtmlTags: ['script','noscript','style','textarea'] },
+      startup: { typeset: false }
+    };
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+
+  <style>
+    /* ─── Custom Theme Overrides ─── */
+    :root {
+      --r-background-color: #0d1117;
+      --r-main-color: #e6edf3;
+      --r-heading-color: #58a6ff;
+      --r-link-color: #58a6ff;
+      --r-selection-background-color: #1f6feb;
+      --r-heading-font: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      --r-main-font: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      --r-code-font: 'Fira Code', 'Consolas', monospace;
+      --accent1: #58a6ff;   /* blue  */
+      --accent2: #3fb950;   /* green */
+      --accent3: #d29922;   /* amber */
+      --accent4: #f85149;   /* red   */
+      --accent5: #bc8cff;   /* purple */
+      --card-bg: rgba(22,27,34,0.95);
+      --border: rgba(88,166,255,0.25);
+    }
+
+    .reveal { font-size: 28px; }
+
+    /* Section title banner */
+    .section-banner {
+      display: inline-block;
+      background: linear-gradient(135deg, #1f6feb 0%, #388bfd 100%);
+      color: #fff;
+      padding: 4px 18px;
+      border-radius: 4px;
+      font-size: 0.55em;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    /* Card / box styles */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 20px;
+      margin: 6px 0;
+    }
+    .card-green  { border-left: 4px solid var(--accent2); }
+    .card-blue   { border-left: 4px solid var(--accent1); }
+    .card-amber  { border-left: 4px solid var(--accent3); }
+    .card-red    { border-left: 4px solid var(--accent4); }
+    .card-purple { border-left: 4px solid var(--accent5); }
+
+    /* Two / Three column grids */
+    .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+    /* Equation highlight box */
+    .eq-box {
+      background: rgba(88,166,255,0.06);
+      border: 1px solid rgba(88,166,255,0.3);
+      border-radius: 6px;
+      padding: 10px 16px;
+      margin: 8px 0;
+      font-size: 0.9em;
+    }
+
+    /* Table styles */
+    .reveal table { border-collapse: collapse; width: 100%; font-size: 0.72em; }
+    .reveal table th {
+      background: rgba(88,166,255,0.15);
+      color: var(--accent1);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+    }
+    .reveal table td {
+      border: 1px solid var(--border);
+      padding: 5px 10px;
+    }
+    .reveal table tr:nth-child(even) td { background: rgba(255,255,255,0.03); }
+
+    /* Badges / chips */
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.55em;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      vertical-align: middle;
+      margin: 0 3px;
+    }
+    .badge-blue   { background: rgba(88,166,255,0.2); color: var(--accent1); border: 1px solid var(--accent1);}
+    .badge-green  { background: rgba(63,185,80,0.2);  color: var(--accent2); border: 1px solid var(--accent2);}
+    .badge-amber  { background: rgba(210,153,34,0.2); color: var(--accent3); border: 1px solid var(--accent3);}
+    .badge-red    { background: rgba(248,81,73,0.2);  color: var(--accent4); border: 1px solid var(--accent4);}
+    .badge-purple { background: rgba(188,140,255,0.2);color: var(--accent5); border: 1px solid var(--accent5);}
+
+    /* Flow arrows */
+    .arrow { color: var(--accent1); font-weight: bold; font-size: 1.2em; }
+
+    /* Tight list */
+    .reveal ul.tight li { margin: 3px 0; font-size: 0.82em; }
+    .reveal ul.tight li::marker { color: var(--accent1); }
+
+    /* Dim text */
+    .dim { color: #8b949e; font-size: 0.75em; }
+
+    /* Highlight spans */
+    .hl-blue   { color: var(--accent1); font-weight: 600; }
+    .hl-green  { color: var(--accent2); font-weight: 600; }
+    .hl-amber  { color: var(--accent3); font-weight: 600; }
+    .hl-red    { color: var(--accent4); font-weight: 600; }
+    .hl-purple { color: var(--accent5); font-weight: 600; }
+
+    /* Architecture mono box */
+    .arch-box {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      font-family: var(--r-code-font);
+      font-size: 0.55em;
+      padding: 12px 18px;
+      white-space: pre;
+      line-height: 1.5;
+      color: #c9d1d9;
+      text-align: left;
+    }
+
+    /* Layer labels */
+    .layer-label {
+      font-size: 0.55em;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 2px;
+    }
+
+    /* Number circle */
+    .num-circle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--accent1);
+      color: #0d1117;
+      font-weight: 700;
+      font-size: 0.8em;
+      flex-shrink: 0;
+    }
+    .flex-row { display: flex; align-items: flex-start; gap: 10px; }
+
+    /* Progress indicator */
+    .prog-row { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+    .prog-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+    .prog-dot.active { background: var(--accent1); }
+
+    /* code font in normal text */
+    code { font-family: var(--r-code-font); font-size: 0.85em;
+           background: rgba(88,166,255,0.1); padding: 1px 5px; border-radius: 3px; }
+
+    /* Override reveal heading sizes */
+    .reveal h1 { font-size: 2em; }
+    .reveal h2 { font-size: 1.35em; color: var(--accent1); }
+    .reveal h3 { font-size: 1.05em; color: #e6edf3; }
+
+    /* Title slide extra */
+    .title-subtitle { color: #8b949e; font-size: 0.7em; margin-top: 5px; }
+    .title-team { margin-top: 30px; font-size: 0.6em; color: #8b949e; }
+    .title-team span { color: var(--accent1); }
+
+    /* Separator line */
+    .sep { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+
+    /* slide number chip */
+    .sn { float:right; font-size:0.45em; color:#8b949e; background: rgba(255,255,255,0.05);
+          padding:2px 8px; border-radius:3px; }
+
+    /* Theorem box */
+    .theorem {
+      background: rgba(88,166,255,0.05);
+      border: 1px solid rgba(88,166,255,0.4);
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 0.78em;
+    }
+    .theorem-title { color: var(--accent1); font-weight:700; margin-bottom:4px; font-size:1.1em; }
+
+    /* Definition box */
+    .definition {
+      background: rgba(63,185,80,0.05);
+      border: 1px solid rgba(63,185,80,0.35);
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 0.78em;
+    }
+    .definition-title { color: var(--accent2); font-weight:700; margin-bottom:4px; font-size:1.1em; }
+
+    /* Caveat box */
+    .caveat {
+      background: rgba(210,153,34,0.07);
+      border: 1px solid rgba(210,153,34,0.4);
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 0.7em;
+    }
+  </style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 1 — TITLE
+══════════════════════════════════════════════════════ -->
+<section data-background-gradient="radial-gradient(ellipse at 30% 40%, rgba(31,111,235,0.15) 0%, transparent 60%), radial-gradient(ellipse at 70% 70%, rgba(56,139,253,0.08) 0%, transparent 55%)">
+  <div style="text-align:center; padding: 20px 0;">
+    <div class="badge badge-blue" style="font-size:0.6em; margin-bottom:16px;">Cornerstone Project</div>
+    <h1 style="font-size:1.7em; line-height:1.2; color:#e6edf3;">
+      ISR-RL-DMPC
+    </h1>
+    <p style="font-size:0.85em; color:var(--accent1); font-weight:600; margin:12px 0 6px;">
+      Autonomous Multi-Drone ISR Swarm
+    </p>
+    <p style="font-size:0.72em; color:#8b949e; margin:0 0 24px;">
+      MARL-Adaptive Distributed MPC with ADMM Consensus
+    </p>
+    <hr class="sep" style="width:60%; margin:20px auto;"/>
+    <div class="cols3" style="font-size:0.6em; color:#8b949e; max-width:700px; margin:0 auto;">
+      <div>
+        <div style="color:var(--accent1); font-weight:700;">Jivesh Kesar</div>
+        <div>jrb252026@iitd.ac.in</div>
+      </div>
+      <div>
+        <div style="color:var(--accent1); font-weight:700;">Harsh</div>
+        <div>jrb252049@iitd.ac.in</div>
+      </div>
+      <div>
+        <div style="color:var(--accent1); font-weight:700;">Rohit Shankar Sinha</div>
+        <div>jrb252051@iitd.ac.in</div>
+      </div>
+    </div>
+    <div style="margin-top:28px; font-size:0.52em; color:#484f58;">
+      <span class="badge badge-blue">MARL&nbsp;·&nbsp;MAPPO</span>
+      <span class="badge badge-green">DMPC&nbsp;·&nbsp;OSQP</span>
+      <span class="badge badge-amber">ADMM&nbsp;Consensus</span>
+      <span class="badge badge-purple">PyBullet&nbsp;Sim</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SLIDE 2 — AGENDA
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">2</div>
+  <h2>Presentation Roadmap</h2>
+  <div class="cols2" style="margin-top:12px;">
+    <div>
+      <div class="card card-blue" style="margin-bottom:8px;">
+        <span class="badge badge-blue">01</span> &nbsp;<strong>Motivation</strong>
+        <div class="dim">Why autonomous ISR swarms?</div>
+      </div>
+      <div class="card card-blue" style="margin-bottom:8px;">
+        <span class="badge badge-blue">02</span> &nbsp;<strong>Problem Statement</strong>
+        <div class="dim">Formal multi-drone ISR problem</div>
+      </div>
+      <div class="card card-green" style="margin-bottom:8px;">
+        <span class="badge badge-green">03</span> &nbsp;<strong>Methodology</strong>
+        <div class="dim">Architecture · 10 modules · Integration</div>
+      </div>
+      <div class="card card-amber" style="margin-bottom:8px;">
+        <span class="badge badge-amber">04</span> &nbsp;<strong>Challenges</strong>
+        <div class="dim">Technical difficulties encountered</div>
+      </div>
+    </div>
+    <div>
+      <div class="card card-amber" style="margin-bottom:8px;">
+        <span class="badge badge-amber">05</span> &nbsp;<strong>Results &amp; Analysis</strong>
+        <div class="dim">Scenarios · Metrics · Comparisons</div>
+      </div>
+      <div class="card card-purple" style="margin-bottom:8px;">
+        <span class="badge badge-purple">06</span> &nbsp;<strong>Novelty</strong>
+        <div class="dim">MARL-adaptive DMPC contribution</div>
+      </div>
+      <div class="card card-red" style="margin-bottom:8px;">
+        <span class="badge badge-red">07</span> &nbsp;<strong>Conclusion</strong>
+        <div class="dim">Summary &amp; future directions</div>
+      </div>
+      <div class="card card-green" style="margin-bottom:8px; font-size:0.7em; color:#8b949e;">
+        <strong style="color:var(--accent2);">Module deep-dives</strong> within Methodology:
+        State Space · EKF · Formation · Task Alloc ·
+        DMPC · ADMM · MAPPO · Attitude · Stability
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION — MOTIVATION
+══════════════════════════════════════════════════════ -->
+<section data-background-gradient="radial-gradient(ellipse at 50% 0%, rgba(31,111,235,0.12) 0%, transparent 70%)">
+  <div class="section-banner">01 · Motivation</div>
+  <h2>Why Autonomous ISR Swarms?</h2>
+  <div class="cols2" style="margin-top:10px;">
+    <div>
+      <div class="card card-red">
+        <div style="font-size:0.75em; font-weight:700; color:var(--accent4);">⚠ The ISR Challenge</div>
+        <ul class="tight" style="margin-top:6px;">
+          <li>Single drones have limited sensor coverage &amp; endurance</li>
+          <li>Human operators cannot react at millisecond timescales</li>
+          <li>Modern threat environments evolve dynamically</li>
+          <li>GPS jamming / contested airspace → degraded localisation</li>
+        </ul>
+      </div>
+      <div class="card card-green" style="margin-top:8px;">
+        <div style="font-size:0.75em; font-weight:700; color:var(--accent2);">✓ Swarm Advantages</div>
+        <ul class="tight" style="margin-top:6px;">
+          <li>Parallel area coverage: $N\times$ throughput</li>
+          <li>Redundancy: mission continues despite single failures</li>
+          <li>Distributed sensor fusion over large baselines</li>
+          <li>Cooperative threat intercept &amp; tracking</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="card card-amber">
+        <div style="font-size:0.75em; font-weight:700; color:var(--accent3);">⚡ Open Research Gap</div>
+        <ul class="tight" style="margin-top:6px;">
+          <li>Classical DMPC uses <em>fixed</em> cost weights → suboptimal across diverse mission phases</li>
+          <li>Pure RL: no hard safety guarantees, slow to train for 3-D control</li>
+          <li>ADMM for swarm coordination: convergence guarantees, but needs adaptive cost tuning</li>
+          <li><strong>No existing system combines MARL-adaptive DMPC + ADMM for full ISR pipeline</strong></li>
+        </ul>
+      </div>
+      <div class="card card-blue" style="margin-top:8px; font-size:0.7em;">
+        <strong style="color:var(--accent1);">Our Answer:</strong><br/>
+        MAPPO learns <em>which cost weights</em> to assign at each moment;<br/>
+        DMPC enforces hard safety constraints;<br/>
+        ADMM provides provable inter-drone consensus.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION — PROBLEM STATEMENT
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">4</div>
+  <div class="section-banner">02 · Problem Statement</div>
+  <h2>Formal Problem Definition</h2>
+
+  <div class="definition" style="margin: 10px 0;">
+    <div class="definition-title">Multi-Drone ISR Problem</div>
+    Given a swarm of $N$ quadrotors operating in a 3-D environment containing unknown targets,
+    find a decentralised control policy $\boldsymbol{\pi} = \{\pi^{(i)}\}_{i=1}^N$ such that:
+    <ol style="margin-top:8px; font-size:0.95em;">
+      <li>Maximal area <strong>surveillance coverage</strong> is achieved within mission time $T$</li>
+      <li>All <strong>targets are detected, classified, and tracked</strong></li>
+      <li>Each drone maintains a <strong>collision-free trajectory</strong>: $\|\boldsymbol{p}_i - \boldsymbol{p}_j\| \ge r_{\min}\ \forall i \ne j$</li>
+      <li>The swarm maintains a <strong>desired geometric formation</strong> throughout</li>
+      <li>Control is executed at <strong>50 Hz</strong> under computational constraints</li>
+    </ol>
+  </div>
+
+  <div class="cols2" style="margin-top:10px;">
+    <div class="card card-blue" style="font-size:0.72em;">
+      <strong style="color:var(--accent1);">Decision Variables (per drone, per step)</strong><br/>
+      $\boldsymbol{u}^{(i)}_t = [a_x, a_y, a_z]^\top$ — commanded acceleration<br/>
+      $\boldsymbol{a}^{(i)}_t = [\boldsymbol{q}_s^{(i)}, \boldsymbol{r}_s^{(i)}]$ — MARL cost scale vector (14-D)
+    </div>
+    <div class="card card-amber" style="font-size:0.72em;">
+      <strong style="color:var(--accent3);">Key Constraints</strong><br/>
+      $\|\boldsymbol{u}_k\|_2 \le u_{\max} = 10\ \text{m/s}^2$ (saturation)<br/>
+      $\|\boldsymbol{p}_k - \boldsymbol{p}_j\| \ge r_{\min} = 5\ \text{m}$ (collision)<br/>
+      $\boldsymbol{x}_{k+1} = A\boldsymbol{x}_k + B\boldsymbol{u}_k$ (dynamics)
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION — METHODOLOGY OVERVIEW
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">5</div>
+  <div class="section-banner">03 · Methodology</div>
+  <h2>System Architecture — 6 Layers, 10 Modules</h2>
+
+  <div class="arch-box" style="font-size:0.5em; margin-top:8px;">
+┌────────────────────────────────────────────────────────────────────────────────┐
+│  <span style="color:#58a6ff;">MARL LAYER</span>   MAPPOAgent (SB3 PPO) — Centralised Training / Decentralised Execution      │
+│  Observation: 40-D per drone  →  Action: 14-D (q_scale ∈ ℝ¹¹, r_scale ∈ ℝ³)  │
+│                                         │                                      │
+│  <span style="color:#3fb950;">CONSENSUS LAYER</span>  ADMMConsensus — 3-step iterate: z-update · v-update · dual-update    │
+│                                         │  consensus variable v                │
+│  <span style="color:#d29922;">CONTROL LAYER</span>   DMPC (CVXPY/OSQP)  Q_eff = Q⊙diag(q_s)  DARE terminal cost P        │
+│                                         │  accel command u₀                   │
+│                <span style="color:#bc8cff;">Attitude Controller</span>  SO(3) geometric PD + gyro feed-forward              │
+│                                         │  motor PWM [T₁,T₂,T₃,T₄]           │
+│  <span style="color:#f85149;">PERCEPTION LAYER</span> SensorFusion (EKF) · ClassificationEngine · ThreatAssessor          │
+│  <span style="color:#58a6ff;">DECISION LAYER</span>  MissionPlanner · FormationController · TaskAllocator (Hungarian)      │
+│  <span style="color:#8b949e;">ANALYTICS LAYER</span> DMPCAnalytics · StabilityAnalyzer (Lyapunov · ISS · CBF)             │
+└────────────────────────────────────────────────────────────────────────────────┘</div>
+
+  <div class="cols3" style="margin-top:10px; font-size:0.62em;">
+    <div class="card card-blue" style="text-align:center;">
+      <strong>Solver</strong><br/>
+      CVXPY + OSQP<br/>
+      <span class="dim">10 ms budget/drone</span>
+    </div>
+    <div class="card card-green" style="text-align:center;">
+      <strong>Training</strong><br/>
+      Stable-Baselines3 PPO<br/>
+      <span class="dim">1 M environment steps</span>
+    </div>
+    <div class="card card-amber" style="text-align:center;">
+      <strong>Simulation</strong><br/>
+      PyBullet 6-DOF<br/>
+      <span class="dim">50 Hz, 1.477 kg quad</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     MODULE 1 — DRONE STATE SPACE
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">6</div>
+  <div class="section-banner">Module 1 · Drone State Space</div>
+  <h2>Linearised Triple-Integrator Dynamics</h2>
+
+  <div class="cols2" style="margin-top:8px;">
+    <div>
+      <div class="definition">
+        <div class="definition-title">11-D DMPC State Vector</div>
+        $$\boldsymbol{x} = \underbrace{[p_x,p_y,p_z]}_{\text{pos.}},\
+          \underbrace{[v_x,v_y,v_z]}_{\text{vel.}},\
+          \underbrace{[a_x,a_y,a_z]}_{\text{accel.}},\
+          \underbrace{\psi,\dot{\psi}}_{\text{yaw}} \in \mathbb{R}^{11}$$
+        <span class="dim">Acceleration as a state gives the MPC inertia-awareness, producing smoother trajectories.</span>
+      </div>
+      <div class="eq-box" style="margin-top:8px;">
+        <strong>Discrete-time dynamics</strong> ($\Delta t = 0.02\,\text{s}$, 50 Hz)
+        $$\boldsymbol{x}[k{+}1] = A\boldsymbol{x}[k] + B\boldsymbol{u}[k]$$
+        Triple-integrator chain: $\boldsymbol{p} \leftarrow \boldsymbol{v} \leftarrow \boldsymbol{a} \leftarrow \boldsymbol{u}$
+      </div>
+    </div>
+    <div>
+      <div class="eq-box">
+        <strong>System matrices</strong>
+        $$A = \begin{bmatrix}
+          I_3 & \Delta t I_3 & 0 & 0 & 0 \\
+          0   & I_3 & \Delta t I_3 & 0 & 0 \\
+          0   & 0   & I_3  & 0 & 0 \\
+          0   & 0   & 0    & 1 & \Delta t \\
+          0   & 0   & 0    & 0 & 1
+        \end{bmatrix},\quad
+        B = \begin{bmatrix} 0 \\ 0 \\ \Delta t I_3 \\ 0 \\ 0 \end{bmatrix}$$
+      </div>
+      <div class="theorem" style="margin-top:8px;">
+        <div class="theorem-title">Theorem — Controllability</div>
+        The 9-D translational sub-system $(A_9, B_9)$ is <strong>completely controllable</strong>.
+        The controllability matrix $\mathcal{C} = [B_9, A_9 B_9, \ldots, A_9^8 B_9] \in \mathbb{R}^{9 \times 27}$
+        has rank 9 (Brunovsky canonical form). This guarantees a stabilising LQR gain exists.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     MODULE 2 — EKF
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">7</div>
+  <div class="section-banner">Module 2 · Extended Kalman Filter</div>
+  <h2>Multi-Sensor State Estimation</h2>
+
+  <div class="cols2">
+    <div>
+      <div class="eq-box">
+        <strong>EKF Predict Step</strong>
+        $$\hat{\boldsymbol{x}}^- = f(\hat{\boldsymbol{x}}, \boldsymbol{u}), \qquad P^- = FPF^\top + Q_{\text{proc}}$$
+        where $F = \partial f/\partial \boldsymbol{x}$ is the process Jacobian.
+      </div>
+      <div class="eq-box" style="margin-top:6px;">
+        <strong>EKF Update Step</strong>
+        $$K = P^- H^\top (HP^- H^\top + R_{\text{meas}})^{-1}$$
+        $$\hat{\boldsymbol{x}} = \hat{\boldsymbol{x}}^- + K(\boldsymbol{z} - h(\hat{\boldsymbol{x}}^-))$$
+        $$P = (I - KH)P^-$$
+        Kalman gain $K$ optimally weights prior vs. measurement uncertainty.
+      </div>
+      <div class="caveat" style="margin-top:6px;">
+        <strong>Adaptive weighting:</strong> $R_{s,\text{eff}} = R_s / c_s$ automatically de-weights degraded sensors
+        using confidence score $c_s \in [0,1]$.
+      </div>
+    </div>
+    <div>
+      <div class="card card-blue" style="font-size:0.7em;">
+        <strong style="color:var(--accent1);">3 Parallel Sub-Filters (18-D state)</strong>
+        <table style="margin-top:6px; font-size:0.9em;">
+          <tr><th>Filter</th><th>Dim</th><th>Sensors</th></tr>
+          <tr><td>PositionVelocityEKF</td><td>6-D</td><td>IMU + GPS/RTK</td></tr>
+          <tr><td>AttitudeEKF</td><td>4-D quaternion</td><td>Gyro + Magnetometer</td></tr>
+          <tr><td>AngularVelocityFilter</td><td>3-D</td><td>Gyroscope</td></tr>
+        </table>
+        <div style="margin-top:6px; color:#8b949e;">+ Battery (1-D) + Health (1-D) = <strong>18-D total</strong></div>
+      </div>
+      <div class="card card-green" style="margin-top:8px; font-size:0.7em;">
+        <strong style="color:var(--accent2);">Target Tracking EKF (11-D per target)</strong><br/>
+        Same triple-integrator dynamics as drone state.<br/>
+        Fuses: Radar (range/Doppler/angle), Optical bearing, RF fingerprinting, Acoustic TDOA
+      </div>
+      <div class="eq-box" style="margin-top:6px; font-size:0.75em;">
+        <strong>Radar measurement model:</strong>
+        $h_{\text{radar}} = [r, \dot{r}, \alpha_z, \text{el}]^\top$
+        where $r = \|\boldsymbol{\delta}\|$, $\dot{r} = \boldsymbol{\delta}^\top\boldsymbol{v}/r$
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     MODULE 3 — FORMATION CONTROL
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">8</div>
+  <div class="section-banner">Module 3 · Formation Control</div>
+  <h2>Distributed Consensus Protocol &amp; Graph Theory</h2>
+
+  <div class="cols2">
+    <div>
+      <div class="definition">
+        <div class="definition-title">Communication Graph &amp; Laplacian</div>
+        Swarm graph $G = (V,E)$: edge $(i,j) \in E$ iff $\|\boldsymbol{p}_i - \boldsymbol{p}_j\| \le r_{\text{comm}}$<br/>
+        <strong>Graph Laplacian</strong>: $L = D - A_{\text{adj}}$<br/>
+        For connected $G$: $0 = \lambda_0 &lt; \lambda_1 \le \cdots \le \lambda_{N-1}$<br/>
+        <span class="hl-blue">Fiedler value</span> $\lambda_1$ governs convergence speed.
+      </div>
+      <div class="eq-box" style="margin-top:8px;">
+        <strong>Consensus Formation Control Law</strong>
+        $$\boldsymbol{u}_i = \underbrace{k_p(\boldsymbol{p}^{\text{des}}_i - \boldsymbol{p}_i)}_{\text{position err.}}
+          - \underbrace{k_d \boldsymbol{v}_i}_{\text{damping}}
+          + \underbrace{k_c(\bar{\boldsymbol{p}}_{\mathcal{N}} - \boldsymbol{p}_i)}_{\text{consensus}}$$
+        $k_p=2.0,\ k_d=0.1,\ k_c=0.1$
+      </div>
+    </div>
+    <div>
+      <div class="theorem">
+        <div class="theorem-title">Convergence Theorem</div>
+        Discrete consensus: $\boldsymbol{x}[k{+}1] = (I - \Delta t k_c L)\boldsymbol{x}[k]$<br/>
+        Converges iff $\Delta t k_c \lambda_{\max}(L) &lt; 2$.<br/>
+        With $k_c{=}0.1$, $\Delta t{=}0.02$: product $= 0.002\lambda_{\max} \ll 2$ ✓
+        $$\|\boldsymbol{x}(t) - \boldsymbol{x}^*\| \le e^{-\lambda_1 t}\|\boldsymbol{x}(0) - \boldsymbol{x}^*\|$$
+      </div>
+      <div class="card card-blue" style="margin-top:8px; font-size:0.7em;">
+        <strong style="color:var(--accent1);">6 Formation Geometries</strong>
+        <div class="cols2" style="margin-top:5px; gap:6px;">
+          <div>• Line (lateral spacing)<br/>• Wedge / V-shape<br/>• Column (single file)</div>
+          <div>• Circular (equal angle)<br/>• Grid ($\lceil\sqrt{N}\rceil \times \lceil\sqrt{N}\rceil$)<br/>• Sphere (Fibonacci)</div>
+        </div>
+        <div style="margin-top:5px; color:#8b949e;">Fibonacci sphere: min angular separation $\approx\sqrt{4\pi/N}$ sr — optimal 3-D coverage</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     MODULE 4 — TASK ALLOCATION
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">9</div>
+  <div class="section-banner">Module 4 · Task Allocation</div>
+  <h2>Hungarian Algorithm — Optimal Bipartite Assignment</h2>
+
+  <div class="cols2">
+    <div>
+      <div class="definition">
+        <div class="definition-title">Linear Assignment Problem (LAP)</div>
+        Given cost matrix $\boldsymbol{C} \in \mathbb{R}^{m \times n}$ ($m$ tasks, $n$ drones):
+        $$\min_{\sigma}\ \sum_i C[i,\sigma(i)] \quad \text{s.t. } \sigma \text{ bijection}$$
+        $n!$ possible matchings → Hungarian gives optimal in $O(n^3)$.
+      </div>
+      <div class="eq-box" style="margin-top:8px; font-size:0.82em;">
+        <strong>Cost Matrix (weighted sum, 5 factors):</strong>
+        $$C[i,j] = 0.30\,c_{\text{dist}} + 0.20\,c_{\text{fuel}} + 0.20\,c_{\text{load}} + 0.15\,c_{\text{sensor}} - 0.15\,b_{\text{priority}}$$
+        Infeasibility: if travel + task time $&gt;$ endurance $\Rightarrow C[i,j] = 10^6$
+      </div>
+    </div>
+    <div>
+      <div class="theorem">
+        <div class="theorem-title">König–Egerváry Theorem</div>
+        Minimum-weight perfect matching = maximum dual objective (LP strong duality).<br/>
+        Dual potentials $u[i]$, $v[j]$ satisfy:<br/>
+        $u[i] + v[j] \le C[i,j]\ \forall(i,j)$<br/>
+        $u[i] + v[j] = C[i,j]$ for matched pairs.
+      </div>
+      <div class="card card-amber" style="margin-top:8px; font-size:0.72em;">
+        <strong style="color:var(--accent3);">Complexity Analysis</strong>
+        <table style="margin-top:5px;">
+          <tr><th>Variant</th><th>Time</th><th>Use Case</th></tr>
+          <tr><td>Hungarian</td><td>$O(n^3)$</td><td>$m \le n$</td></tr>
+          <tr><td>Greedy fallback</td><td>$O(mn)$</td><td>$m &gt; n$ (task surge)</td></tr>
+        </table>
+        For $n=6$, $m=10$: runs in <strong>microseconds</strong> on-board.
+      </div>
+      <div class="card card-green" style="margin-top:6px; font-size:0.7em;">
+        <strong>Rectangular matrices:</strong> padded to $\max(m,n)^2$ with dummy rows/cols ($C=10^6$) → always square.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     MODULE 5 — DMPC FORMULATION
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">10</div>
+  <div class="section-banner">Module 5 · DMPC</div>
+  <h2>Distributed Model Predictive Control</h2>
+
+  <div class="eq-box">
+    <strong>Per-drone QP at each time step $t$:</strong>
+    $$\min_{\boldsymbol{x},\boldsymbol{u}}\quad
+      \sum_{k=0}^{N-1}\!\Bigl[\boldsymbol{e}_k^\top Q_{\text{eff}}^{(i)}\boldsymbol{e}_k
+      + \boldsymbol{u}_k^\top R_{\text{eff}}^{(i)}\boldsymbol{u}_k\Bigr]
+      + \boldsymbol{e}_N^\top P\,\boldsymbol{e}_N$$
+    $$\text{s.t.}\quad \boldsymbol{x}_{k+1}=A\boldsymbol{x}_k+B\boldsymbol{u}_k,\quad
+      \|\boldsymbol{u}_k\|_2\le u_{\max},\quad
+      \|\boldsymbol{p}_k-\boldsymbol{p}_j\|\ge r_{\min}\ \forall j\in\mathcal{N}(i)$$
+  </div>
+
+  <div class="cols2" style="margin-top:8px;">
+    <div>
+      <div class="definition" style="font-size:0.78em;">
+        <div class="definition-title">MARL-Adaptive Cost Matrices</div>
+        MAPPO action vector (14-D per drone):
+        $$\boldsymbol{a}^{(i)} = [\underbrace{q_{s,0},\ldots,q_{s,10}}_{\boldsymbol{q}_s \in \mathbb{R}^{11}},
+          \underbrace{r_{s,0},r_{s,1},r_{s,2}}_{\boldsymbol{r}_s \in \mathbb{R}^3}]$$
+        $$Q_{\text{eff}}^{(i)} = Q \odot \text{diag}(\boldsymbol{q}_s^{(i)}),\quad
+          R_{\text{eff}}^{(i)} = R \odot \text{diag}(\boldsymbol{r}_s^{(i)})$$
+        Scale factors clipped to $[0.1, 10.0]$ → preserves positive-definiteness.
+      </div>
+    </div>
+    <div>
+      <div class="theorem" style="font-size:0.78em;">
+        <div class="theorem-title">DARE Terminal Cost (LQR)</div>
+        Unique PD solution $P \succ 0$ to:
+        $$P = Q + A^\top P A - A^\top P B(R+B^\top P B)^{-1}B^\top P A$$
+        LQR gain: $K = (R+B^\top PB)^{-1}B^\top PA$<br/>
+        Closed-loop: $\rho(A_{\text{cl}}) \approx 0.983 &lt; 1$ → Schur stable<br/>
+        Terminal cost $V_f(\boldsymbol{e}_N) = \boldsymbol{e}_N^\top P\boldsymbol{e}_N$ bounds future cost.
+      </div>
+      <div class="card card-blue" style="margin-top:6px; font-size:0.68em;">
+        <strong>QP Size</strong> (1 drone, $N=20$): 291 vars · 220 eq. · 100 ineq. constraints<br/>
+        <strong>Solver:</strong> CVXPY → OSQP, warm-starting, 10 ms budget
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     MODULE 6 — ADMM CONSENSUS
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">11</div>
+  <div class="section-banner">Module 6 · ADMM Consensus</div>
+  <h2>Alternating Direction Method of Multipliers</h2>
+
+  <div class="cols2">
+    <div>
+      <div class="definition" style="font-size:0.76em;">
+        <div class="definition-title">Global Consensus Problem</div>
+        $$\min_{\boldsymbol{z}_1,\ldots,\boldsymbol{z}_N}\sum_{i=1}^N f_i(\boldsymbol{z}_i)
+          \quad\text{s.t.}\quad \boldsymbol{z}_i = \boldsymbol{v}\ \forall i$$
+        <strong>Augmented Lagrangian:</strong>
+        $$\mathcal{L}_\rho = \sum_{i=1}^N\!\left[f_i(\boldsymbol{z}_i)
+          + \boldsymbol{\mu}_i^\top(\boldsymbol{z}_i-\boldsymbol{v})
+          + \tfrac{\rho}{2}\|\boldsymbol{z}_i-\boldsymbol{v}\|^2\right]$$
+        Scaled form: $\boldsymbol{y}_i = \boldsymbol{\mu}_i/\rho$
+      </div>
+    </div>
+    <div>
+      <div class="eq-box" style="font-size:0.76em;">
+        <strong>Three-Step Iterate (per DMPC cycle):</strong><br/><br/>
+        <span class="badge badge-blue">z-update</span> Local DMPC solve (parallelisable):
+        $$\boldsymbol{z}_i^{k+1} \leftarrow \arg\min_{\boldsymbol{z}_i}\!\left[f_i(\boldsymbol{z}_i)
+          + \tfrac{\rho}{2}\|\boldsymbol{z}_i - \boldsymbol{v}^k + \boldsymbol{y}_i^k\|^2\right]$$
+        <span class="badge badge-green">v-update</span> Global average (closed form, $O(N)$):
+        $$\boldsymbol{v}^{k+1} \leftarrow \tfrac{1}{N}\sum_i(\boldsymbol{z}_i^{k+1} + \boldsymbol{y}_i^k)$$
+        <span class="badge badge-amber">Dual update:</span>
+        $$\boldsymbol{y}_i^{k+1} \leftarrow \boldsymbol{y}_i^k + \boldsymbol{z}_i^{k+1} - \boldsymbol{v}^{k+1}$$
+      </div>
+    </div>
+  </div>
+
+  <div class="theorem" style="margin-top:8px; font-size:0.72em;">
+    <div class="theorem-title">Convergence Theorem (Boyd et al. 2011)</div>
+    For any $\rho > 0$, if all $f_i$ are closed, proper, convex:
+    (1) Primal residual $r_\text{prim}^k \to 0$; &nbsp; (2) Dual residual $r_\text{dual}^k \to 0$; &nbsp;
+    (3) Objective $\sum_i f_i(\boldsymbol{z}_i^k) \to p^*$.
+    Linear convergence rate for strongly-convex $f_i$: $\|\boldsymbol{z}^k - \boldsymbol{z}^*\|^2 \le C\cdot\beta^k,\ \beta \in (0,1)$.
+    <br/><em>Empirically: 3–5 iterations achieve residuals below $10^{-3}$ m.</em>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     MODULE 7 — MAPPO
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">12</div>
+  <div class="section-banner">Module 7 · MAPPO</div>
+  <h2>Multi-Agent Proximal Policy Optimisation</h2>
+
+  <div class="cols2">
+    <div>
+      <div class="definition" style="font-size:0.75em;">
+        <div class="definition-title">CTDE — Centralised Training / Decentralised Execution</div>
+        <strong>Training:</strong> Centralised critic observes joint state:
+        $$V_\phi(\boldsymbol{s}) = V_\phi(\boldsymbol{o}^{(1)},\ldots,\boldsymbol{o}^{(N)})$$
+        <strong>Execution:</strong> Each actor conditions on local obs only:
+        $$\boldsymbol{a}^{(i)} \sim \pi_\theta(\cdot\mid\boldsymbol{o}^{(i)})$$
+        Shared actor (same $\theta$) exploits permutation symmetry.
+      </div>
+      <div class="eq-box" style="margin-top:7px; font-size:0.73em;">
+        <strong>PPO Clipping Objective:</strong>
+        $$\mathcal{L}^{\text{CLIP}} = \mathbb{E}_t\!\left[\min\!\left(
+          \rho_t\hat{A}_t,\ \text{clip}(\rho_t, 1{-}\epsilon, 1{+}\epsilon)\hat{A}_t\right)\right]$$
+        where $\rho_t = \pi_\theta(\boldsymbol{a}_t|\boldsymbol{o}_t)/\pi_{\theta_\text{old}}(\boldsymbol{a}_t|\boldsymbol{o}_t)$, $\epsilon=0.2$<br/>
+        <strong>Full objective:</strong>
+        $\mathcal{L} = \mathcal{L}^{\text{CLIP}} - c_1\mathcal{L}^{\text{VF}} + c_2\mathcal{L}^{\text{ENT}}$
+      </div>
+    </div>
+    <div>
+      <div class="card card-blue" style="font-size:0.7em;">
+        <strong style="color:var(--accent1);">40-D Observation per Agent</strong>
+        <table style="margin-top:5px; font-size:0.9em;">
+          <tr><th>Indices</th><th>Component</th><th>Dim</th></tr>
+          <tr><td>0–10</td><td>Own DMPC state $[\boldsymbol{p},\boldsymbol{v},\boldsymbol{a},\psi,\dot\psi]$</td><td>11</td></tr>
+          <tr><td>11–16</td><td>Reference pos. + vel.</td><td>6</td></tr>
+          <tr><td>17–19</td><td>Tracking error $\boldsymbol{e}_p$</td><td>3</td></tr>
+          <tr><td>20–28</td><td>Neighbour relative state + mean offset</td><td>9</td></tr>
+          <tr><td>29–33</td><td>Battery, health, last control</td><td>5</td></tr>
+          <tr><td>34–39</td><td>ADMM residual, solve time, collision margin, progress</td><td>6</td></tr>
+        </table>
+      </div>
+      <div class="eq-box" style="margin-top:7px; font-size:0.73em;">
+        <strong>Reward:</strong> $r^{(i)} = 5.0\,r_\text{track} + 2.0\,r_\text{form} + 10.0\,r_\text{safe} + 0.1\,r_\text{eff}$<br/>
+        $r_\text{track} = e^{-0.1\|\boldsymbol{e}_p\|^2} - 1$ (dense exponential shaping)
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     MAPPO — GAE
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">13</div>
+  <div class="section-banner">Module 7 · MAPPO cont'd</div>
+  <h2>Generalised Advantage Estimation &amp; Network Architecture</h2>
+
+  <div class="cols2">
+    <div>
+      <div class="eq-box">
+        <strong>GAE (Schulman et al. 2016):</strong>
+        $$\hat{A}_t^{\text{GAE}(\gamma,\lambda)} = \sum_{l=0}^{T-t}(\gamma\lambda)^l\delta_{t+l}$$
+        TD residual: $\delta_t = r_t + \gamma V_\phi(\boldsymbol{o}_{t+1}) - V_\phi(\boldsymbol{o}_t)$<br/>
+        $\gamma=0.99$ (discount), $\lambda=0.95$ (bias–variance trade-off)
+      </div>
+      <div class="card card-amber" style="margin-top:8px; font-size:0.72em;">
+        <strong style="color:var(--accent3);">Key Hyperparameters</strong>
+        <table style="margin-top:5px;">
+          <tr><th>Parameter</th><th>Value</th></tr>
+          <tr><td>n_steps</td><td>2048</td></tr>
+          <tr><td>batch_size</td><td>256</td></tr>
+          <tr><td>n_epochs</td><td>10</td></tr>
+          <tr><td>lr (Adam)</td><td>$3\times10^{-4}$</td></tr>
+          <tr><td>grad norm clip</td><td>0.5</td></tr>
+          <tr><td>action clip</td><td>$[0.1, 10.0]$</td></tr>
+        </table>
+      </div>
+    </div>
+    <div>
+      <div class="card card-blue" style="font-size:0.72em;">
+        <strong style="color:var(--accent1);">Network Architecture</strong>
+        <table style="margin-top:5px;">
+          <tr><th>Network</th><th>Input</th><th>Hidden</th><th>Output</th></tr>
+          <tr><td>Actor $\pi_\theta$</td><td>40-D</td><td>256→256</td><td>28-D ($\boldsymbol{\mu}_a,\log\boldsymbol{\sigma}_a$)</td></tr>
+          <tr><td>Critic $V_\phi$</td><td>$N\times40$-D</td><td>256→256</td><td>1-D value</td></tr>
+        </table>
+        Action: $\boldsymbol{a}^{(i)} = \text{clip}(\boldsymbol{\mu}_a + \boldsymbol{\sigma}_a\odot\boldsymbol{\varepsilon},\,0.1,\,10.0)$,
+        $\boldsymbol{\varepsilon}\sim\mathcal{N}(\boldsymbol{0},I)$
+      </div>
+      <div class="definition" style="margin-top:8px; font-size:0.73em;">
+        <div class="definition-title">Why MAPPO over Independent PPO?</div>
+        Centralised critic reduces advantage variance when rewards are spatially correlated
+        (e.g., formation keeping rewards depend on all drones' positions).
+        Empirically MAPPO outperforms IPPO in cooperative tasks (Yu et al., NeurIPS 2022).
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     MODULE 8 — ATTITUDE CONTROL
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">14</div>
+  <div class="section-banner">Module 8 · Geometric Attitude Control</div>
+  <h2>SO(3) Control — Global, Singularity-Free</h2>
+
+  <div class="cols2">
+    <div>
+      <div class="definition" style="font-size:0.75em;">
+        <div class="definition-title">Why SO(3) vs. Euler Angles?</div>
+        Euler angles suffer from <strong>gimbal lock</strong> (coordinate singularities at ±90° pitch).
+        Geometric control on $\mathrm{SO}(3)$ is globally defined and avoids numerical issues near singular configurations.
+      </div>
+      <div class="eq-box" style="margin-top:7px; font-size:0.78em;">
+        <strong>Attitude error vector (SO(3) formulation):</strong>
+        $$R_e = R_d^\top R, \qquad
+          \boldsymbol{e}_R = \tfrac{1}{2}\text{vex}(R_e - R_e^\top) \in \mathbb{R}^3$$
+        <strong>Geometric PD torque command:</strong>
+        $$\boldsymbol{\tau} = -K_{p,\text{att}}\boldsymbol{e}_R - K_{d,\text{att}}\boldsymbol{e}_\omega
+          + \underbrace{\boldsymbol{\omega}\times(J\boldsymbol{\omega})}_{\text{gyro FF}}$$
+        Gyroscopic feed-forward improves tracking at high angular rates.
+      </div>
+    </div>
+    <div>
+      <div class="eq-box" style="font-size:0.78em;">
+        <strong>Motor Mixing (X-configuration):</strong>
+        $$\begin{bmatrix}F\\\tau_x\\\tau_y\\\tau_z\end{bmatrix}
+          = \begin{bmatrix}
+            k_f & k_f & k_f & k_f\\
+            -k_fL & k_fL & k_fL & -k_fL\\
+            k_fL & k_fL & -k_fL & -k_fL\\
+            -k_d & k_d & -k_d & k_d
+          \end{bmatrix}
+          \begin{bmatrix}T_1\\T_2\\T_3\\T_4\end{bmatrix}$$
+        Motor speed: $\Omega_i = \sqrt{T_i/k_f}$, PWM $= \Omega_i/\Omega_{\max}$
+      </div>
+      <div class="card card-green" style="margin-top:8px; font-size:0.7em;">
+        <strong style="color:var(--accent2);">Cascade Control Architecture</strong><br/>
+        DMPC accel. command $\boldsymbol{u}$<br/>
+        → <strong>Position loop</strong>: desired $\boldsymbol{a}_\text{des}$ → desired $R_d$<br/>
+        → <strong>Attitude loop</strong>: $\boldsymbol{\tau}$ (geometric PD on SO(3))<br/>
+        → <strong>Motor mixing</strong>: $[T_1, T_2, T_3, T_4]$
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     MODULE 9 — STABILITY ANALYSIS
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">15</div>
+  <div class="section-banner">Module 9 · Stability Analysis</div>
+  <h2>Lyapunov · ISS · CBF · Recursive Feasibility</h2>
+
+  <div class="cols2">
+    <div>
+      <div class="theorem" style="font-size:0.73em;">
+        <div class="theorem-title">Lyapunov Asymptotic Stability</div>
+        Candidate: $V(\boldsymbol{e}) = \boldsymbol{e}^\top P\boldsymbol{e}$, $P \succ 0$ (DARE solution)<br/>
+        Under LQR law $\boldsymbol{u} = -K\boldsymbol{e}$:
+        $$\Delta V = \boldsymbol{e}^\top(A_\text{cl}^\top P A_\text{cl} - P)\boldsymbol{e}
+          = -\boldsymbol{e}^\top(Q + K^\top RK)\boldsymbol{e} < 0$$
+        $\Rightarrow$ <strong>Global asymptotic stability</strong> of LQR-closed-loop.
+        Stability margin $\approx 0.017$; spectral radius $\rho(A_\text{cl}) \approx 0.983$.
+      </div>
+      <div class="eq-box" style="margin-top:7px; font-size:0.73em;">
+        <strong>ISS Gain Bound:</strong>
+        $$\gamma_\text{iss} = \sqrt{\tfrac{\lambda_\text{max}(P)}{\lambda_\text{min}(P)}}
+          \cdot \tfrac{\|A_\text{cl}\|_2}{1-\rho}$$
+        Max disturbance for $\varepsilon=1$ m error $\approx$ 1.3 mm/s² — within IMU noise level. ✓
+      </div>
+    </div>
+    <div>
+      <div class="definition" style="font-size:0.73em;">
+        <div class="definition-title">Control Barrier Function (CBF)</div>
+        Safety function: $h_{ij}(\boldsymbol{x}) = \|\boldsymbol{p}_i - \boldsymbol{p}_j\|^2 - r_\text{min}^2 \ge 0$<br/>
+        CBF condition: $h_{ij}(\boldsymbol{x}[k{+}1]) \ge (1-\alpha)h_{ij}(\boldsymbol{x}[k])$<br/>
+        Linearised affine constraint on $\boldsymbol{u}$:
+        $$-2\boldsymbol{\delta}^\top B_\text{pos}\boldsymbol{u} \le 2\boldsymbol{\delta}^\top\boldsymbol{v} + \alpha h$$
+        <strong>Forward Invariance:</strong> if $h_{ij}(\boldsymbol{x}_0)\ge 0$ and constraint holds at every step → $h_{ij}(\boldsymbol{x}_k)\ge 0\ \forall k$.
+      </div>
+      <div class="theorem" style="margin-top:7px; font-size:0.72em;">
+        <div class="theorem-title">Recursive Feasibility (Rawlings &amp; Mayne, 2019)</div>
+        With terminal cost $P$, terminal set $\Omega_f = \{\boldsymbol{e}: \boldsymbol{e}^\top P\boldsymbol{e}\le c\}$, and terminal law $\boldsymbol{u}_f=-K\boldsymbol{e}$:
+        feasibility at $t=0$ $\Rightarrow$ feasibility for all $t>0$ (shift argument).
+        <div class="caveat" style="margin-top:5px; font-size:0.9em;"><strong>Implementation note:</strong> $\Omega_f$ is not enforced as explicit QP constraint; $P$ acts as soft terminal penalty. Guarantees are heuristic under MAPPO scaling.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     DATA FLOW — METHODOLOGY INTEGRATION
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">16</div>
+  <div class="section-banner">03 · Methodology — Integration</div>
+  <h2>End-to-End Data Flow</h2>
+
+  <div class="arch-box" style="font-size:0.5em; margin: 6px 0;">
+  <span style="color:#8b949e;">── PERCEPTION ──────────────────────────────────────────────────────────</span>
+  IMU/GPS/Radar/Optical/RF
+        │
+        ▼  <span style="color:#3fb950;">[M2 · EKF Sensor Fusion]</span>  →  18-D drone state, 11-D target states
+                │
+  <span style="color:#8b949e;">── DECISION ────────────────────────────────────────────────────────────</span>
+                ├──► <span style="color:#58a6ff;">[M4 · Classification Engine]</span>  →  target labels (hostile/neutral/friendly)
+                │         │
+                │         ▼ <span style="color:#f85149;">[M5 · Threat Assessor]</span>  →  priority scores
+                │               │
+                ├──► <span style="color:#58a6ff;">[M1 · Mission Planner]</span>  →  waypoints (grid/lawnmower/expanding-square)
+                │         │
+                │         ▼ <span style="color:#58a6ff;">[M3 · Formation Controller]</span>  →  desired positions per drone
+                │               │
+                └──────────────► <span style="color:#d29922;">[M6 · Task Allocator]</span>  Hungarian  →  drone→task assignment
+                                        │
+  <span style="color:#8b949e;">── MARL ──────────────────────────────────────────────────────────────</span>
+                                        ▼
+                          <span style="color:#bc8cff;">[M7 · MAPPO Agent]</span>  40-D obs  →  14-D action (q_s, r_s)
+                                        │
+  <span style="color:#8b949e;">── CONSENSUS + CONTROL ─────────────────────────────────────────────</span>
+                                        ▼
+                           <span style="color:#3fb950;">[M7 · ADMM Consensus]</span>  3–5 iter  →  consensus variable v
+                                        │
+                                        ▼ <span style="color:#d29922;">[M8 · DMPC  CVXPY/OSQP]</span>  QP solve  →  u₀ = [ax,ay,az]
+                                        │
+                                        ▼ <span style="color:#bc8cff;">[M9 · Attitude Controller]</span>  SO(3) PD  →  [T₁,T₂,T₃,T₄]
+                                        │
+                          <span style="color:#8b949e;">── [M10 · DMPC Analytics]  ◄─────────────────────</span></div>
+
+  <div style="font-size:0.6em; color:#8b949e; margin-top:6px; text-align:center;">
+    Full loop runs at <strong style="color:#e6edf3;">50 Hz</strong> · Mission scenarios: area_surveillance, threat_response, search_and_track
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     MISSION SCENARIOS
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">17</div>
+  <div class="section-banner">03 · Methodology — Scenarios</div>
+  <h2>Three Real-World ISR Scenarios</h2>
+
+  <div class="cols3" style="margin-top:10px;">
+    <div class="card card-blue">
+      <div style="font-size:0.75em; font-weight:700; color:var(--accent1);">🗺 Area Surveillance</div>
+      <ul class="tight" style="margin-top:6px; font-size:0.72em;">
+        <li><strong>Area:</strong> 400×400 m</li>
+        <li><strong>Drones:</strong> 4</li>
+        <li><strong>Formation:</strong> Grid</li>
+        <li><strong>Pattern:</strong> Lawnmower coverage</li>
+        <li><strong>Duration:</strong> 20 min</li>
+        <li><strong>Targets:</strong> 0 (coverage focus)</li>
+      </ul>
+    </div>
+    <div class="card card-red">
+      <div style="font-size:0.75em; font-weight:700; color:var(--accent4);">⚡ Threat Response</div>
+      <ul class="tight" style="margin-top:6px; font-size:0.72em;">
+        <li><strong>Area:</strong> 250×250 m</li>
+        <li><strong>Drones:</strong> 4</li>
+        <li><strong>Formation:</strong> Wedge (V-shape)</li>
+        <li><strong>Pattern:</strong> Perimeter patrol + intercept</li>
+        <li><strong>Duration:</strong> 10 min</li>
+        <li><strong>Targets:</strong> 2 (hostile)</li>
+      </ul>
+    </div>
+    <div class="card card-green">
+      <div style="font-size:0.75em; font-weight:700; color:var(--accent2);">🔍 Search &amp; Track</div>
+      <ul class="tight" style="margin-top:6px; font-size:0.72em;">
+        <li><strong>Area:</strong> 600×600 m</li>
+        <li><strong>Drones:</strong> 4</li>
+        <li><strong>Formation:</strong> Line</li>
+        <li><strong>Pattern:</strong> Expanding-square search</li>
+        <li><strong>Duration:</strong> 20 min</li>
+        <li><strong>Targets:</strong> 3 (mixed)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="cols2" style="margin-top:10px;">
+    <div class="card card-amber" style="font-size:0.68em;">
+      <strong style="color:var(--accent3);">Mode 1 — Pure DMPC</strong><br/>
+      Fixed cost matrices $Q = I_{11}$, $R = 0.1I_3$. No RL policy needed.<br/>
+      Baseline for comparison.
+    </div>
+    <div class="card card-purple" style="font-size:0.68em;">
+      <strong style="color:var(--accent5);">Mode 2 — MARL-Adaptive DMPC</strong><br/>
+      MAPPO outputs per-drone $\boldsymbol{q}_s, \boldsymbol{r}_s$ at every step.<br/>
+      Trained for 1 M steps on area_surveillance; transfers to all scenarios.
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION — CHALLENGES
+══════════════════════════════════════════════════════ -->
+<section data-background-gradient="radial-gradient(ellipse at 50% 100%, rgba(248,81,73,0.1) 0%, transparent 60%)">
+  <div class="section-banner">04 · Challenges</div>
+  <h2>Technical Challenges</h2>
+
+  <div class="cols2" style="margin-top:8px;">
+    <div>
+      <div class="card card-red" style="font-size:0.74em; margin-bottom:8px;">
+        <strong style="color:var(--accent4);">1. Non-Convex Collision Constraints</strong><br/>
+        The constraint $\|\boldsymbol{p}_k - \boldsymbol{p}_j\| \ge r_\text{min}$ defines the complement of a ball
+        — <em>non-convex</em>. OSQP only supports linear constraints.
+        <strong>Approach:</strong> Treat neighbour positions as fixed parameters per QP solve;
+        use CBF affine reformulation as the theoretically sound alternative.
+      </div>
+      <div class="card card-red" style="font-size:0.74em; margin-bottom:8px;">
+        <strong style="color:var(--accent4);">2. MAPPO-DMPC Stability Gap</strong><br/>
+        DARE terminal cost $P$ computed for fixed $(Q,R)$. When MAPPO scales produce $Q_\text{eff} \ne Q$,
+        the Bellman identity no longer holds → stability guarantees are heuristic.
+        <strong>Approach:</strong> Scale clipping $[0.1, 10]$ keeps effective matrices well-conditioned.
+      </div>
+      <div class="card card-red" style="font-size:0.74em;">
+        <strong style="color:var(--accent4);">3. 50 Hz Real-Time Budget</strong><br/>
+        Each drone must solve a 291-variable QP in $&lt;10$ ms.
+        <strong>Approach:</strong> DPP-compliant CVXPY problem (built once, warm-started), OSQP
+        with $\varepsilon = 10^{-3}$; ADMM adds only 3–5 iterations overhead.
+      </div>
+    </div>
+    <div>
+      <div class="card card-amber" style="font-size:0.74em; margin-bottom:8px;">
+        <strong style="color:var(--accent3);">4. Partial Observability in MARL</strong><br/>
+        Each drone observes only 40-D local information; optimal policy requires global state.
+        <strong>Approach:</strong> Centralised critic $V_\phi(\boldsymbol{o}^{1:N})$ during training
+        reduces gradient variance; shared actor exploits symmetry.
+      </div>
+      <div class="card card-amber" style="font-size:0.74em; margin-bottom:8px;">
+        <strong style="color:var(--accent3);">5. Sensor Fusion Asynchrony</strong><br/>
+        GPS at 10 Hz, IMU at 400 Hz, radar asynchronous. State must remain consistent for DMPC.
+        <strong>Approach:</strong> Three parallel EKFs fused in <code>DroneStateEstimator</code>;
+        adaptive $R_{s,\text{eff}} = R_s/c_s$ de-weights stale sensors.
+      </div>
+      <div class="card card-amber" style="font-size:0.74em;">
+        <strong style="color:var(--accent3);">6. Scalability of ADMM Communication</strong><br/>
+        Each ADMM iteration requires sharing $\boldsymbol{z}_i$ across all drones.
+        <strong>Approach:</strong> Bandwidth $= N \times K \times d \times 4$ bytes.
+        Default (N=4, K=5, d=3): <strong>240 bytes / step ≪ 1 kbit/s</strong>.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION — RESULTS
+══════════════════════════════════════════════════════ -->
+<section data-background-gradient="radial-gradient(ellipse at 50% 0%, rgba(63,185,80,0.08) 0%, transparent 60%)">
+  <div class="section-banner">05 · Results &amp; Analysis</div>
+  <h2>Stability Report &amp; Performance Metrics</h2>
+
+  <div class="cols2">
+    <div>
+      <div class="card card-green" style="font-size:0.72em;">
+        <strong style="color:var(--accent2);">✓ DMPC Stability Report (default params)</strong>
+        <table style="margin-top:6px;">
+          <tr><th>Check</th><th>Result</th><th>Value</th></tr>
+          <tr><td>Lyapunov stable</td><td style="color:var(--accent2);">✓</td><td>$\Delta V_\text{max}=-0.917$, margin$=0.0027$</td></tr>
+          <tr><td>Eigenvalue stable</td><td style="color:var(--accent2);">✓</td><td>$\rho=0.9826$, margin$=0.0174$</td></tr>
+          <tr><td>ISS</td><td style="color:var(--accent2);">✓</td><td>gain$=13.93$, max dist.$=0.0013$ m/s²</td></tr>
+          <tr><td>CBF valid</td><td style="color:var(--accent2);">✓</td><td>min sep.$=20$ m, margin$=15$ m</td></tr>
+          <tr><td>Recursive feasible</td><td style="color:var(--accent2);">✓</td><td>horizon_ok=True</td></tr>
+          <tr><td><strong>OVERALL</strong></td><td style="color:var(--accent2);"><strong>✓ STABLE</strong></td><td>–</td></tr>
+        </table>
+      </div>
+    </div>
+    <div>
+      <div class="card card-blue" style="font-size:0.72em; margin-bottom:8px;">
+        <strong style="color:var(--accent1);">Convergence Characteristics</strong>
+        <ul class="tight" style="margin-top:5px;">
+          <li>Error halving time: $k_{1/2} = \ln 2 / (-\ln 0.983) \approx$ <strong>40 steps = 0.8 s</strong></li>
+          <li>ADMM: 3–5 iterations → $r_\text{prim} &lt; 10^{-3}$ m per control step</li>
+          <li>Formation convergence: $\|\boldsymbol{x}(t)-\boldsymbol{x}^*\| \le e^{-\lambda_1 t}\|\boldsymbol{x}(0)-\boldsymbol{x}^*\|$</li>
+          <li>Coupling error bound: $\|\boldsymbol{p}_j - \hat{\boldsymbol{p}}_j\| \le v_\text{max}\tau \le 0.4$ m $\ll r_\text{min}=5$ m ✓</li>
+        </ul>
+      </div>
+      <div class="card card-purple" style="font-size:0.72em;">
+        <strong style="color:var(--accent5);">MARL-DMPC vs. Pure DMPC</strong>
+        <ul class="tight" style="margin-top:5px;">
+          <li>MAPPO adapts $Q/R$ scales online: prioritises tracking in dense areas, formation in open space</li>
+          <li>Energy efficiency reward $r_\text{eff}$ reduces unnecessary control effort by ∼10–15%</li>
+          <li>Safety reward weight $w_\text{safe}=10.0$ dominates → zero collisions in trained policy</li>
+          <li>Compare: <code>notebooks/05_comparison_analysis.ipynb</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS — DMPC PARAMETERS TABLE -->
+<section>
+  <div class="sn">19</div>
+  <div class="section-banner">05 · Results &amp; Analysis cont'd</div>
+  <h2>Key System Parameters &amp; Solver Performance</h2>
+
+  <div class="cols2">
+    <div>
+      <div class="card card-blue" style="font-size:0.7em;">
+        <strong style="color:var(--accent1);">DMPC Configuration</strong>
+        <table style="margin-top:5px;">
+          <tr><th>Parameter</th><th>Value</th></tr>
+          <tr><td>Prediction horizon $N$</td><td>20 steps (0.4 s)</td></tr>
+          <tr><td>Time step $\Delta t$</td><td>0.02 s (50 Hz)</td></tr>
+          <tr><td>Max accel. $u_\text{max}$</td><td>10.0 m/s²</td></tr>
+          <tr><td>Collision radius $r_\text{min}$</td><td>5.0 m</td></tr>
+          <tr><td>Safety margin</td><td>$0.9 \times r_\text{min}$</td></tr>
+          <tr><td>ADMM penalty $\rho$</td><td>1.0</td></tr>
+          <tr><td>ADMM max iter</td><td>10</td></tr>
+          <tr><td>OSQP time limit</td><td>10 ms / drone</td></tr>
+          <tr><td>OSQP tol ($\varepsilon_\text{abs}$)</td><td>$10^{-3}$</td></tr>
+        </table>
+      </div>
+    </div>
+    <div>
+      <div class="card card-amber" style="font-size:0.7em; margin-bottom:8px;">
+        <strong style="color:var(--accent3);">Drone Physical Model (hector_quadrotor)</strong>
+        <table style="margin-top:5px;">
+          <tr><th>Parameter</th><th>Value</th></tr>
+          <tr><td>Mass</td><td>1.477 kg</td></tr>
+          <tr><td>Inertia (Ixx=Iyy)</td><td>0.0083 kg·m²</td></tr>
+          <tr><td>Inertia (Izz)</td><td>0.0166 kg·m²</td></tr>
+          <tr><td>Arm length</td><td>0.215 m</td></tr>
+          <tr><td>Max thrust/motor</td><td>25 N</td></tr>
+          <tr><td>Motor constant $k_f$</td><td>$8.27\times10^{-6}$ N/(rad/s)²</td></tr>
+        </table>
+      </div>
+      <div class="card card-green" style="font-size:0.7em;">
+        <strong style="color:var(--accent2);">Simulation Fidelity</strong>
+        <ul class="tight" style="margin-top:5px;">
+          <li>6-DOF rigid-body dynamics (PyBullet)</li>
+          <li>Wind model included</li>
+          <li>Battery depletion model</li>
+          <li>Collision detection</li>
+          <li>Staggered spawn (1 drone / second)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION — NOVELTY
+══════════════════════════════════════════════════════ -->
+<section data-background-gradient="radial-gradient(ellipse at 30% 50%, rgba(188,140,255,0.12) 0%, transparent 60%)">
+  <div class="section-banner">06 · Novelty</div>
+  <h2>Key Contributions</h2>
+
+  <div class="cols2" style="margin-top:10px;">
+    <div>
+      <div class="card card-purple" style="margin-bottom:8px;">
+        <span class="badge badge-purple">1</span>
+        <strong> MARL-Adaptive DMPC Cost Tuning</strong>
+        <div style="font-size:0.72em; margin-top:5px;">
+          Instead of fixed $Q, R$ matrices, MAPPO outputs per-drone <em>scale vectors</em>
+          at every 50 Hz step: $Q_\text{eff} = Q \odot \text{diag}(\boldsymbol{q}_s)$.
+          The controller can dynamically trade off tracking accuracy, energy, and formation keeping.
+          Preserves QP convexity (positive-definiteness) by design.
+        </div>
+      </div>
+      <div class="card card-blue" style="margin-bottom:8px;">
+        <span class="badge badge-blue">2</span>
+        <strong> ADMM Consensus for Swarm DMPC</strong>
+        <div style="font-size:0.72em; margin-top:5px;">
+          Three-step ADMM iterate couples local QP sub-problems across drones with
+          <em>provable convergence</em> (Boyd et al. 2011) to a globally consistent reference.
+          Communication overhead: just 240 bytes/step for a 4-drone swarm.
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="card card-green" style="margin-bottom:8px;">
+        <span class="badge badge-green">3</span>
+        <strong> Full ISR Pipeline Integration</strong>
+        <div style="font-size:0.72em; margin-top:5px;">
+          End-to-end system integrating EKF sensor fusion, Bayesian classification,
+          Hungarian task allocation, formation consensus, DMPC, ADMM, MAPPO, and
+          geometric attitude control in a single 50 Hz loop — no ROS2 required.
+        </div>
+      </div>
+      <div class="card card-amber" style="margin-bottom:8px;">
+        <span class="badge badge-amber">4</span>
+        <strong> CTDE + Shared Actor Architecture</strong>
+        <div style="font-size:0.72em; margin-top:5px;">
+          Centralised critic $V_\phi(\boldsymbol{o}^{1:N})$ during training reduces variance for
+          correlated rewards. Shared actor (same $\theta$ per drone) leverages permutation
+          symmetry, drastically reducing parameter count. Decentralised at runtime.
+        </div>
+      </div>
+      <div class="card card-red">
+        <span class="badge badge-red">5</span>
+        <strong> Safety-Aware RL via CBF + Hard Constraints</strong>
+        <div style="font-size:0.72em; margin-top:5px;">
+          The RL policy <em>only adjusts cost weights</em> — all hard safety constraints
+          (collision avoidance, actuator saturation) remain inside the QP and are
+          enforced by OSQP regardless of the RL output.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     SECTION — CONCLUSION
+══════════════════════════════════════════════════════ -->
+<section data-background-gradient="radial-gradient(ellipse at 50% 50%, rgba(31,111,235,0.1) 0%, transparent 70%)">
+  <div class="section-banner">07 · Conclusion</div>
+  <h2>Summary &amp; Future Directions</h2>
+
+  <div class="cols2" style="margin-top:8px;">
+    <div>
+      <div class="card card-green" style="font-size:0.73em; margin-bottom:8px;">
+        <strong style="color:var(--accent2);">What We Built</strong>
+        <ul class="tight" style="margin-top:5px;">
+          <li>Complete MARL-adaptive DMPC framework for 4-drone ISR swarm</li>
+          <li>10 integrated modules: perception → decision → consensus → control</li>
+          <li>MAPPO-ADMM-DMPC loop running at 50 Hz in PyBullet simulation</li>
+          <li>3 real-world mission scenarios with full evaluation suite</li>
+          <li>Formal stability analysis: Lyapunov, ISS, CBF, recursive feasibility</li>
+        </ul>
+      </div>
+      <div class="card card-blue" style="font-size:0.73em;">
+        <strong style="color:var(--accent1);">Key Takeaways</strong>
+        <ul class="tight" style="margin-top:5px;">
+          <li>MARL can safely adapt MPC cost weights without breaking convexity</li>
+          <li>ADMM provides elegant, theoretically grounded inter-drone coordination</li>
+          <li>CTDE (centralised training, decentralised execution) is essential for correlated swarm tasks</li>
+          <li>Hard safety constraints in the QP provide a safety layer RL alone cannot</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="card card-amber" style="font-size:0.73em; margin-bottom:8px;">
+        <strong style="color:var(--accent3);">Current Limitations</strong>
+        <ul class="tight" style="margin-top:5px;">
+          <li>Stability guarantees are heuristic under online MAPPO scaling</li>
+          <li>Terminal set $\Omega_f$ not enforced as explicit QP constraint</li>
+          <li>Collision constraints are non-convex (handled via CBF alternative)</li>
+          <li>Physics model uses small-angle linearisation (valid near hover)</li>
+        </ul>
+      </div>
+      <div class="card card-purple" style="font-size:0.73em;">
+        <strong style="color:var(--accent5);">Future Work</strong>
+        <ul class="tight" style="margin-top:5px;">
+          <li>Explicit terminal set constraint for rigorous recursive feasibility</li>
+          <li>Re-solve DARE online when $Q_\text{eff}$ changes (adaptive terminal cost)</li>
+          <li>Hardware deployment on hector_quadrotor airframe</li>
+          <li>Graph neural network for scalable multi-drone observation encoding</li>
+          <li>Adversarial training for robustness to GPS jamming / communication loss</li>
+          <li>Nonlinear MPC (NMPC) to remove small-angle assumption</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     FINAL — THANK YOU
+══════════════════════════════════════════════════════ -->
+<section data-background-gradient="radial-gradient(ellipse at 30% 40%, rgba(31,111,235,0.15) 0%, transparent 60%), radial-gradient(ellipse at 70% 70%, rgba(188,140,255,0.08) 0%, transparent 55%)">
+  <div style="text-align:center; padding: 10px 0;">
+    <h2 style="color:var(--accent1); font-size:1.5em;">Thank You</h2>
+    <p style="color:#8b949e; font-size:0.7em; margin-bottom:20px;">Questions &amp; Discussion</p>
+
+    <div class="cols3" style="font-size:0.62em; max-width:800px; margin:0 auto 20px;">
+      <div class="card card-blue" style="text-align:center;">
+        <strong>GitHub</strong><br/>
+        <span class="dim">Cornerstone-swarm-drones<br/>/isr-rl-dmpc</span>
+      </div>
+      <div class="card card-green" style="text-align:center;">
+        <strong>Documentation</strong><br/>
+        <span class="dim">math_docs/ (10 derivations)<br/>docs/ (architecture, API)</span>
+      </div>
+      <div class="card card-purple" style="text-align:center;">
+        <strong>Simulation</strong><br/>
+        <span class="dim">PyBullet 3-D interactive<br/>50 Hz, 6-DOF physics</span>
+      </div>
+    </div>
+
+    <hr class="sep" style="width:60%; margin:16px auto;"/>
+
+    <div style="font-size:0.55em; color:#484f58; line-height:2;">
+      <span class="badge badge-blue">MARL · MAPPO</span>
+      <span class="badge badge-green">DMPC · CVXPY · OSQP</span>
+      <span class="badge badge-amber">ADMM Consensus</span>
+      <span class="badge badge-purple">EKF · Sensor Fusion</span>
+      <span class="badge badge-red">SO(3) Attitude Control</span>
+      <span class="badge badge-blue">Hungarian Assignment</span>
+      <span class="badge badge-green">Lyapunov · ISS · CBF</span>
+      <span class="badge badge-amber">PyBullet Simulation</span>
+    </div>
+
+    <div style="margin-top:20px; font-size:0.52em; color:#30363d;">
+      ISR-RL-DMPC · MIT License · IIT Delhi · 2025
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     APPENDIX — NOTATION
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">App. A</div>
+  <div class="section-banner">Appendix A · Notation</div>
+  <h2>Mathematical Notation Reference</h2>
+
+  <div class="cols2">
+    <table style="font-size:0.65em;">
+      <tr><th>Symbol</th><th>Meaning</th></tr>
+      <tr><td>$\boldsymbol{x} \in \mathbb{R}^{11}$</td><td>DMPC state vector</td></tr>
+      <tr><td>$\boldsymbol{u} \in \mathbb{R}^3$</td><td>Control (commanded acceleration)</td></tr>
+      <tr><td>$A, B$</td><td>Discrete-time system matrices</td></tr>
+      <tr><td>$Q, R, P$</td><td>LQR / MPC cost matrices</td></tr>
+      <tr><td>$\boldsymbol{q}_s, \boldsymbol{r}_s$</td><td>MAPPO-output Q and R scale vectors</td></tr>
+      <tr><td>$N$</td><td>MPC prediction horizon (20 steps)</td></tr>
+      <tr><td>$\Delta t$</td><td>Discrete time step (0.02 s)</td></tr>
+      <tr><td>$\rho$</td><td>Spectral radius or ADMM penalty</td></tr>
+    </table>
+    <table style="font-size:0.65em;">
+      <tr><th>Symbol</th><th>Meaning</th></tr>
+      <tr><td>$\boldsymbol{z}_i, \boldsymbol{v}, \boldsymbol{\mu}_i$</td><td>ADMM local, global, dual variables</td></tr>
+      <tr><td>$\pi_\theta$</td><td>MAPPO actor policy</td></tr>
+      <tr><td>$V_\phi$</td><td>Centralised value function</td></tr>
+      <tr><td>$\hat{A}_t$</td><td>GAE advantage estimate</td></tr>
+      <tr><td>$L$</td><td>Graph Laplacian matrix</td></tr>
+      <tr><td>$\mathrm{SO}(3)$</td><td>Special orthogonal group (rotations)</td></tr>
+      <tr><td>$\boldsymbol{q}$</td><td>Unit quaternion (attitude)</td></tr>
+      <tr><td>$h_{ij}$</td><td>CBF safety function</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     APPENDIX — REFERENCES
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sn">App. B</div>
+  <div class="section-banner">Appendix B · References</div>
+  <h2>Key References</h2>
+
+  <ul style="font-size:0.6em; line-height:1.9; color:#8b949e;">
+    <li><strong style="color:#e6edf3;">Rawlings, Mayne &amp; Diehl (2019)</strong> — <em>Model Predictive Control: Theory, Computation, and Design</em>, 2nd ed., Nob Hill Publishing.</li>
+    <li><strong style="color:#e6edf3;">Stellato et al. (2020)</strong> — "OSQP: An Operator Splitting Solver for Quadratic Programs," <em>Math. Prog. Comp.</em>, 12:637–672.</li>
+    <li><strong style="color:#e6edf3;">Boyd, Parikh, Chu, Peleato &amp; Eckstein (2011)</strong> — "Distributed Optimization and Statistical Learning via ADMM," <em>Found. Trends Mach. Learn.</em>, 3(1):1–122.</li>
+    <li><strong style="color:#e6edf3;">Schulman et al. (2017)</strong> — "Proximal Policy Optimization Algorithms," <em>arXiv:1707.06347</em>.</li>
+    <li><strong style="color:#e6edf3;">Yu et al. (2022)</strong> — "The Surprising Effectiveness of PPO in Cooperative Multi-Agent Games," <em>NeurIPS 2022</em>.</li>
+    <li><strong style="color:#e6edf3;">Schulman, Moritz et al. (2016)</strong> — "High-Dimensional Continuous Control Using Generalised Advantage Estimation," <em>ICLR 2016</em>.</li>
+    <li><strong style="color:#e6edf3;">Lee, Leok &amp; McClamroch (2010)</strong> — "Geometric Tracking Control of a Quadrotor UAV on SE(3)," <em>IEEE CDC</em>, pp. 5420–5425.</li>
+    <li><strong style="color:#e6edf3;">Ames et al. (2019)</strong> — "Control Barrier Functions: Theory and Applications," <em>Proc. European Control Conference</em>.</li>
+    <li><strong style="color:#e6edf3;">Kuhn (1955)</strong> — "The Hungarian Method for the Assignment Problem," <em>Naval Research Logistics Quarterly</em>, 2(1–2):83–97.</li>
+    <li><strong style="color:#e6edf3;">Olfati-Saber, Fax &amp; Murray (2007)</strong> — "Consensus and Cooperation in Networked Multi-Agent Systems," <em>Proc. IEEE</em>, 95(1):215–233.</li>
+  </ul>
+</section>
+
+</div><!-- .slides -->
+</div><!-- .reveal -->
+
+<!-- Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/notes/notes.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/zoom/zoom.min.js"></script>
+
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    transitionSpeed: 'fast',
+    backgroundTransition: 'fade',
+    center: false,
+    width: 1280,
+    height: 720,
+    margin: 0.06,
+    plugins: [ RevealHighlight, RevealNotes, RevealZoom ],
+
+    // Re-typeset MathJax after each slide change
+    // (MathJax 3 does not require a Reveal plugin)
+  });
+
+  // Typeset MathJax once Reveal is ready and on every slide change
+  Reveal.on('ready', () => { if(window.MathJax) MathJax.typesetPromise(); });
+  Reveal.on('slidechanged', () => { if(window.MathJax) MathJax.typesetPromise(); });
+</script>
+</body>
+</html>
