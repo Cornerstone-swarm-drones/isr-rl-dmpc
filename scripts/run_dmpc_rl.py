@@ -200,7 +200,13 @@ def main() -> None:
     parser.add_argument(
         "--pybullet-record", action="store_true",
         help="Open a PyBullet GUI window alongside the simulation and record an MP4 "
-             "video to data/videos/dmpc_rl/<scenario>/",
+              "video to data/videos/dmpc_rl/<scenario>/",
+    )
+    parser.add_argument(
+        "--pybullet-video-root",
+        default=str(ROOT / "data" / "videos" / "dmpc_rl"),
+        help="Root directory for PyBullet videos; each scenario is saved under "
+             "<root>/<scenario>/",
     )
     args = parser.parse_args()
 
@@ -264,6 +270,7 @@ def main() -> None:
                 num_targets=env_kwargs["max_targets"],
                 scenario=args.scenario,
                 record=True,
+                output_dir=str(Path(args.pybullet_video_root) / args.scenario),
                 method="dmpc_rl",
                 spawn_interval_steps=50,
             )

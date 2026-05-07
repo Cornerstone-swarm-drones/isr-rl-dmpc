@@ -92,9 +92,16 @@ python scripts/run_dmpc.py --scenario search_and_track --num-drones 4
 
 # Limit steps for a quick smoke test
 python scripts/run_dmpc.py --scenario area_surveillance --max-steps 200
+
+# Save PyBullet video (per-scenario folder)
+python scripts/run_dmpc.py --scenario area_surveillance --pybullet-record
 ```
 
 Results (JSON) are saved to `data/results/dmpc/`.
+PyBullet videos (when `--pybullet-record` is used) are saved to
+`data/videos/dmpc/<scenario>/`.
+Use `--pybullet-video-root <dir>` to change the root folder while keeping
+separate per-scenario subfolders.
 
 ### Mode 2 — RL (MAPPO-adaptive DMPC)
 
@@ -136,9 +143,16 @@ python scripts/run_dmpc_rl.py --scenario area_surveillance \
 
 # Stochastic policy (default is deterministic for evaluation)
 python scripts/run_dmpc_rl.py --scenario area_surveillance --stochastic
+
+# Save PyBullet video (per-scenario folder)
+python scripts/run_dmpc_rl.py --scenario area_surveillance --pybullet-record
 ```
 
 Results (JSON) are saved to `data/results/dmpc_rl/`.
+PyBullet videos (when `--pybullet-record` is used) are saved to
+`data/videos/dmpc_rl/<scenario>/`.
+Use `--pybullet-video-root <dir>` to change the root folder while keeping
+separate per-scenario subfolders.
 
 #### Step 3 — Compare both modes
 
@@ -288,6 +302,7 @@ Three pre-defined real-world ISR scenarios are available in `config/mission_scen
 | `python scripts/run_dmpc.py --scenario area_surveillance` | Wide-area lawnmower coverage |
 | `python scripts/run_dmpc.py --scenario threat_response` | Perimeter patrol + intercept |
 | `python scripts/run_dmpc.py --scenario search_and_track` | Expanding-square search |
+| `python scripts/run_dmpc.py --scenario <scenario> --pybullet-record` | Save PyBullet video to `data/videos/dmpc/<scenario>/` |
 
 #### RL — Train then Evaluate (Mode 2)
 
@@ -297,6 +312,7 @@ Three pre-defined real-world ISR scenarios are available in `config/mission_scen
 | `python scripts/run_dmpc_rl.py --scenario area_surveillance` | Evaluate on area surveillance |
 | `python scripts/run_dmpc_rl.py --scenario threat_response` | Evaluate on threat response |
 | `python scripts/run_dmpc_rl.py --scenario search_and_track` | Evaluate on search & track |
+| `python scripts/run_dmpc_rl.py --scenario <scenario> --pybullet-record` | Save PyBullet video to `data/videos/dmpc_rl/<scenario>/` |
 
 Results are saved as JSON files in `data/results/dmpc/` and `data/results/dmpc_rl/`
 respectively.  Open `notebooks/05_comparison_analysis.ipynb` for a head-to-head comparison.
