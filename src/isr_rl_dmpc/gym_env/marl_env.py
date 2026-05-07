@@ -424,9 +424,10 @@ class MARLDMPCEnv(gym.Env):
         # Re-freeze non-launched drones after physics step
         for i in range(self.num_drones):
             if not self._drone_launched[i]:
-                self._simulator.drones[i].position = home_pos.copy()
-                self._simulator.drones[i].velocity = np.zeros(3, dtype=np.float64)
-                self._drone_states[i, :3] = home_pos
+                home_i = np.array([i * self.collision_radius * 3.0, 0.0, self.DEFAULT_ALTITUDE])
+                self._simulator.drones[i].position = home_i.copy()
+                self._simulator.drones[i].velocity = np.zeros(3)
+                self._drone_states[i, :3] = home_i
                 self._drone_states[i, 3:] = 0.0
 
         # Sync battery level from the physics simulator so that there is
