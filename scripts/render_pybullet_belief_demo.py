@@ -67,8 +67,12 @@ class FrameState:
     drone_xyz: np.ndarray
     drone_yaw: np.ndarray
     selected_cells: np.ndarray
+    selected_in_home: np.ndarray
+    selected_in_assist: np.ndarray
     tracking_drones: np.ndarray
     pending_watch_drones: np.ndarray
+    drone_regimes: tuple[str, ...]
+    belief_risk_scores: np.ndarray
     active_threat_cells: np.ndarray
     pending_threat_cells: np.ndarray
     threat_xy: np.ndarray
@@ -106,6 +110,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--world-scale", type=float, default=0.04)
     parser.add_argument("--drone-scale", type=float, default=7.0)
     parser.add_argument("--fixed-altitude-render", type=float, default=1.8)
+    parser.add_argument(
+        "--belief-layer-alpha",
+        type=float,
+        default=0.48,
+        help="Maximum alpha for the semi-transparent ground belief/risk layer.",
+    )
     parser.add_argument("--threat-speed-case", choices=["slow", "medium", "fast"], default="fast")
     parser.add_argument("--max-threat-cycles", type=int, default=2)
     parser.add_argument("--pending-threat-delay-steps", type=int, default=12)
@@ -171,13 +181,27 @@ def _make_env(args: argparse.Namespace) -> BeliefCoverageEnv:
 def _snapshot(env: BeliefCoverageEnv, info: dict, step: int) -> FrameState:
     shared_track = info["shared_track_state"]
     interceptor = info["interceptor_state"]
+    tracking_drones = np.asarray(info["tracking_bias_drones"], dtype=np.int32).copy()
+    pending_watch_drones = np.asarray(info["pending_watchlist_drones"], dtype=np.int32).copy()
+    selected_in_home = np.asarray(info["selected_in_home"], dtype=np.int32).copy()
+    selected_in_assist = np.asarray(info["selected_in_assist"], dtype=np.int32).copy()
+    regimes = _drone_regimes(
+        tracking_drones=tracking_drones,
+        pending_watch_drones=pending_watch_drones,
+        selected_in_home=selected_in_home,
+        selected_in_assist=selected_in_assist,
+    )
     return FrameState(
         step=int(step),
         drone_xyz=env._drone_states[:, :3].copy(),  # Presentation renderer reads env state only.
         drone_yaw=env._drone_states[:, 9].copy(),
         selected_cells=np.asarray(info["selected_target_cells"], dtype=np.int32).copy(),
-        tracking_drones=np.asarray(info["tracking_bias_drones"], dtype=np.int32).copy(),
-        pending_watch_drones=np.asarray(info["pending_watchlist_drones"], dtype=np.int32).copy(),
+        selected_in_home=selected_in_home,
+        selected_in_assist=selected_in_assist,
+        tracking_drones=tracking_drones,
+        pending_watch_drones=pending_watch_drones,
+        drone_regimes=regimes,
+        belief_risk_scores=env.get_belief_risk_scores().copy(),
         active_threat_cells=np.asarray(info["active_threat_cells"], dtype=np.int32).copy(),
         pending_threat_cells=np.asarray(info["pending_threat_cells"], dtype=np.int32).copy(),
         threat_xy=np.asarray(info["threat_state"]["position_xy"], dtype=np.float64).copy(),
@@ -198,6 +222,28 @@ def _snapshot(env: BeliefCoverageEnv, info: dict, step: int) -> FrameState:
         home_fraction=float(np.mean(info["selected_in_home"])),
         tracking_fraction=float(np.mean(info["tracking_bias_drones"])),
     )
+
+
+def _drone_regimes(
+    *,
+    tracking_drones: np.ndarray,
+    pending_watch_drones: np.ndarray,
+    selected_in_home: np.ndarray,
+    selected_in_assist: np.ndarray,
+) -> tuple[str, ...]:
+    regimes: list[str] = []
+    for idx in range(int(tracking_drones.size)):
+        if int(tracking_drones[idx]):
+            regimes.append("threat_tracking")
+        elif int(pending_watch_drones[idx]):
+            regimes.append("pending_watch")
+        elif int(selected_in_assist[idx]):
+            regimes.append("focused_revisit")
+        elif int(selected_in_home[idx]):
+            regimes.append("routine_patrol")
+        else:
+            regimes.append("transit")
+    return tuple(regimes)
 
 
 def _rollout(args: argparse.Namespace) -> tuple[BeliefCoverageEnv, list[FrameState], dict]:
@@ -245,6 +291,47 @@ def _create_sphere_body(radius: float, rgba: tuple[float, float, float, float]) 
     visual = p.createVisualShape(p.GEOM_SPHERE, radius=radius, rgbaColor=rgba)
     collision = p.createCollisionShape(p.GEOM_SPHERE, radius=radius)
     return p.createMultiBody(baseMass=0.0, baseCollisionShapeIndex=collision, baseVisualShapeIndex=visual)
+
+
+def _risk_rgba(value: float, max_alpha: float) -> tuple[float, float, float, float]:
+    """Green -> amber -> red color ramp for the fused belief/risk layer."""
+    risk = float(np.clip(value, 0.0, 1.0))
+    if risk < 0.5:
+        t = risk / 0.5
+        r = 0.10 + 0.78 * t
+        g = 0.72 + 0.16 * t
+        b = 0.32 * (1.0 - t)
+    else:
+        t = (risk - 0.5) / 0.5
+        r = 0.88 + 0.10 * t
+        g = 0.88 * (1.0 - t) + 0.08 * t
+        b = 0.04
+    alpha = 0.10 + float(max_alpha) * risk
+    return (float(r), float(g), float(b), float(np.clip(alpha, 0.08, 0.72)))
+
+
+def _create_belief_layer(env: BeliefCoverageEnv, args: argparse.Namespace) -> list[int]:
+    """Create semi-transparent ground tiles for fused belief/risk."""
+    half = float(env.grid_resolution) * args.world_scale * 0.47
+    bodies: list[int] = []
+    for center in env.cell_centers_xy:
+        visual = p.createVisualShape(
+            p.GEOM_BOX,
+            halfExtents=[half, half, 0.008],
+            rgbaColor=_risk_rgba(0.0, args.belief_layer_alpha),
+        )
+        body = p.createMultiBody(baseMass=0.0, baseCollisionShapeIndex=-1, baseVisualShapeIndex=visual)
+        pos, quat = _body_at_xy(center, base=env.base_station, scale=args.world_scale, z=0.035)
+        p.resetBasePositionAndOrientation(body, pos, quat)
+        bodies.append(body)
+    return bodies
+
+
+def _update_belief_layer(tile_ids: list[int], frame: FrameState, args: argparse.Namespace) -> None:
+    if not tile_ids:
+        return
+    for body_id, risk in zip(tile_ids, frame.belief_risk_scores):
+        p.changeVisualShape(body_id, -1, rgbaColor=_risk_rgba(float(risk), args.belief_layer_alpha))
 
 
 def _load_drone_bodies(env: BeliefCoverageEnv, args: argparse.Namespace) -> list[int]:
@@ -373,6 +460,23 @@ def _overlay_text(image: np.ndarray, frame: FrameState) -> np.ndarray:
     if status:
         draw.rounded_rectangle((22, 160, 520, 205), radius=12, fill=(215, 68, 54, 205))
         draw.text((42, 170), " | ".join(status), fill=(255, 255, 255, 255), font=body_font)
+
+    panel_w = 360
+    x0 = pil.width - panel_w - 22
+    y0 = 18
+    y1 = y0 + 52 + 26 * len(frame.drone_regimes)
+    draw.rounded_rectangle((x0, y0, pil.width - 22, y1), radius=16, fill=(8, 16, 22, 188))
+    draw.text((x0 + 20, y0 + 14), "Drone regimes", fill=(255, 255, 255, 255), font=body_font)
+    for idx, regime in enumerate(frame.drone_regimes):
+        color = tuple(int(255 * c) for c in DRONE_COLORS[idx % len(DRONE_COLORS)][:3])
+        y = y0 + 48 + 26 * idx
+        draw.ellipse((x0 + 22, y + 5, x0 + 34, y + 17), fill=(*color, 255))
+        draw.text(
+            (x0 + 44, y),
+            f"Drone {idx + 1}: {regime}",
+            fill=(235, 245, 255, 255),
+            font=body_font,
+        )
     return np.asarray(pil)
 
 
@@ -387,6 +491,7 @@ def _render_video(env: BeliefCoverageEnv, frames: list[FrameState], args: argpar
         p.resetSimulation()
         p.setGravity(0, 0, -9.81)
         _add_static_scene(env, args)
+        belief_tiles = _create_belief_layer(env, args)
         drone_ids = _load_drone_bodies(env, args)
 
         cell_extent = float(env.grid_resolution) * args.world_scale * 0.46
@@ -401,6 +506,7 @@ def _render_video(env: BeliefCoverageEnv, frames: list[FrameState], args: argpar
         stride = max(1, int(args.frame_stride))
         with imageio.get_writer(out_path, fps=int(args.fps), codec="libx264", quality=8, macro_block_size=16) as writer:
             for frame in frames[::stride]:
+                _update_belief_layer(belief_tiles, frame, args)
                 for i, body_id in enumerate(drone_ids):
                     xy = frame.drone_xyz[i, :2]
                     pos, quat = _body_at_xy(
@@ -531,6 +637,7 @@ def _run_live_gui(env: BeliefCoverageEnv, frames: list[FrameState], args: argpar
         p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
         p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 1)
         _add_static_scene(env, args)
+        belief_tiles = _create_belief_layer(env, args)
         drone_ids = _load_drone_bodies(env, args)
 
         cell_extent = float(env.grid_resolution) * args.world_scale * 0.46
@@ -547,9 +654,10 @@ def _run_live_gui(env: BeliefCoverageEnv, frames: list[FrameState], args: argpar
         print("Legend: red=active threat, orange=pending threat, purple=EKF estimate, yellow=interceptor.")
         print("Close the PyBullet window to stop early.")
 
-        text1 = text2 = -1
+        text1 = text2 = regime_text = -1
         frames_shown = 0
         for frame in frames[:: max(1, int(args.frame_stride))]:
+            _update_belief_layer(belief_tiles, frame, args)
             for i, body_id in enumerate(drone_ids):
                 xy = frame.drone_xyz[i, :2]
                 pos, quat = _body_at_xy(
@@ -609,6 +717,16 @@ def _run_live_gui(env: BeliefCoverageEnv, frames: list[FrameState], args: argpar
                 textColorRGB=[1.0, 0.85, 0.35],
                 textSize=1.0,
                 replaceItemUniqueId=text2,
+            )
+            regime_lines = ["Drone regimes"] + [
+                f"D{idx + 1}: {regime}" for idx, regime in enumerate(frame.drone_regimes)
+            ]
+            regime_text = p.addUserDebugText(
+                "\n".join(regime_lines),
+                [4.15, -7.8, 4.6],
+                textColorRGB=[0.95, 1.0, 1.0],
+                textSize=0.92,
+                replaceItemUniqueId=regime_text,
             )
 
             if frame.threat_removed:
