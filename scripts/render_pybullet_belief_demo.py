@@ -14,6 +14,7 @@ import json
 import math
 import os
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -109,6 +110,23 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--max-threat-cycles", type=int, default=2)
     parser.add_argument("--pending-threat-delay-steps", type=int, default=12)
     parser.add_argument("--camera-preset", choices=["oblique", "top"], default="oblique")
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="Open a PyBullet GUI and play the final demo live instead of saving an MP4.",
+    )
+    parser.add_argument(
+        "--live-step-delay",
+        type=float,
+        default=0.04,
+        help="Wall-clock delay between live PyBullet frames; 0.04 is about 25 FPS.",
+    )
+    parser.add_argument(
+        "--hold-seconds",
+        type=float,
+        default=20.0,
+        help="Keep the PyBullet GUI open after the live demo finishes.",
+    )
     return parser.parse_args()
 
 
@@ -456,9 +474,188 @@ def _render_video(env: BeliefCoverageEnv, frames: list[FrameState], args: argpar
     }
 
 
+def _set_gui_camera(args: argparse.Namespace) -> None:
+    if args.camera_preset == "top":
+        p.resetDebugVisualizerCamera(
+            cameraDistance=17.5,
+            cameraYaw=0.0,
+            cameraPitch=-89.0,
+            cameraTargetPosition=[0.0, 0.0, 0.0],
+        )
+    else:
+        p.resetDebugVisualizerCamera(
+            cameraDistance=17.0,
+            cameraYaw=0.0,
+            cameraPitch=-52.0,
+            cameraTargetPosition=[0.0, 0.0, 0.0],
+        )
+
+
+def _status_text(frame: FrameState) -> tuple[str, str]:
+    line1 = (
+        f"Belief ISR demo | step {frame.step:03d} | "
+        f"eliminations {frame.threat_cycles_completed} | track conf {frame.track_confidence:.2f}"
+    )
+    tags = []
+    if frame.threat_confirmed:
+        tags.append("confirmed")
+    if frame.base_confirmed:
+        tags.append("base aware")
+    if frame.interceptor_active:
+        tags.append("interceptor active")
+    if frame.pending_available:
+        tags.append("pending threat")
+    if frame.pending_promoted:
+        tags.append("pending promoted")
+    if frame.threat_removed:
+        tags.append("threat removed")
+    if frame.mission_failed:
+        tags.append("MISSION FAIL")
+    line2 = (
+        f"home patrol {frame.home_fraction:.2f} | tracking {frame.tracking_fraction:.2f} | "
+        f"neglect {frame.neglect_pressure:.2f}"
+    )
+    if tags:
+        line2 += " | " + " | ".join(tags)
+    return line1, line2
+
+
+def _run_live_gui(env: BeliefCoverageEnv, frames: list[FrameState], args: argparse.Namespace) -> dict:
+    client = p.connect(p.GUI)
+    if client < 0:
+        raise RuntimeError("Could not start PyBullet GUI")
+
+    try:
+        p.resetSimulation()
+        p.setGravity(0, 0, -9.81)
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
+        p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 1)
+        _add_static_scene(env, args)
+        drone_ids = _load_drone_bodies(env, args)
+
+        cell_extent = float(env.grid_resolution) * args.world_scale * 0.46
+        active_boxes = [_create_box_body([cell_extent, cell_extent, 0.08], (0.95, 0.05, 0.05, 0.92)) for _ in range(4)]
+        pending_boxes = [_create_box_body([cell_extent, cell_extent, 0.055], (1.0, 0.56, 0.05, 0.78)) for _ in range(4)]
+        interceptor_body = _create_sphere_body(0.25, (1.0, 0.9, 0.05, 1.0))
+        track_body = _create_sphere_body(0.20, (0.70, 0.15, 1.0, 0.85))
+        target_body = _create_sphere_body(0.14, (0.05, 0.05, 0.05, 0.95))
+        _set_gui_camera(args)
+
+        print("=" * 72)
+        print("Live PyBullet belief-coverage demo")
+        print("=" * 72)
+        print("Legend: red=active threat, orange=pending threat, purple=EKF estimate, yellow=interceptor.")
+        print("Close the PyBullet window to stop early.")
+
+        text1 = text2 = -1
+        frames_shown = 0
+        for frame in frames[:: max(1, int(args.frame_stride))]:
+            for i, body_id in enumerate(drone_ids):
+                xy = frame.drone_xyz[i, :2]
+                pos, quat = _body_at_xy(
+                    xy,
+                    base=env.base_station,
+                    scale=args.world_scale,
+                    z=args.fixed_altitude_render,
+                    yaw=float(frame.drone_yaw[i]),
+                )
+                p.resetBasePositionAndOrientation(body_id, pos, quat)
+
+                if i == 0 and frame.selected_cells.size > 0:
+                    target_xy = env.cell_centers_xy[int(frame.selected_cells[i])]
+                    target_pos, target_quat = _body_at_xy(
+                        target_xy,
+                        base=env.base_station,
+                        scale=args.world_scale,
+                        z=0.16,
+                    )
+                    p.resetBasePositionAndOrientation(target_body, target_pos, target_quat)
+
+            for boxes, cells, z in [
+                (active_boxes, frame.active_threat_cells, 0.16),
+                (pending_boxes, frame.pending_threat_cells if frame.pending_available else np.zeros(0, dtype=np.int32), 0.12),
+            ]:
+                for j, body_id in enumerate(boxes):
+                    if j < int(cells.size):
+                        xy = env.cell_centers_xy[int(cells[j])]
+                        pos, quat = _body_at_xy(xy, base=env.base_station, scale=args.world_scale, z=z)
+                        p.resetBasePositionAndOrientation(body_id, pos, quat)
+                    else:
+                        _hide_body(body_id)
+
+            if frame.interceptor_active and np.all(np.isfinite(frame.interceptor_xy)):
+                pos, quat = _body_at_xy(frame.interceptor_xy, base=env.base_station, scale=args.world_scale, z=1.2)
+                p.resetBasePositionAndOrientation(interceptor_body, pos, quat)
+            else:
+                _hide_body(interceptor_body)
+
+            if np.all(np.isfinite(frame.track_xy)):
+                pos, quat = _body_at_xy(frame.track_xy, base=env.base_station, scale=args.world_scale, z=1.0)
+                p.resetBasePositionAndOrientation(track_body, pos, quat)
+            else:
+                _hide_body(track_body)
+
+            line1, line2 = _status_text(frame)
+            text1 = p.addUserDebugText(
+                line1,
+                [-7.7, -7.8, 4.6],
+                textColorRGB=[1.0, 1.0, 1.0],
+                textSize=1.1,
+                replaceItemUniqueId=text1,
+            )
+            text2 = p.addUserDebugText(
+                line2,
+                [-7.7, -7.8, 4.15],
+                textColorRGB=[1.0, 0.85, 0.35],
+                textSize=1.0,
+                replaceItemUniqueId=text2,
+            )
+
+            if frame.threat_removed:
+                print(f"step {frame.step:03d}: threat removed; eliminations={frame.threat_cycles_completed}")
+            if frame.pending_promoted:
+                print(f"step {frame.step:03d}: pending threat promoted")
+            if frame.mission_failed:
+                print(f"step {frame.step:03d}: mission failed")
+
+            p.stepSimulation()
+            frames_shown += 1
+            time.sleep(max(0.0, float(args.live_step_delay)))
+
+        hold_until = time.time() + max(0.0, float(args.hold_seconds))
+        while time.time() < hold_until and p.isConnected():
+            p.stepSimulation()
+            time.sleep(0.05)
+
+        final = frames[-1]
+        return {
+            "frames_shown": int(frames_shown),
+            "steps_simulated": int(final.step),
+            "threat_cycles_completed": int(final.threat_cycles_completed),
+            "mission_failed": bool(final.mission_failed),
+        }
+    finally:
+        if p.isConnected():
+            p.disconnect()
+
+
 def main() -> None:
     args = _parse_args()
     env, frames, final_info = _rollout(args)
+    if args.live:
+        try:
+            live_summary = _run_live_gui(env, frames, args)
+        finally:
+            env.close()
+        print("=" * 72)
+        print("Live demo finished")
+        print("=" * 72)
+        print(f"Frames shown          : {live_summary['frames_shown']}")
+        print(f"Steps simulated       : {live_summary['steps_simulated']}")
+        print(f"Threat eliminations   : {live_summary['threat_cycles_completed']}")
+        print(f"Mission failed        : {live_summary['mission_failed']}")
+        return
+
     try:
         render_summary = _render_video(env, frames, args)
     finally:
